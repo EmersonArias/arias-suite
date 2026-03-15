@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Daily overview</p>
+        <h2>Maintenance dashboard</h2>
+        <p class="muted">Track rooms, assign technicians, and keep open issues moving.</p>
+    </div>
+    <div class="hero-actions">
+        <a class="button button-primary" href="{{ url_for('create_issue') }}">Create Issue</a>
+        <a class="button" href="{{ url_for('issues') }}">View Issues</a>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Rooms</span>
+        <strong>{{ stats.rooms }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Technicians</span>
+        <strong>{{ stats.technicians }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Open Issues</span>
+        <strong>{{ stats.open_issues }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>Resolved Issues</span>
+        <strong>{{ stats.resolved_issues }}</strong>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="section-head">
+        <h3>Priority queue</h3>
+        <a class="button" href="{{ url_for('issues') }}">See all</a>
+    </div>
+    {% if open_issues %}
+        <div class="card-grid">
+            {% for issue in open_issues %}
+                <article class="issue-card">
+                    <p class="badge priority-{{ issue.priority|lower }}">{{ issue.priority }}</p>
+                    <h4>Room {{ issue.room_number }}</h4>
+                    <p>{{ issue.description }}</p>
+                    <p class="muted">Status: {{ issue.status }}</p>
+                    <p class="muted">Technician: {{ issue.technician_name or "Unassigned" }}</p>
+                    <a class="button button-primary" href="{{ url_for('assign_technician', issue_id=issue.id) }}">Assign</a>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty">No open issues right now.</p>
+    {% endif %}
+</section>
+{% endblock %}

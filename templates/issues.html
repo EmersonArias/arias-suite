@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section-head">
+    <div>
+        <h2>Issues</h2>
+        <p class="muted">Monitor open work and resolved maintenance tasks.</p>
+    </div>
+    <a class="button button-primary" href="{{ url_for('create_issue') }}">Create Issue</a>
+</section>
+
+<section class="panel">
+    <div class="section-head">
+        <h3>Open Issues</h3>
+    </div>
+    {% if open_issues %}
+        <div class="card-grid">
+            {% for issue in open_issues %}
+                <article class="issue-card">
+                    <div class="issue-meta">
+                        <span class="badge priority-{{ issue.priority|lower }}">{{ issue.priority }}</span>
+                        <span class="badge neutral">{{ issue.status }}</span>
+                    </div>
+                    <h4>Room {{ issue.room_number }}</h4>
+                    <p>{{ issue.description }}</p>
+                    <p class="muted">Technician: {{ issue.technician_name or "Unassigned" }}</p>
+                    <div class="action-row">
+                        <a class="button button-primary" href="{{ url_for('assign_technician', issue_id=issue.id) }}">Assign Technician</a>
+                        <form method="post" action="{{ url_for('resolve_issue', issue_id=issue.id) }}">
+                            <button class="button" type="submit">Mark Resolved</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty">No open issues.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="section-head">
+        <h3>Resolved Issues</h3>
+    </div>
+    {% if resolved_issues %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Room</th>
+                        <th>Description</th>
+                        <th>Priority</th>
+                        <th>Technician</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for issue in resolved_issues %}
+                        <tr>
+                            <td>{{ issue.room_number }}</td>
+                            <td>{{ issue.description }}</td>
+                            <td>{{ issue.priority }}</td>
+                            <td>{{ issue.technician_name or "Unassigned" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty">No resolved issues yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

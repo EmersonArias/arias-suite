@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-grid">
+    <section class="panel">
+        <div class="section-head">
+            <h2>Rooms</h2>
+        </div>
+        {% if rooms %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Room</th>
+                            <th>Floor</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for room in rooms %}
+                            <tr>
+                                <td>{{ room.number }}</td>
+                                <td>{{ room.floor }}</td>
+                                <td>{{ room.status }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty">No rooms added yet.</p>
+        {% endif %}
+    </section>
+
+    <section class="panel form-panel">
+        <div class="section-head">
+            <h2>Add Room</h2>
+        </div>
+        <form method="post" class="form-stack">
+            <label>
+                <span>Room Number</span>
+                <input type="text" name="number" placeholder="101" required>
+            </label>
+            <label>
+                <span>Floor</span>
+                <input type="text" name="floor" placeholder="1" required>
+            </label>
+            <button class="button button-primary button-block" type="submit">Add Room</button>
+        </form>
+    </section>
+</section>
+{% endblock %}

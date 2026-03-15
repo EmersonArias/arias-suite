@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel narrow-panel">
+    <div class="section-head">
+        <div>
+            <h2>Create Issue</h2>
+            <p class="muted">Log a new maintenance request for a room.</p>
+        </div>
+    </div>
+
+    <form method="post" class="form-stack">
+        <label>
+            <span>Room</span>
+            <select name="room_id" required>
+                <option value="">Select a room</option>
+                {% for room in rooms %}
+                    <option value="{{ room.id }}">Room {{ room.number }} - Floor {{ room.floor }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Description</span>
+            <textarea name="description" rows="5" placeholder="Air conditioning not cooling" required></textarea>
+        </label>
+        <label>
+            <span>Priority</span>
+            <select name="priority" required>
+                <option value="">Select priority</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+        </label>
+        <button class="button button-primary button-block" type="submit">Report Issue</button>
+    </form>
+</section>
+{% endblock %}

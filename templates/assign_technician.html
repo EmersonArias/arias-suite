@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel narrow-panel">
+    <div class="section-head">
+        <div>
+            <h2>Assign Technician</h2>
+            <p class="muted">Issue #{{ issue.id }} for Room {{ issue.room_number }}</p>
+        </div>
+    </div>
+
+    <article class="issue-card issue-card-inline">
+        <span class="badge priority-{{ issue.priority|lower }}">{{ issue.priority }}</span>
+        <p>{{ issue.description }}</p>
+        <p class="muted">Current technician: {{ issue.technician_name or "Unassigned" }}</p>
+    </article>
+
+    <form method="post" class="form-stack">
+        <label>
+            <span>Technician</span>
+            <select name="technician_id" required>
+                <option value="">Select technician</option>
+                {% for technician in technicians %}
+                    <option value="{{ technician.id }}">
+                        {{ technician.name }} - {{ technician.specialty }} - {{ "Available" if technician.available else "Busy" }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <button class="button button-primary button-block" type="submit">Assign Technician</button>
+    </form>
+</section>
+{% endblock %}
