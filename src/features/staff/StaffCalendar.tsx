@@ -271,7 +271,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
     </div>}
     <div className="mt-2 border-t border-slate-100 pt-1.5">
       {visiblePeople.length > 1 && <p className="mb-1 text-[9px] leading-3 text-slate-500">
-        Orden (de arriba abajo): {visiblePeople.map((person, index) => (index + 1) + ' ' + person.display_name).join(' · ')}
+        Orden de las casillas: {visiblePeople.map((person, index) => (index + 1) + ' ' + person.display_name).join(' · ')}
       </p>}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
         {legend.map(item => <span key={item.state} className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] leading-3 text-slate-600">
