@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   addDays, dateISO, fromISO, isoWeek, mondayOf, stateView,
+  isVacationState, vacationCode, vacationStageLabel, vacationStage, vacationTone,
   type StaffDay, type StaffOperator,
 } from './staffModel'
 
@@ -40,6 +41,10 @@ function dayKind(entry?: StaffDay) {
   if (!entry) return 'UNASSIGNED'
   return entry.state
 }
+function entryTone(entry?:StaffDay) {
+  if (!entry) return stateView('UNASSIGNED').tone
+  return isVacationState(entry.state) ? vacationTone(entry) : stateView(entry.state).tone
+}
 
 // Show the actual assigned hours for work shifts; other states retain one-letter codes.
 function compactShiftHours(entry: StaffDay) {
@@ -70,6 +75,7 @@ function recoveryRef(entry: StaffDay) {
 function dayCode(entry?: StaffDay) {
   if (!entry) return '–'
   if (entry.state === 'SHIFT') return compactShiftHours(entry)
+  if (isVacationState(entry.state)) return vacationCode(entry)
   if (entry.state === 'PUBLIC_HOLIDAY') return holidayRef(entry) ?? 'F'
   if (entry.state === 'COMP_REST') return recoveryRef(entry) ?? 'R'
   const codes: Record<string, string> = {
@@ -98,8 +104,11 @@ function dayShort(entry?: StaffDay, compact = false) {
     return start + '–' + end
   }
   if (entry.state === 'REST') return compact ? 'D' : 'Descanso'
-  if (entry.state === 'VACATION') return compact ? 'V' : 'Vacaciones'
-  if (entry.state === 'VACATION_PREVIOUS') return compact ? 'VA' : 'Vac. anteriores'
+  if (isVacationState(entry.state)) {
+    if (compact) return vacationCode(entry)
+    return (entry.state === 'VACATION_PREVIOUS' ? 'Vacaciones anteriores' : 'Vacaciones') +
+      ' · ' + vacationStageLabel(vacationStage(entry))
+  }
   if (entry.state === 'MEDICAL_LEAVE') return compact ? 'B' : 'Baja'
   if (entry.state === 'COMP_REST') return compact ? dayCode(entry) : 'Recuperación de horas' + (entry.source_code ? ' (' + entry.source_code + ')' : '')
   if (entry.state === 'PUBLIC_HOLIDAY') return compact ? dayCode(entry) : 'Festivo disfrutado' + (holidayRef(entry) ? ' (' + holidayRef(entry) + ')' : '')
@@ -113,7 +122,7 @@ function dayShort(entry?: StaffDay, compact = false) {
 const legend: { state: string; code: string; text: string }[] = [
   { state: 'SHIFT', code: '9–19', text: 'Horario' },
   { state: 'REST', code: 'D', text: 'Descanso' },
-  { state: 'VACATION', code: 'V', text: 'Vacaciones' },
+  { state: 'VACATION', code: 'V', text: 'Programadas' },
   { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
   { state: 'PUBLIC_HOLIDAY', code: '15/08', text: 'Festivo disfrutado' },
@@ -200,7 +209,7 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
                 aria-label={person.display_name+', '+day+': '+dayShort(entry)}
                 className={'flex min-h-6 min-w-0 items-center justify-center overflow-hidden rounded-sm px-px text-center font-bold tracking-tighter hover:ring-1 hover:ring-sky-500 '+
                   (mini?'text-[8px] leading-3':'text-[9px] leading-3 sm:min-h-8 sm:text-[11px]')+
-                  ' '+stateView(dayKind(entry)).tone}>
+                  ' '+entryTone(entry)}>
                 <span className="block max-w-full truncate">{dayCode(entry)}</span>
               </button>
           })}
@@ -265,8 +274,8 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
         return <button key={person.id} type="button" onClick={() => onEditDay(person.id, focusDate)}
           className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border border-slate-100 px-2 py-1.5 text-left hover:bg-slate-50">
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{person.display_name}</span>
-          <span className={'min-w-[112px] max-w-[60%] rounded-md px-2 py-2 text-center text-xs font-semibold ' + stateView(dayKind(entry)).tone}>
-            {dayShort(entry)}{entry?.actual_confirmed ? ' ✓' : ''}
+          <span className={'min-w-[112px] max-w-[60%] rounded-md px-2 py-2 text-center text-xs font-semibold ' + entryTone(entry)}>
+            {dayShort(entry)}{entry?.state==='SHIFT' && entry.actual_confirmed ? ' ✓' : ''}
           </span>
         </button>
       })}
@@ -281,6 +290,12 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
     </div>}
     <div className="mt-2 border-t border-slate-100 pt-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
+        <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] text-slate-600">
+          <span className="rounded-sm bg-emerald-600 px-0.5 font-bold text-white">V</span> Disfrutadas
+        </span>
+        <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] text-slate-600">
+          <span className="rounded-sm bg-emerald-100 px-0.5 font-bold text-emerald-950 ring-1 ring-inset ring-amber-500">V?</span> Pasadas por confirmar
+        </span>
         <span className="inline-flex items-center gap-1 text-[9px] text-slate-600">
           <span className="h-3 w-3 rounded-sm bg-blue-700" aria-hidden="true"/>Cabecera azul: festivo del calendario
         </span>
