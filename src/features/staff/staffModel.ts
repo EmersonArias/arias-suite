@@ -61,7 +61,8 @@ export function vacationTone(day: StaffDay, today = dateISO(new Date())) {
     'bg-emerald-200 text-emerald-950';
 }
 export function vacationCode(day: StaffDay, today = dateISO(new Date())) {
-  return vacationStage(day,today) === 'UNVERIFIED' ? 'V?' : 'V';
+  const prefix = day.state === 'VACATION_PREVIOUS' ? 'A' : 'V';
+  return prefix + (vacationStage(day,today) === 'UNVERIFIED' ? '?' : '');
 }
 
 export function dateISO(date: Date) {
