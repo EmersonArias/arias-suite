@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Printer, RefreshCw, UserRoundCog } from 'lucide-react'
+import { CalendarDays, Plus, Printer, RefreshCw, UserRoundCog } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
-  addDays, dateISO, fromISO, hours, isoWeek, minutesInShift, mondayOf, staffStateOptions,
+  dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions,
   stateView, weekendHistory, type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
 import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
+import StaffCalendar from '../StaffCalendar'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS'
 type DayEditor = {
@@ -25,6 +26,19 @@ const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
 const baseInput='w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-sky-600 sm:px-3 sm:py-2'
 const num = (v:number)=>v.toLocaleString('es-ES')
 function asDisplayDate(iso:string) {return fromISO(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
+function normalizeDigitalTime(value: string) {
+  const clean = value.trim()
+  const digits = clean.replace(/[^0-9]/g, '')
+  if (/^\d{3,4}$/.test(digits)) {
+    return digits.padStart(4, '0').slice(0, 2) + ':' + digits.padStart(4, '0').slice(2)
+  }
+  if (/^\d{1,2}:\d{1,2}$/.test(clean)) {
+    const [h, m] = clean.split(':')
+    return h.padStart(2, '0') + ':' + m.padStart(2, '0')
+  }
+  return clean
+}
+function validDigitalTime(value: string) { return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) }
 function getWeekendSummary(days:StaffDay[],operatorId:string,year:number) {
   const weeks=weekendHistory(days,year).get(operatorId) ?? new Map()
   return { weeks:[...weeks.entries()].sort((a,b)=>a[0].localeCompare(b[0])),
@@ -58,9 +72,8 @@ export default function StaffSchedulePage() {
   const {hotel,isPlatformAdmin}=useHotelScope()
   const {session}=useAuth()
   const [year,setYear]=useState(new Date().getFullYear())
-  const [weekStart,setWeekStart]=useState(mondayOf(dateISO(new Date())))
+  const [calendarFilter,setCalendarFilter]=useState('ALL')
   const [tab,setTab]=useState<PageTab>('CUADRANTE')
-  const [mobileDayIndex,setMobileDayIndex]=useState((new Date().getDay()+6)%7)
   const [showOvertimeForm,setShowOvertimeForm]=useState(false)
   const [allowed,setAllowed]=useState(false)
   const [checking,setChecking]=useState(true)
@@ -74,6 +87,7 @@ export default function StaffSchedulePage() {
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [selectedId,setSelectedId]=useState('')
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
+  const [dayEditorError,setDayEditorError]=useState('')
   const [showOperatorForm,setShowOperatorForm]=useState(false)
   const [editingOperatorId,setEditingOperatorId]=useState<string|null>(null)
   const [name,setName]=useState('')
@@ -132,7 +146,6 @@ export default function StaffSchedulePage() {
   })),[operators,days,overtime,year])
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
-  const dates=Array.from({length:7},(_,i)=>addDays(weekStart,i))
   const selectedVacationDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && (d.state==='VACATION'||d.state==='VACATION_PREVIOUS'))
   const selectedVacationPeriods=groupConsecutiveDays(selectedVacationDays)
@@ -153,6 +166,7 @@ export default function StaffSchedulePage() {
   },[selectedId,vacations,notes])
 
   function openDay(operatorId:string,workDate:string){
+    setDayEditorError('')
     const row=byDay.get(operatorId+'|'+workDate)
     setDayEditor({
       operator_id:operatorId,work_date:workDate,state:row?.state??'SHIFT',
@@ -164,12 +178,16 @@ export default function StaffSchedulePage() {
   async function saveDay(){
     if(!dayEditor||!hotel?.id)return
     const isShift=dayEditor.state==='SHIFT'
+    if(isShift && (!validDigitalTime(dayEditor.start_time)||!validDigitalTime(dayEditor.end_time))) {
+      setDayEditorError('Indica las horas con formato digital HH:MM (por ejemplo, 08:00).')
+      return
+    }
     const minutes=isShift?minutesInShift(dayEditor.start_time,dayEditor.end_time):null
     const actual=dayEditor.actual_hours.trim()===''?null:Math.round(Number(dayEditor.actual_hours)*60)
     if((isShift && !minutes)|| (actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
-      setError('Revisa las horas de entrada, salida o las horas efectivas.');return
+      setDayEditorError('Revisa las horas de entrada, salida o las horas efectivas.');return
     }
-    setBusy(true);setError('')
+    setBusy(true);setError('');setDayEditorError('')
     const existing=byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
@@ -180,7 +198,7 @@ export default function StaffSchedulePage() {
       source_kind:'MANUAL',source_code:existing?.source_code??null,
       changed_by:session?.user.id??null,updated_at:new Date().toISOString(),
     },{onConflict:'operator_id,work_date'})
-    if(result.error)setError(result.error.message)
+    if(result.error)setDayEditorError(result.error.message)
     else{setDayEditor(null);setSuccess('Jornada guardada.');await reload()}
     setBusy(false)
   }
@@ -277,73 +295,42 @@ export default function StaffSchedulePage() {
       {success&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" onClick={()=>setSuccess('')}>{success}</div>}
       <section className="flex items-end gap-1.5 rounded-xl bg-white p-2 shadow-sm sm:flex-wrap sm:gap-3 sm:rounded-2xl sm:p-4">
         <label className="w-[76px] shrink-0 text-[10px] font-semibold text-slate-600 sm:w-24 sm:text-xs">Año
-          <select value={year} onChange={e=>{const y=Number(e.target.value);setYear(y);setWeekStart(mondayOf(String(y)+'-01-05'))}} className={baseInput+' mt-0.5 sm:mt-1'}>
-            {[2025,2026,2027,2028].map(v=><option key={v} value={v}>{v}</option>)}
+          <select value={year} onChange={e=>setYear(Number(e.target.value))} className={baseInput+' mt-0.5 sm:mt-1'}>
+            {Array.from({length:9},(_,i)=>year-4+i).map(v=><option key={v} value={v}>{v}</option>)}
           </select>
         </label>
         <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
-          <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className={baseInput+' mt-0.5 sm:mt-1'}>
+          <select value={tab==='CUADRANTE'?calendarFilter:selectedId}
+            onChange={e=>{
+              if(tab==='CUADRANTE'){
+                setCalendarFilter(e.target.value)
+                if(e.target.value!=='ALL') setSelectedId(e.target.value)
+              } else {
+                setSelectedId(e.target.value)
+              }
+            }}
+            className={baseInput+' mt-0.5 sm:mt-1'}>
+            {tab==='CUADRANTE'&&<option value="ALL">Todos los operarios</option>}
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
           <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
 
-      {tab==='CUADRANTE'&&<section className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="min-w-0"><h2 className="text-sm font-bold sm:text-base">Semana {isoWeek(weekStart)} <span className="font-normal text-slate-500">· {asDisplayDate(weekStart).slice(0,5)}–{asDisplayDate(addDays(weekStart,6)).slice(0,5)}</span></h2></div>
-          <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
-            <input type="date" aria-label="Ir a una fecha" title="Ir a una fecha" value={weekStart}
-              className="min-h-9 max-w-[120px] rounded-lg border bg-white px-1 text-[11px] sm:max-w-none sm:px-2 sm:text-xs"
-              onChange={e=>{if(e.target.value){setWeekStart(mondayOf(e.target.value));setYear(Number(e.target.value.slice(0,4)))}}}/>
-            <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana anterior" onClick={()=>setWeekStart(addDays(weekStart,-7))}><ChevronLeft size={17}/></button>
-            <button className="min-h-9 rounded-lg border px-2 text-xs" onClick={()=>{setWeekStart(mondayOf(dateISO(new Date())));setMobileDayIndex((new Date().getDay()+6)%7)}}>Hoy</button>
-            <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana siguiente" onClick={()=>setWeekStart(addDays(weekStart,7))}><ChevronRight size={17}/></button>
-          </div>
-        </div>
-        <div className="md:hidden">
-          <div className="grid grid-cols-7 gap-1" role="group" aria-label="Elegir día de la semana">
-            {dates.map((d,i)=><button key={d} onClick={()=>setMobileDayIndex(i)} aria-pressed={mobileDayIndex===i}
-              className={'flex min-h-11 flex-col items-center justify-center rounded-lg text-[11px] leading-tight '+(mobileDayIndex===i?'bg-slate-900 font-bold text-white':'bg-slate-100 text-slate-700')}>
-              <span>{['L','M','X','J','V','S','D'][i]}</span><span className="mt-0.5">{fromISO(d).getDate()}</span>
-            </button>)}
-          </div>
-          <div className="mt-2 divide-y divide-slate-100">
-            {operators.filter(o=>o.active).map(o=>{
-              const d=dates[mobileDayIndex];const entry=byDay.get(o.id+'|'+d);
-              const view=stateView(entry?.state??'UNASSIGNED');
-              const label=entry?.state==='SHIFT'? (entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—') :
-                entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':view.label;
-              return <button key={o.id} onClick={()=>openDay(o.id,d)} className="flex min-h-12 w-full items-center justify-between gap-2 py-1.5 text-left">
-                <span className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">{o.display_name}</span>
-                <span className={'flex min-w-[116px] max-w-[62%] items-center justify-center rounded-md px-2 py-2 text-center text-xs font-semibold '+view.tone}>{label}{entry?.actual_confirmed?' ✓':''}</span>
-              </button>
-            })}
-          </div>
-        </div>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[840px] border-collapse text-xs">
-            <thead><tr className="bg-slate-50 text-left text-xs text-slate-500"><th className="sticky left-0 bg-slate-50 p-2">Operario</th>
-              {dates.map(d=><th key={d} className="p-1 text-center">{fromISO(d).toLocaleDateString('es-ES',{weekday:'short'})}<br/>{asDisplayDate(d).slice(0,5)}</th>)}</tr></thead>
-            <tbody>{operators.filter(o=>o.active).map(o=><tr key={o.id} className="border-t">
-              <td className="sticky left-0 bg-white p-2 font-semibold">{o.display_name}</td>
-              {dates.map(d=>{const entry=byDay.get(o.id+'|'+d);const state=stateView(entry?.state??'UNASSIGNED');
-                return <td key={d} className="p-1">
-                  <button className={'min-h-10 w-full rounded-md px-1 py-1.5 text-center text-xs font-semibold hover:ring-2 hover:ring-sky-400 '+state.tone}
-                    onClick={()=>openDay(o.id,d)} title={'Editar '+o.display_name+' · '+asDisplayDate(d)}>
-                    <span className="block">{entry?.state==='SHIFT'?(entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—'):entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':state.label}</span>
-                    {entry?.actual_confirmed&&<span className="mt-1 block text-[10px]">✓ Real</span>}
-                  </button>
-                </td>})}</tr>)}</tbody>
-          </table>
-        </div>
-      </section>}
+      {tab==='CUADRANTE'&&<StaffCalendar
+        year={year}
+        operators={operators}
+        days={days}
+        operatorId={calendarFilter}
+        onYearChange={setYear}
+        onEditDay={openDay}
+      />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
@@ -540,8 +527,20 @@ export default function StaffSchedulePage() {
           <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
             <label className="block text-xs font-medium">Estado<select className={baseInput+' mt-1'} value={dayEditor.state} onChange={e=>setDayEditor({...dayEditor,state:e.target.value})}>{staffStateOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
             {dayEditor.state==='SHIFT'&&<div className="grid grid-cols-2 gap-3">
-              <label className="text-xs">Entrada<input type="time" className={baseInput+' mt-1'} value={dayEditor.start_time} onChange={e=>setDayEditor({...dayEditor,start_time:e.target.value})}/></label>
-              <label className="text-xs">Salida<input type="time" className={baseInput+' mt-1'} value={dayEditor.end_time} onChange={e=>setDayEditor({...dayEditor,end_time:e.target.value})}/></label>
+              <label className="text-xs font-medium">Entrada · HH:MM
+                <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
+                  placeholder="08:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
+                  value={dayEditor.start_time}
+                  onChange={e=>setDayEditor({...dayEditor,start_time:e.target.value})}
+                  onBlur={()=>setDayEditor(prev=>prev?{...prev,start_time:normalizeDigitalTime(prev.start_time)}:prev)}/>
+              </label>
+              <label className="text-xs font-medium">Salida · HH:MM
+                <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
+                  placeholder="16:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
+                  value={dayEditor.end_time}
+                  onChange={e=>setDayEditor({...dayEditor,end_time:e.target.value})}
+                  onBlur={()=>setDayEditor(prev=>prev?{...prev,end_time:normalizeDigitalTime(prev.end_time)}:prev)}/>
+              </label>
             </div>}
             <label className="block text-xs">Horas efectivamente verificadas<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas realmente trabajadas</label>
@@ -549,6 +548,7 @@ export default function StaffSchedulePage() {
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
           </div>
+          {dayEditorError&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{dayEditorError}</p>}
           <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
         </section>
       </div>}
