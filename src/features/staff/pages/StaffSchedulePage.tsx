@@ -75,7 +75,7 @@ export default function StaffSchedulePage() {
   const {session}=useAuth()
   const [year,setYear]=useState(new Date().getFullYear())
   const [calendarFilter,setCalendarFilter]=useState('ALL')
-  const [tab,setTab]=useState<PageTab>('CUADRANTE')
+  const [tab,setTab]=useState<PageTab>(()=>new URLSearchParams(window.location.search).get('tab')==='reportes'?'REPORTES':'CUADRANTE')
   const [showOvertimeForm,setShowOvertimeForm]=useState(false)
   const [allowed,setAllowed]=useState(false)
   const [checking,setChecking]=useState(true)
