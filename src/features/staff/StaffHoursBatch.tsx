@@ -72,7 +72,7 @@ export default function StaffHoursBatch({
     setSelectedIds(prev=>checked?[...new Set([...prev,id])]:prev.filter(v=>v!==id))
   }
   function toggleAll(){
-    const ids=pending.map(d=>d.id)
+    const ids=rows.filter(d=>!d.actual_confirmed).map(d=>d.id)
     setSelectedIds(prev=>ids.length>0&&ids.every(id=>prev.includes(id))?
       prev.filter(id=>!ids.includes(id)):[...new Set([...prev,...ids])])
   }
@@ -181,9 +181,10 @@ export default function StaffHoursBatch({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-bold">{selected.length} turnos seleccionados</div>
         <div className="flex gap-1.5">
-          <button type="button" disabled={!pending.length||saving} onClick={toggleAll}
+          <button type="button" disabled={!rows.some(d=>!d.actual_confirmed)||saving} onClick={toggleAll}
             className="min-h-9 rounded-lg border px-2 text-[11px] font-semibold disabled:opacity-40">
-            {pending.length&&pending.every(d=>selectedIds.includes(d.id))?'Deseleccionar pendientes':'Seleccionar sin verificar'}
+            {rows.some(d=>!d.actual_confirmed)&&rows.filter(d=>!d.actual_confirmed).every(d=>selectedIds.includes(d.id))
+              ?'Deseleccionar pendientes':'Seleccionar sin verificar'}
           </button>
           <button type="button" disabled={!selectedIds.length||saving} onClick={()=>setSelectedIds([])}
             className="min-h-9 rounded-lg border px-2 text-[11px] disabled:opacity-40">Limpiar</button>
