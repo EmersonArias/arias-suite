@@ -52,8 +52,16 @@ function compactShiftHours(entry: StaffDay) {
   return format(entry.start_time) + '–' + format(entry.end_time)
 }
 function holidayRef(entry: StaffDay) {
-  const match = entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)
-  return match ? match[3] + '/' + match[2] : null
+  const source = entry.source_code ?? ''
+  const match = source.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (match) return match[3] + '/' + match[2]
+  const direct = source.match(/^(\d{2})-(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/i)
+  if (direct) {
+    const months: Record<string,string> = {ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',
+      jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12'}
+    return direct[1] + '/' + months[direct[2].toLowerCase()]
+  }
+  return null
 }
 function recoveryRef(entry: StaffDay) {
   const match = entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
