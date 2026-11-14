@@ -15,18 +15,16 @@ import {
 import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
-import StaffHoursBatch from '../StaffHoursBatch'
 
-type PageTab = 'CUADRANTE' | 'ANUAL' | 'VERIFICACION' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
-  actual_hours:string; actual_confirmed:boolean; justification:string;
+  justification:string;
   vacation_taken_confirmed:boolean; vacation_origin_year:string;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
-  {id:'VERIFICACION',label:'Verificar horas',mobile:'Verificar'},
   {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
@@ -60,8 +58,7 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
   const money=(kind:string)=>extra.filter(e=>e.entry_type===kind).reduce((t,e)=>t+e.minutes,0)
   return {
     planned:own.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0),
-    worked:own.filter(d=>d.actual_confirmed).reduce((t,d)=>t+(d.actual_minutes??0),0),
-    shiftsConfirmed:own.filter(d=>d.actual_confirmed).length,
+    shifts:own.filter(d=>d.state==='SHIFT').length,
     vacation:days.filter(d=>d.operator_id===operatorId && isVacationState(d.state)
       && vacationOriginYear(d)===year).length,
     vacationPrevious:own.filter(d=>isVacationState(d.state) &&
@@ -260,8 +257,7 @@ export default function StaffSchedulePage() {
     setDayEditor({
       operator_id:operatorId,work_date:workDate,state:row?.state??'SHIFT',
       start_time:row?.start_time?.slice(0,5)??'08:00',end_time:row?.end_time?.slice(0,5)??'16:00',
-      actual_hours:row?.actual_minutes==null?'':String(row.actual_minutes/60),
-      actual_confirmed:row?.actual_confirmed??false,justification:row?.justification??'UNKNOWN',
+      justification:row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
       vacation_origin_year:row?.vacation_origin_year==null
         ? (row?.state==='VACATION_PREVIOUS'?'':workDate.slice(0,4))
@@ -292,9 +288,8 @@ export default function StaffSchedulePage() {
     const vacationState=dayEditor.state==='VACATION' && vacationOrigin!==null &&
       vacationOrigin<calendarYear ? 'VACATION_PREVIOUS' : dayEditor.state
     const minutes=isShift?minutesInShift(start,end):null
-    const actual=dayEditor.actual_hours.trim()===''?null:Math.round(Number(dayEditor.actual_hours)*60)
-    if((isShift && !minutes)|| (isShift && actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
-      setDayEditorError('Revisa las horas de entrada, salida o las horas efectivas.');return
+    if(isShift && !minutes){
+      setDayEditorError('Revisa las horas de entrada y salida del turno.');return
     }
     setBusy(true);setError('');setDayEditorError('')
     const existing=byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)
@@ -308,8 +303,10 @@ export default function StaffSchedulePage() {
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
       state:vacationState,start_time:isShift?start:null,end_time:isShift?end:null,
-      planned_minutes:minutes,actual_minutes:isShift?actual:null,
-      actual_confirmed:isShift&&actual!==null&&dayEditor.actual_confirmed,
+      planned_minutes:minutes,
+      // Al editar la planificación, conservar registros reales ya confirmados.
+      actual_minutes:isShift?(existing?.actual_minutes??null):null,
+      actual_confirmed:isShift?(existing?.actual_confirmed??false):false,
       justification:dayEditor.justification,
       source_kind:'MANUAL',source_code:existing?.source_code??null,
       vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
@@ -475,9 +472,9 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
-          <select value={tab==='CUADRANTE'||tab==='VERIFICACION'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
+          <select value={tab==='CUADRANTE'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
             onChange={e=>{
-              if(tab==='CUADRANTE'||tab==='VERIFICACION'){
+              if(tab==='CUADRANTE'){
                 setCalendarFilter(e.target.value)
                 if(e.target.value!=='ALL') setSelectedId(e.target.value)
               } else if(tab==='VACACIONES'){
@@ -488,13 +485,13 @@ export default function StaffSchedulePage() {
               }
             }}
             className={baseInput+' mt-0.5 sm:mt-1'}>
-            {(tab==='CUADRANTE'||tab==='VERIFICACION'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
+            {(tab==='CUADRANTE'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
           <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&((tab!=='CUADRANTE'&&tab!=='VERIFICACION')||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
@@ -506,17 +503,6 @@ export default function StaffSchedulePage() {
         hotelName={hotel.name??'Hotel'}
         operators={operators}
         initialYear={year}
-      />}
-
-      {tab==='VERIFICACION'&&hotel?.id&&<StaffHoursBatch
-        key={year}
-        hotelId={hotel.id}
-        year={year}
-        operatorId={calendarFilter}
-        operators={operators}
-        days={days}
-        changedBy={session?.user.id??null}
-        reload={reload}
       />}
 
       {tab==='CUADRANTE'&&<StaffCalendar
@@ -533,7 +519,7 @@ export default function StaffSchedulePage() {
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
             ['Operarios activos',String(operators.filter(o=>o.active).length)],
-            ['Jornadas verificadas',String(summary.reduce((v,s)=>v+s.shiftsConfirmed,0))],
+            ['Turnos previstos',String(summary.reduce((v,s)=>v+s.shifts,0))],
             ['Fines de semana previstos',String(summary.reduce((v,s)=>v+s.total,0))],
           ].map(([label,value])=><div key={label} className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</p><p className="mt-0.5 text-lg font-bold sm:mt-1 sm:text-2xl">{value}</p></div>)}
         </div>
@@ -541,7 +527,7 @@ export default function StaffSchedulePage() {
           {summary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
             <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
-              {[['Previstas',hours(s.planned)],['Reales',hours(s.worked)],['F. semana',String(s.total)],
+              {[['Previstas',hours(s.planned)],['Turnos',String(s.shifts)],['F. semana',String(s.total)],
               ['Vacaciones',s.vacation+' d'],['Baja',s.sick+' d'],['H. extra',hours(s.cumulativeBalance)]].map(([label,value])=>
                 label==='Previstas'
                 ? <button type="button" key={label} onClick={()=>setHoursDetailOperatorId(s.operator.id)}
@@ -556,14 +542,14 @@ export default function StaffSchedulePage() {
           </div>)}
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
-          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Turnos previstos</th><th>Horas efectivas verificadas</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
+          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                 className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
                 {hours(s.planned)}
-              </button></td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
+              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
           </tbody></table>
         </div>
       </section>}
@@ -575,8 +561,8 @@ export default function StaffSchedulePage() {
             <span className="min-w-0 truncate text-sm font-semibold">{s.operator.display_name}</span>
             <span className="shrink-0 text-sm font-bold">{num(s.total)} <span className="text-xs font-normal text-slate-500">sem.</span> <span className="text-slate-400">⌄</span></span>
           </summary>
-          <div className="mt-1 text-[11px] text-slate-500">{s.full} completos · {s.verified} verificados</div>
-          <div className="mt-1 max-h-56 divide-y overflow-y-auto">{s.weeks.map(([m,w])=><p key={m} className="py-1 text-xs">S{isoWeek(m)} · {asDisplayDate(m)} · {w.saturday?'Sáb':''}{w.saturday&&w.sunday?' + ':''}{w.sunday?'Dom':''}{w.confirmed?' ✓':''}</p>)}</div>
+          <div className="mt-1 text-[11px] text-slate-500">{s.full} fines de semana completos</div>
+          <div className="mt-1 max-h-56 divide-y overflow-y-auto">{s.weeks.map(([m,w])=><p key={m} className="py-1 text-xs">S{isoWeek(m)} · {asDisplayDate(m)} · {w.saturday?'Sáb':''}{w.saturday&&w.sunday?' + ':''}{w.sunday?'Dom':''}</p>)}</div>
         </details>)}</div>
       </section>}
 
@@ -1016,10 +1002,6 @@ export default function StaffSchedulePage() {
               </label>
               <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
             </div>}
-            {dayEditor.state==='SHIFT'&&<>
-              <label className="block text-xs">Horas realmente trabajadas (opcional)<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas reales comprobadas</label>
-            </>}
             {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
