@@ -560,6 +560,27 @@ export default function StaffSchedulePage() {
           </p>
         </div>
 
+        <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold">{selectedVacationRows.length} días seleccionados para confirmar</div>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" disabled={busy||selectableVacationRows.length===0}
+                className="rounded-md border px-2 py-1.5 text-[11px] disabled:opacity-40"
+                onClick={()=>togglePeriodSelection(selectableVacationRows,'VACATION')}>
+                {selectableVacationRows.length>0&&selectableVacationRows.every(d=>checkedVacationIds.includes(d.id))?
+                  'Deseleccionar todos':'Seleccionar pendientes visibles'}
+              </button>
+              <button type="button" disabled={busy||checkedVacationIds.length===0}
+                onClick={()=>setCheckedVacationIds([])}
+                className="rounded-md border px-2 py-1.5 text-[11px] disabled:opacity-40">Limpiar</button>
+              <button type="button" disabled={busy||selectedVacationRows.length===0}
+                onClick={()=>void confirmSelectedVacations()}
+                className="rounded-md bg-emerald-700 px-2 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40">
+                Confirmar seleccionados ({selectedVacationRows.length})
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="space-y-2">
           {vacationGroups.map(group=>{
             const assigned=vacations.find(v=>v.operator_id===group.person.id)
@@ -600,21 +621,35 @@ export default function StaffSchedulePage() {
                     {splitYear&&<p className="mt-1 rounded-md bg-sky-50 px-2 py-1 text-[10px] text-sky-900">
                       Período continuo · {period.rows.length} días · {splitLabel}
                     </p>}
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {period.visibleDays.map(day=><button type="button" key={day.id}
-                        onClick={()=>openDay(day.operator_id,day.work_date)}
-                        title={vacationStageLabel(vacationStage(day,vacationToday))+' · '+asDisplayDate(day.work_date)}
-                        className={'rounded px-2 py-1 text-[11px] font-semibold '+vacationTone(day,vacationToday)}>
-                        {asDisplayDate(day.work_date).slice(0,5)}
-                        {vacationStage(day,vacationToday)==='UNVERIFIED'?' ?':''}
-                      </button>)}
+                    {period.visibleDays.some(day=>vacationStage(day,vacationToday)==='UNVERIFIED')&&
+                      <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold">
+                        <input type="checkbox" disabled={busy}
+                          checked={period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED')
+                            .every(d=>checkedVacationIds.includes(d.id))}
+                          onChange={()=>togglePeriodSelection(period.visibleDays.filter(
+                            d=>vacationStage(d,vacationToday)==='UNVERIFIED'),'VACATION')}/>
+                        Seleccionar días pendientes de este período
+                      </label>}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {period.visibleDays.map(day=>{
+                        const eligible=vacationStage(day,vacationToday)==='UNVERIFIED'
+                        return <div key={day.id} className={'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 '+vacationTone(day,vacationToday)}>
+                          <label className={'inline-flex items-center gap-1 '+(eligible?'cursor-pointer':'cursor-not-allowed')}
+                            title={vacationStageLabel(vacationStage(day,vacationToday))}>
+                            <input type="checkbox" checked={eligible&&checkedVacationIds.includes(day.id)}
+                              disabled={busy||!eligible} aria-label={'Seleccionar vacaciones del '+asDisplayDate(day.work_date)}
+                              onChange={e=>toggleChecked(day.id,e.target.checked,'VACATION')}/>
+                            <span className="text-[11px] font-semibold">{asDisplayDate(day.work_date).slice(0,5)}</span>
+                          </label>
+                          <button type="button" title={'Editar '+asDisplayDate(day.work_date)}
+                            aria-label={'Editar vacaciones del '+asDisplayDate(day.work_date)}
+                            onClick={()=>openDay(day.operator_id,day.work_date)}
+                            className="rounded border border-current/20 p-1 opacity-80 hover:opacity-100">
+                            <Pencil size={11}/>
+                          </button>
+                        </div>
+                      })}
                     </div>
-                    {period.visibleDays.some(d=>vacationStage(d,vacationToday)==='UNVERIFIED')&&
-                      <button type="button" disabled={busy}
-                        onClick={()=>void confirmVacationPeriod(period.visibleDays)}
-                        className="mt-2 rounded-lg border border-emerald-400 px-2 py-1.5 text-[11px] font-semibold text-emerald-800 disabled:opacity-50">
-                        Confirmar los {period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length} días pasados
-                      </button>}
                   </div>
                 })}
               </div>
