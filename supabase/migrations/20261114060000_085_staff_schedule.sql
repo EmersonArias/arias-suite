@@ -68,7 +68,6 @@ create table if not exists public.staff_vacation_years (
   entitlement_days integer null check (entitlement_days between 0 and 366),
   carryover_days integer not null default 0 check (carryover_days between 0 and 366),
   adjustment_days integer not null default 0 check (adjustment_days between -366 and 366),
-  administrative_note text null,
   changed_by uuid null references public.profiles(id) on delete set null,
   updated_at timestamptz not null default now(),
   foreign key (operator_id,hotel_id) references public.staff_operators(id,hotel_id) on delete cascade,
