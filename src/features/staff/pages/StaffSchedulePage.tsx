@@ -676,7 +676,7 @@ export default function StaffSchedulePage() {
                     </p>
                     {splitYear&&<p className="mt-1 rounded-md bg-sky-50 px-2 py-1 text-[10px] text-sky-900">
                       Período continuo · {period.rows.length} días · {splitLabel}
-                    </p>
+                    </p>}
                     {period.visibleDays.some(day=>vacationStage(day,vacationToday)==='UNVERIFIED')&&
                       <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold">
                         <input type="checkbox" disabled={busy}
