@@ -9,6 +9,7 @@ import {
   stateView, weekendHistory, type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
+import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS'
 type DayEditor = {
@@ -105,9 +106,11 @@ export default function StaffSchedulePage() {
     setBusy(true);setError('')
     const [people,entries,extras,years,privateNotes]=await Promise.all([
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
-      supabase.from('staff_schedule_entries').select('*').eq('hotel_id',hotel.id)
-        .gte('work_date',String(year-1)+'-12-25').lte('work_date',String(year+1)+'-01-10')
-        .order('work_date'),
+      loadAllStaffDays({
+        hotelId:hotel.id,
+        startDate:String(year-1)+'-12-25',
+        endDate:String(year+1)+'-01-10',
+      }),
       supabase.from('staff_overtime_ledger').select('*').eq('hotel_id',hotel.id)
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
@@ -129,6 +132,16 @@ export default function StaffSchedulePage() {
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
   const dates=Array.from({length:7},(_,i)=>addDays(weekStart,i))
+  const selectedVacationDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
+    && (d.state==='VACATION'||d.state==='VACATION_PREVIOUS'))
+  const selectedVacationPeriods=groupConsecutiveDays(selectedVacationDays)
+  const selectedMedicalDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
+    && d.state==='MEDICAL_LEAVE')
+  const selectedMedicalPeriods=groupConsecutiveDays(selectedMedicalDays)
+  const selectedOtherAbsences=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
+    && ['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
+  const selectedOtherAbsencePeriods=groupConsecutiveDays(selectedOtherAbsences)
+
 
   useEffect(()=>{
     const record=vacations.find(v=>v.operator_id===selectedId)
@@ -285,6 +298,9 @@ export default function StaffSchedulePage() {
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="min-w-0"><h2 className="text-sm font-bold sm:text-base">Semana {isoWeek(weekStart)} <span className="font-normal text-slate-500">· {asDisplayDate(weekStart).slice(0,5)}–{asDisplayDate(addDays(weekStart,6)).slice(0,5)}</span></h2></div>
           <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
+            <input type="date" aria-label="Ir a una fecha" title="Ir a una fecha" value={weekStart}
+              className="min-h-9 max-w-[120px] rounded-lg border bg-white px-1 text-[11px] sm:max-w-none sm:px-2 sm:text-xs"
+              onChange={e=>{if(e.target.value){setWeekStart(mondayOf(e.target.value));setYear(Number(e.target.value.slice(0,4)))}}}/>
             <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana anterior" onClick={()=>setWeekStart(addDays(weekStart,-7))}><ChevronLeft size={17}/></button>
             <button className="min-h-9 rounded-lg border px-2 text-xs" onClick={()=>{setWeekStart(mondayOf(dateISO(new Date())));setMobileDayIndex((new Date().getDay()+6)%7)}}>Hoy</button>
             <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana siguiente" onClick={()=>setWeekStart(addDays(weekStart,7))}><ChevronRight size={17}/></button>
