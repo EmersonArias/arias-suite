@@ -405,49 +405,108 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-4">
-        <div className="overflow-x-auto rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2>
-          <div className="mt-2 space-y-1 md:hidden">{summary.map(s=>{
-            const v=vacations.find(t=>t.operator_id===s.operator.id);
-            const balance=v?.entitlement_days==null?'—':String(v.entitlement_days+v.carryover_days+v.adjustment_days-s.vacation);
-            return <div key={s.operator.id} className="grid grid-cols-[minmax(0,1fr)_repeat(3,46px)] items-center gap-2 border-b py-1.5 text-xs">
-              <span className="truncate font-semibold">{s.operator.display_name}</span>
-              <span title="Derecho" className="text-center">{v?.entitlement_days??'—'}</span>
-              <span title="Previstas" className="text-center">{s.vacation}</span>
-              <span title="Saldo provisional" className="text-center font-bold">{balance}</span>
-            </div>
-          })}<p className="text-right text-[10px] text-slate-500">Derecho · Previstas · Saldo</p></div>
-          <table className="mt-3 hidden w-full min-w-[640px] text-left text-sm md:table"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Derecho configurado</th><th>Previstas en cuadrante</th><th>Año anterior</th><th>Saldo provisional</th></tr></thead><tbody>{summary.map(s=>{
-            const v=vacations.find(t=>t.operator_id===s.operator.id);const balance=v?.entitlement_days==null?'Sin configurar':String(v.entitlement_days+v.carryover_days+v.adjustment_days-s.vacation)
-            return <tr key={s.operator.id} className="border-b"><td className="p-2 font-semibold">{s.operator.display_name}</td><td>{v?.entitlement_days==null?'—':v.entitlement_days+' d'}</td><td>{s.vacation} d</td><td>{s.vacationPrevious} d</td><td>{balance}</td></tr>
-          })}</tbody></table>
+        <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h2 className="mb-2 text-sm font-bold sm:text-base">Vacaciones · {year}</h2>
+          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_repeat(3,55px)] gap-1 text-[10px] font-semibold text-slate-500 sm:grid-cols-[minmax(0,1fr)_repeat(3,130px)] sm:text-xs">
+            <span>Operario</span><span className="text-center">Asignados</span>
+            <span className="text-center">Previstos</span><span className="text-center">Sin planificar</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {summary.map(s=>{
+              const v=vacations.find(t=>t.operator_id===s.operator.id)
+              const assigned=v?.entitlement_days
+              const balance=assigned==null?null:assigned+v!.adjustment_days-s.vacation
+              return <button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
+                className={'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_repeat(3,55px)] items-center gap-1 rounded-md px-1 text-xs sm:grid-cols-[minmax(0,1fr)_repeat(3,130px)] sm:text-sm '+(selectedId===s.operator.id?'bg-sky-50':'hover:bg-slate-50')}>
+                <span className="truncate text-left font-semibold">{s.operator.display_name}</span>
+                <span className="text-center">{assigned==null?'—':assigned+' d'}</span>
+                <span className="text-center">{s.vacation} d</span>
+                <span className="text-center font-bold">{balance==null?'—':balance+' d'}</span>
+              </button>
+            })}
+          </div>
         </div>
         {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h3 className="text-sm font-bold sm:text-base">Saldo · {selected.display_name}</h3>
-          <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3 sm:gap-3">
-            <label className="text-xs">Derecho anual (días naturales)<input type="number" min="0" max="366" className={baseInput+' mt-1 w-40'} value={entitled} onChange={e=>setEntitled(e.target.value)} placeholder="Sin configurar"/></label>
-            <label className="text-xs">Pendientes anteriores<input type="number" className={baseInput+' mt-1 w-36'} value={carry} onChange={e=>setCarry(e.target.value)}/></label>
-            <label className="text-xs">Ajuste (+ / −)<input type="number" className={baseInput+' mt-1 w-32'} value={adjust} onChange={e=>setAdjust(e.target.value)}/></label>
-            <button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveVacation()}>Guardar saldo</button>
+          <h3 className="text-sm font-bold sm:text-base">Vacaciones de {selected.display_name}</h3>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-3">
+            {[
+              ['Días asignados',vacations.find(v=>v.operator_id===selectedId)?.entitlement_days==null?'—':String(vacations.find(v=>v.operator_id===selectedId)!.entitlement_days)],
+              ['Días programados',String(selectedSummary?.vacation??0)],
+              ['Sin programar',vacations.find(v=>v.operator_id===selectedId)?.entitlement_days==null?'—':String(vacations.find(v=>v.operator_id===selectedId)!.entitlement_days!+vacations.find(v=>v.operator_id===selectedId)!.adjustment_days-(selectedSummary?.vacation??0))],
+            ].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 px-1 py-2 text-center">
+              <div className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</div>
+              <div className="mt-1 text-lg font-bold">{value}</div>
+            </div>)}
           </div>
-          <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Fechas de vacaciones</summary><div className="mt-2 flex flex-wrap gap-1">{days.filter(d=>d.operator_id===selectedId&&d.work_date.startsWith(String(year))&&['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-sky-100 px-1.5 py-1 text-xs text-sky-900">{asDisplayDate(d.work_date).slice(0,5)}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
+          {(selectedSummary?.vacationPrevious??0)>0&&<p className="mt-2 text-xs text-slate-600">Días de años anteriores programados: <strong>{selectedSummary?.vacationPrevious}</strong></p>}
+          <h4 className="mt-3 text-xs font-bold">Períodos previstos</h4>
+          <div className="mt-1 divide-y divide-slate-100">
+            {selectedVacationPeriods.map(p=><details key={p.start} className="py-1.5">
+              <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs">
+                <span>{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
+                <span className="shrink-0 font-semibold">{p.rows.length} d {p.state==='VACATION_PREVIOUS'?'· ant.':''}</span>
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(day=><button type="button" key={day.id} onClick={()=>openDay(day.operator_id,day.work_date)}
+                className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-900">{asDisplayDate(day.work_date).slice(0,5)}</button>)}</div>
+            </details>)}
+            {selectedVacationPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay vacaciones programadas.</p>}
+          </div>
+          <details className="mt-3 border-t pt-2">
+            <summary className="cursor-pointer text-xs font-semibold">Configurar días asignados</summary>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+              <label className="text-xs">Asignación anual (días)<input type="number" min="0" max="366" className={baseInput+' mt-1'} value={entitled} onChange={e=>setEntitled(e.target.value)} placeholder="Sin asignar"/></label>
+              <label className="text-xs">De años anteriores<input type="number" className={baseInput+' mt-1'} value={carry} onChange={e=>setCarry(e.target.value)}/></label>
+              <label className="text-xs">Ajuste (+ / −)<input type="number" className={baseInput+' mt-1'} value={adjust} onChange={e=>setAdjust(e.target.value)}/></label>
+              <button disabled={busy} className="min-h-9 self-end rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white" onClick={()=>void saveVacation()}>Guardar</button>
+            </div>
+          </details>
         </div>}
       </section>}
 
-      {tab==='AUSENCIAS'&&<section className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-        <h2 className="text-sm font-bold sm:text-base">Bajas y ausencias · {year}</h2>
-        <div className="mt-2 space-y-1.5 md:hidden">
-          {days.filter(d=>d.work_date.startsWith(String(year))&&['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state)).map(d=>
-            <button key={d.id} className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1 text-left" onClick={()=>openDay(d.operator_id,d.work_date)}>
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold">{operators.find(o=>o.id===d.operator_id)?.display_name}</span>
-              <span className="shrink-0 text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
-              <span className="max-w-[42%] truncate text-[11px] text-slate-600">{stateView(d.state).label}</span>
-              <span className="shrink-0 text-[10px] font-bold">{d.justification==='DOCUMENTED'?'✓':d.justification==='UNJUSTIFIED'?'!':'·'}</span>
+      {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
+        <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h2 className="mb-2 text-sm font-bold sm:text-base">Bajas médicas · {year}</h2>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
+            {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
+              className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
+              <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
+              <div className="mt-1 text-xl font-bold">{s.sick} <span className="text-xs font-normal">días</span></div>
+              <div className="mt-0.5 text-[10px] text-slate-500">{s.sickDocumented} justificados · {s.sickUnknown} por revisar</div>
             </button>)}
+          </div>
         </div>
-        <div className="mt-3 hidden overflow-x-auto md:block"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Fecha</th><th>Estado</th><th>Justificación</th><th>Edición</th></tr></thead><tbody>
-          {days.filter(d=>d.work_date.startsWith(String(year))&&['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state)).map(d=><tr key={d.id} className="border-b"><td className="p-2">{operators.find(o=>o.id===d.operator_id)?.display_name}</td><td>{asDisplayDate(d.work_date)}</td><td>{stateView(d.state).label}</td><td>{({UNKNOWN:'Sin verificar',PENDING:'Pendiente',DOCUMENTED:'Documentada',UNJUSTIFIED:'No justificada'} as Record<string,string>)[d.justification]??'Sin dato'}</td><td><button className="rounded border px-2 py-1 text-xs" onClick={()=>openDay(d.operator_id,d.work_date)}>Revisar</button></td></tr>)}
-        </tbody></table></div>
+        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {[
+              ['Total',selectedSummary?.sick??0],
+              ['Justificados',selectedSummary?.sickDocumented??0],
+              ['Sin verificar',selectedSummary?.sickUnknown??0],
+            ].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 px-1.5 py-2 text-center">
+              <div className="text-[10px] text-slate-500">{label}</div>
+              <div className="mt-0.5 text-lg font-bold">{value}</div>
+            </div>)}
+          </div>
+          <h4 className="mt-3 text-xs font-bold">Períodos de baja</h4>
+          <div className="mt-1 divide-y divide-slate-100">
+            {selectedMedicalPeriods.map(p=><details key={p.start} className="py-2">
+              <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs">
+                <span className="min-w-0">{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
+                <span className="shrink-0 font-semibold">{p.rows.length} d · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</span>
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(d=><button type="button" key={d.id} onClick={()=>openDay(d.operator_id,d.work_date)}
+                className="rounded bg-slate-100 px-2 py-1 text-xs">{asDisplayDate(d.work_date).slice(0,5)}</button>)}</div>
+            </details>)}
+            {selectedMedicalPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay bajas médicas registradas.</p>}
+          </div>
+          {selectedOtherAbsencePeriods.length>0&&<div className="mt-3 border-t pt-2">
+            <h4 className="text-xs font-bold">Otras ausencias</h4>
+            {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
+              <summary className="cursor-pointer text-xs">{stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
+              <div className="mt-1 flex flex-wrap gap-1">{p.rows.map(d=><button type="button" key={d.id} className="rounded bg-slate-100 px-2 py-1 text-xs" onClick={()=>openDay(d.operator_id,d.work_date)}>{asDisplayDate(d.work_date).slice(0,5)}</button>)}</div>
+            </details>)}
+          </div>}
+        </div>}
       </section>}
 
       {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
