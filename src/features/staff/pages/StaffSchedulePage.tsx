@@ -6,7 +6,8 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
   dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions,
-  stateView, weekendHistory, type StaffDay, type StaffNote, type StaffOperator,
+  stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
+  type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
 import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
@@ -17,6 +18,7 @@ type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSE
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   actual_hours:string; actual_confirmed:boolean; justification:string;
+  vacation_taken_confirmed:boolean;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
@@ -178,7 +180,8 @@ export default function StaffSchedulePage() {
       operator_id:operatorId,work_date:workDate,state:row?.state??'SHIFT',
       start_time:row?.start_time?.slice(0,5)??'08:00',end_time:row?.end_time?.slice(0,5)??'16:00',
       actual_hours:row?.actual_minutes==null?'':String(row.actual_minutes/60),
-      actual_confirmed:row?.actual_confirmed??false,justification:row?.justification??'UNKNOWN'
+      actual_confirmed:row?.actual_confirmed??false,justification:row?.justification??'UNKNOWN',
+      vacation_taken_confirmed:row?.vacation_taken_confirmed??false
     })
   }
   async function saveDay(){
@@ -197,6 +200,13 @@ export default function StaffSchedulePage() {
     }
     setBusy(true);setError('');setDayEditorError('')
     const existing=byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)
+    const confirmedVacation=isVacationState(dayEditor.state) && dayEditor.vacation_taken_confirmed
+    if(confirmedVacation && dayEditor.work_date>dateISO(new Date())) {
+      setDayEditorError('No se puede confirmar como disfrutado un día futuro.')
+      setBusy(false)
+      return
+    }
+    const timeNow=new Date().toISOString()
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
       state:dayEditor.state,start_time:isShift?start:null,end_time:isShift?end:null,
@@ -204,7 +214,11 @@ export default function StaffSchedulePage() {
       actual_confirmed:actual!==null&&dayEditor.actual_confirmed,
       justification:dayEditor.justification,
       source_kind:'MANUAL',source_code:existing?.source_code??null,
-      changed_by:session?.user.id??null,updated_at:new Date().toISOString(),
+      vacation_taken_confirmed:confirmedVacation,
+      vacation_confirmed_at:confirmedVacation
+        ? (existing?.vacation_taken_confirmed ? existing?.vacation_confirmed_at ?? timeNow : timeNow) : null,
+      vacation_confirmed_by:confirmedVacation ? session?.user.id??null : null,
+      changed_by:session?.user.id??null,updated_at:timeNow,
     },{onConflict:'operator_id,work_date'})
     if(result.error)setDayEditorError(result.error.message)
     else{setDayEditor(null);setSuccess('Jornada guardada.');await reload()}
@@ -558,8 +572,19 @@ export default function StaffSchedulePage() {
                   onBlur={()=>setDayEditor(prev=>prev?{...prev,end_time:normalizeDigitalTime(prev.end_time)}:prev)}/>
               </label>
             </div>}
-            <label className="block text-xs">Horas efectivamente verificadas<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas realmente trabajadas</label>
+            {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={dayEditor.vacation_taken_confirmed}
+                  disabled={dayEditor.work_date>dateISO(new Date())}
+                  onChange={e=>setDayEditor({...dayEditor,vacation_taken_confirmed:e.target.checked})}/>
+                Confirmar vacaciones disfrutadas
+              </label>
+              <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
+            </div>}
+            {dayEditor.state==='SHIFT'&&<>
+              <label className="block text-xs">Horas efectivamente verificadas<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas realmente trabajadas</label>
+            </>}
             {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
