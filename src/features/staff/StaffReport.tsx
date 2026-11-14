@@ -203,18 +203,22 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           return {content:stateCode(e),styles:{fillColor:color.pdfBg,textColor:color.pdfFg,fontStyle:'bold' as const,halign:'center' as const}}
         }),
       ])
+      const compactSummary=totals.map(t=>t.person.display_name+': '+t.shifts+'T '+t.vacations+'V '+t.medical+'B').join('   |   ')
+      doc.setFont('helvetica','normal');doc.setFontSize(7)
+      doc.text(compactSummary.slice(0,185),9,26)
       autoTable(doc,{
         head:[head],body,
-        startY:26,margin:{left:9,right:9,top:9,bottom:13},
+        startY:30,margin:{left:9,right:9,top:9,bottom:15},
         theme:'grid',styles:{font:'helvetica',fontSize:7,cellPadding:1.1,overflow:'ellipsize',minCellHeight:4.4},
         headStyles:{fillColor:[30,41,59],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
         columnStyles:{0:{cellWidth:27,fontStyle:'bold',textColor:[30,41,59]}},
         showHead:'everyPage',
         didDrawPage:({pageNumber})=>{
-          doc.setFont('helvetica','normal');doc.setFontSize(6.5)
+          doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
-          doc.text(summaryNote,9,204)
-          doc.text('Pag. '+pageNumber,pageWidth-18,204)
+          doc.text('9-19 Horario  |  D Descanso  |  V Vacaciones  |  B Baja  |  F Festivo  |  C Compensacion  |  P Permiso  |  R Revisar',9,199)
+          doc.text(summaryNote,9,203.5)
+          doc.text('Pag. '+pageNumber,pageWidth-18,203.5)
         },
       })
       if(dates.length===0){doc.setFontSize(10);doc.text('No hay registros para los filtros seleccionados.',10,37)}
