@@ -6,7 +6,7 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
   dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions,
-  stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
+  stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
@@ -15,6 +15,7 @@ import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   actual_hours:string; actual_confirmed:boolean; justification:string;
@@ -77,6 +78,8 @@ export default function StaffSchedulePage() {
   const {session}=useAuth()
   const [year,setYear]=useState(new Date().getFullYear())
   const [calendarFilter,setCalendarFilter]=useState('ALL')
+  const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
+  const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
   const [tab,setTab]=useState<PageTab>(()=>new URLSearchParams(window.location.search).get('tab')==='reportes'?'REPORTES':'CUADRANTE')
   const [showOvertimeForm,setShowOvertimeForm]=useState(false)
   const [allowed,setAllowed]=useState(false)
@@ -128,8 +131,8 @@ export default function StaffSchedulePage() {
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
       loadAllStaffDays({
         hotelId:hotel.id,
-        startDate:String(year-1)+'-12-25',
-        endDate:String(year+1)+'-01-10',
+        startDate:String(year-1)+'-12-01',
+        endDate:String(year+1)+'-01-31',
       }),
       supabase.from('staff_overtime_ledger').select('*').eq('hotel_id',hotel.id)
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
@@ -154,13 +157,32 @@ export default function StaffSchedulePage() {
   })),[operators,days,overtime,year])
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
-  const selectedVacationDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
-    && (d.state==='VACATION'||d.state==='VACATION_PREVIOUS'))
-  const selectedVacationPeriods=groupConsecutiveDays(selectedVacationDays)
   const vacationToday=dateISO(new Date())
-  const selectedVacationTaken=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='TAKEN').length
-  const selectedVacationUpcoming=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='UPCOMING').length
-  const selectedVacationUnverified=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length
+  const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
+  const vacationPeople=operators.filter(person=>
+    (vacationOperatorFilter==='ALL'||vacationOperatorFilter===person.id) &&
+    (vacationOperatorFilter!=='ALL'||vacationYearDays.some(d=>d.operator_id===person.id)))
+  const vacationScopedDays=vacationYearDays.filter(d=>
+    vacationOperatorFilter==='ALL'||d.operator_id===vacationOperatorFilter)
+  const vacationCounts={
+    ALL:vacationScopedDays.length,
+    TAKEN:vacationScopedDays.filter(d=>vacationStage(d,vacationToday)==='TAKEN').length,
+    UPCOMING:vacationScopedDays.filter(d=>vacationStage(d,vacationToday)==='UPCOMING').length,
+    UNVERIFIED:vacationScopedDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length,
+  }
+  // Include the full continuous period when it crosses December / January.
+  // Annual totals count only dates belonging to the selected calendar year.
+  const vacationGroups=vacationPeople.map(person=>{
+    const annual=vacationYearDays.filter(d=>d.operator_id===person.id)
+    const periods=groupConsecutiveDays(days.filter(d=>d.operator_id===person.id &&
+      isVacationState(d.state))).filter(period=>period.rows.some(d=>d.work_date.startsWith(String(year))))
+    const shown=periods.map(period=>({
+      ...period,
+      visibleDays:period.rows.filter(d=>vacationStatusFilter==='ALL' ||
+        vacationStage(d,vacationToday)===vacationStatusFilter),
+    })).filter(period=>period.visibleDays.length>0)
+    return {person,annual,shown}
+  }).filter(group=>group.shown.length>0)
   const selectedMedicalDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && d.state==='MEDICAL_LEAVE')
   const selectedMedicalPeriods=groupConsecutiveDays(selectedMedicalDays)
@@ -347,23 +369,26 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
-          <select value={tab==='CUADRANTE'?calendarFilter:selectedId}
+          <select value={tab==='CUADRANTE'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
             onChange={e=>{
               if(tab==='CUADRANTE'){
                 setCalendarFilter(e.target.value)
+                if(e.target.value!=='ALL') setSelectedId(e.target.value)
+              } else if(tab==='VACACIONES'){
+                setVacationOperatorFilter(e.target.value)
                 if(e.target.value!=='ALL') setSelectedId(e.target.value)
               } else {
                 setSelectedId(e.target.value)
               }
             }}
             className={baseInput+' mt-0.5 sm:mt-1'}>
-            {tab==='CUADRANTE'&&<option value="ALL">Todos los operarios</option>}
+            {(tab==='CUADRANTE'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
           <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
