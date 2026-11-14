@@ -300,14 +300,14 @@ export default function StaffSchedulePage() {
                 return <td key={d} className="p-1">
                   <button className={'min-h-[65px] w-full rounded-lg px-2 py-2 text-center text-xs font-semibold hover:ring-2 hover:ring-sky-400 '+state.tone}
                     onClick={()=>openDay(o.id,d)} title={'Editar '+o.display_name+' · '+asDisplayDate(d)}>
-                    <span className="block">{entry?.state==='SHIFT'?(entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—'):state.label}</span>
+                    <span className="block">{entry?.state==='SHIFT'?(entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—'):entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':state.label}</span>
                     {entry?.source_kind?.startsWith('EXCEL')&&<span className="mt-1 block text-[10px] font-normal opacity-75">Excel · sin verificar</span>}
                     {entry?.actual_confirmed&&<span className="mt-1 block text-[10px]">✓ Real</span>}
                   </button>
                 </td>})}</tr>)}</tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-slate-500">Los horarios importados son planificación histórica, no un registro confirmado de presencia. El color se acompaña siempre de texto.</p>
+        <p className="mt-3 text-xs text-slate-500">Los horarios importados son planificación histórica, no un registro confirmado de presencia. Algunas fechas de festivos del Excel no coinciden con el día de la casilla y están marcadas para revisar.</p>
       </section>}
 
       {tab==='ANUAL'&&<section className="space-y-3">
