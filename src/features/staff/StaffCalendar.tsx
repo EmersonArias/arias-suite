@@ -40,11 +40,20 @@ function dayKind(entry?: StaffDay) {
   return entry.state
 }
 
-// Each visible status marker is a single letter, never combined with an operator initial.
+// Show the actual assigned hours for work shifts; other states retain one-letter codes.
+function compactShiftHours(entry: StaffDay) {
+  if (!entry.start_time || !entry.end_time) return '–'
+  const format = (time: string) => {
+    const [hour, minute] = time.slice(0, 5).split(':')
+    if (!hour || !minute) return '–'
+    return String(Number(hour)) + (minute === '00' ? '' : ':' + minute)
+  }
+  return format(entry.start_time) + '–' + format(entry.end_time)
+}
 function dayCode(entry?: StaffDay) {
   if (!entry) return '–'
+  if (entry.state === 'SHIFT') return compactShiftHours(entry)
   const codes: Record<string, string> = {
-    SHIFT: 'T',
     REST: 'D',
     VACATION: 'V',
     VACATION_PREVIOUS: 'A',
@@ -83,7 +92,7 @@ function dayShort(entry?: StaffDay, compact = false) {
 }
 
 const legend: { state: string; code: string; text: string }[] = [
-  { state: 'SHIFT', code: 'T', text: 'Turno' },
+  { state: 'SHIFT', code: '9–19', text: 'Horario' },
   { state: 'REST', code: 'D', text: 'Descanso' },
   { state: 'VACATION', code: 'V', text: 'Vacaciones' },
   { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
@@ -176,7 +185,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
               (day === today ? 'border-sky-500 ring-1 ring-sky-400 ' : 'border-transparent ') + tone}>
             <span className={'text-[10px] font-bold ' + (mini ? 'leading-3' : 'sm:text-xs')}>{Number(day.slice(8))}</span>
             {visiblePeople.length === 1 ?
-              <span className={'mt-auto w-full truncate text-center font-semibold ' + (mini ? 'text-[8px] leading-3' : 'text-[9px] sm:text-xs')}>
+              <span className={'mt-auto w-full truncate text-center font-semibold ' + (mini ? 'text-[7px] leading-3 tracking-tighter' : 'text-[9px] tracking-tight sm:text-xs')}>
                 {dayCode(entry)}
               </span> :
               <span className={'mt-0.5 flex w-full flex-col gap-px ' + (mini ? 'gap-px' : 'gap-0.5')}>
@@ -185,7 +194,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
                   return <span key={person.id}
                     title={person.display_name + ': ' + dayShort(item)}
                     className={'block w-full truncate rounded-[3px] px-px text-center font-semibold ' +
-                      (mini ? 'text-[7px] leading-[8px]' : 'text-[8px] leading-[13px] sm:text-[10px] sm:leading-4') +
+                      (mini ? 'text-[6px] leading-[8px] tracking-tighter' : 'text-[8px] leading-[13px] tracking-tight sm:text-[10px] sm:leading-4') +
                       ' ' + stateView(dayKind(item)).tone}>
                     {dayCode(item)}
                   </span>
@@ -257,7 +266,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
             return <button type="button" key={person.id} onClick={() => onEditDay(person.id, day)}
               aria-label={person.display_name + ', ' + day + ': ' + dayShort(entry)}
               className={'min-w-0 truncate rounded-md px-1 py-1.5 text-center text-[10px] font-semibold lg:text-xs ' + stateView(dayKind(entry)).tone}>
-              <span className="block truncate text-sm font-bold">{dayCode(entry)}</span>
+              <span className="block truncate text-[11px] font-bold tracking-tight sm:text-xs">{dayCode(entry)}</span>
             </button>
           })}
         </div>
@@ -275,7 +284,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
       </p>}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
         {legend.map(item => <span key={item.state} className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] leading-3 text-slate-600">
-          <span className={'inline-flex h-3 w-3 items-center justify-center rounded-[2px] text-[9px] font-bold ' + stateView(item.state).tone}>{item.code}</span>{item.text}
+          <span className={'inline-flex h-3 min-w-3 items-center justify-center rounded-[2px] px-0.5 text-[8px] font-bold ' + stateView(item.state).tone}>{item.code}</span>{item.text}
         </span>)}
       </div>
     </div>
