@@ -84,6 +84,7 @@ export default function StaffSchedulePage() {
   const [success,setSuccess]=useState('')
   const [operators,setOperators]=useState<StaffOperator[]>([])
   const [days,setDays]=useState<StaffDay[]>([])
+  const [holidays,setHolidays]=useState<string[]>([])
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
@@ -121,7 +122,7 @@ export default function StaffSchedulePage() {
   async function reload(){
     if(!hotel?.id||!allowed)return
     setBusy(true);setError('')
-    const [people,entries,extras,years,privateNotes]=await Promise.all([
+    const [people,entries,extras,years,privateNotes,holidayRows]=await Promise.all([
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
       loadAllStaffDays({
         hotelId:hotel.id,
@@ -132,11 +133,14 @@ export default function StaffSchedulePage() {
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
       supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
+      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotel.id)
+        .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
     ])
-    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error
+    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error
     if(failure){setError(failure.message);setBusy(false);return}
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
+    setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
@@ -338,6 +342,7 @@ export default function StaffSchedulePage() {
         year={year}
         operators={operators}
         days={days}
+        holidays={holidays}
         operatorId={calendarFilter}
         onYearChange={setYear}
         onEditDay={openDay}
