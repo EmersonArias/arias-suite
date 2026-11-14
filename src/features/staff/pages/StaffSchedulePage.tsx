@@ -199,7 +199,7 @@ export default function StaffSchedulePage() {
     }
     const minutes=isShift?minutesInShift(start,end):null
     const actual=dayEditor.actual_hours.trim()===''?null:Math.round(Number(dayEditor.actual_hours)*60)
-    if((isShift && !minutes)|| (actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
+    if((isShift && !minutes)|| (isShift && actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
       setDayEditorError('Revisa las horas de entrada, salida o las horas efectivas.');return
     }
     setBusy(true);setError('');setDayEditorError('')
@@ -214,8 +214,8 @@ export default function StaffSchedulePage() {
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
       state:dayEditor.state,start_time:isShift?start:null,end_time:isShift?end:null,
-      planned_minutes:minutes,actual_minutes:actual,
-      actual_confirmed:actual!==null&&dayEditor.actual_confirmed,
+      planned_minutes:minutes,actual_minutes:isShift?actual:null,
+      actual_confirmed:isShift&&actual!==null&&dayEditor.actual_confirmed,
       justification:dayEditor.justification,
       source_kind:'MANUAL',source_code:existing?.source_code??null,
       vacation_taken_confirmed:confirmedVacation,
