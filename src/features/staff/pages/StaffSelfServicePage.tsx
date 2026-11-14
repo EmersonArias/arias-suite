@@ -6,7 +6,7 @@ import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import {
   addDays,dateISO,fromISO,hours,mondayOf,stateView,
-  isVacationState,vacationStage,vacationStageLabel,vacationTone,
+  isVacationState,vacationStage,vacationStageLabel,vacationTone,splitShiftLabel,
   vacationOriginYear,vacationOriginLabel,vacationFromPriorYear, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
 } from '../staffModel'
@@ -104,7 +104,7 @@ export default function StaffSelfServicePage(){
             <div className="flex gap-1 sm:gap-2"><button className="min-h-9 rounded-lg border px-2 text-xs sm:px-3" onClick={()=>setWeek(addDays(week,-7))}>‹ Anterior</button><button className="min-h-9 rounded-lg border px-2 text-xs sm:px-3" onClick={()=>setWeek(addDays(week,7))}>Siguiente ›</button></div></div>
           <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-7 sm:gap-2">{selectedDates.map(d=>{
             const entry=lookup.get(d)
-            const state=entry?.state==='SHIFT'?((entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—')):
+            const state=entry?.state==='SHIFT'?splitShiftLabel(entry.start_time,entry.end_time):
               entry&&isVacationState(entry.state)?vacationOriginLabel(entry)+' · '+vacationStageLabel(vacationStage(entry)) :
               entry?.state==='REST'?'Descanso':
               entry?.state==='PUBLIC_HOLIDAY'?'Festivo disfrutado' + (entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)?.[0] ? ' · ' + entry.source_code.match(/(\d{4})-(\d{2})-(\d{2})/)![0].split('-').reverse().slice(0,2).join('/') : ''):
