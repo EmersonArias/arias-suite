@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
+import { supabase } from '../../lib/supabase'
 
 type PeriodType = 'DAY' | 'MONTH' | 'YEAR' | 'DATES' | 'MONTHS'
 type ReportOptions = {
@@ -10,7 +11,7 @@ type ReportOptions = {
   operatorId: string
   status: string
 }
-type ReportSnapshot = ReportOptions & { days: StaffDay[] }
+type ReportSnapshot = ReportOptions & { days: StaffDay[]; holidayDates: string[] }
 
 const periodOptions: { value: PeriodType; label: string }[] = [
   { value: 'DAY', label: 'Día' }, { value: 'MONTH', label: 'Mes' },
@@ -28,13 +29,13 @@ const statusOptions = [
 ]
 const input = 'min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-sky-600 sm:text-sm'
 const palette: Record<string, { bg: string; fg: string; pdfBg: [number,number,number]; pdfFg: [number,number,number] }> = {
-  SHIFT: {bg:'#D1FAE5', fg:'#065F46',pdfBg:[209,250,229],pdfFg:[6,95,70]},
-  REST: {bg:'#FFE4E6',fg:'#9F1239',pdfBg:[255,228,230],pdfFg:[159,18,57]},
-  VACATION: {bg:'#DBEAFE',fg:'#1E40AF',pdfBg:[219,234,254],pdfFg:[30,64,175]},
-  VACATION_PREVIOUS: {bg:'#DBEAFE',fg:'#1E40AF',pdfBg:[219,234,254],pdfFg:[30,64,175]},
-  MEDICAL_LEAVE: {bg:'#E2E8F0',fg:'#334155',pdfBg:[226,232,240],pdfFg:[51,65,85]},
-  PUBLIC_HOLIDAY: {bg:'#EDE9FE',fg:'#5B21B6',pdfBg:[237,233,254],pdfFg:[91,33,182]},
-  COMP_REST: {bg:'#FAE8FF',fg:'#86198F',pdfBg:[250,232,255],pdfFg:[134,25,143]},
+  SHIFT: {bg:'#FFFFFF', fg:'#334155',pdfBg:[255,255,255],pdfFg:[51,65,85]},
+  REST: {bg:'#FECACA',fg:'#7F1D1D',pdfBg:[254,202,202],pdfFg:[127,29,29]},
+  VACATION: {bg:'#A7F3D0',fg:'#064E3B',pdfBg:[167,243,208],pdfFg:[6,78,59]},
+  VACATION_PREVIOUS: {bg:'#A7F3D0',fg:'#064E3B',pdfBg:[167,243,208],pdfFg:[6,78,59]},
+  MEDICAL_LEAVE: {bg:'#F5D0FE',fg:'#701A75',pdfBg:[245,208,254],pdfFg:[112,26,117]},
+  PUBLIC_HOLIDAY: {bg:'#FCD34D',fg:'#78350F',pdfBg:[252,211,77],pdfFg:[120,53,15]},
+  COMP_REST: {bg:'#BAE6FD',fg:'#0C4A6E',pdfBg:[186,230,253],pdfFg:[12,74,110]},
   PERMISSION: {bg:'#FEF3C7',fg:'#92400E',pdfBg:[254,243,199],pdfFg:[146,64,14]},
   PERSONAL_DAY: {bg:'#FEF3C7',fg:'#92400E',pdfBg:[254,243,199],pdfFg:[146,64,14]},
   TRAINING: {bg:'#CCFBF1',fg:'#115E59',pdfBg:[204,251,241],pdfFg:[17,94,89]},
@@ -57,8 +58,14 @@ const stateCode = (entry?:StaffDay) => {
     case 'VACATION': return 'V'
     case 'VACATION_PREVIOUS': return 'A'
     case 'MEDICAL_LEAVE': return 'B'
-    case 'PUBLIC_HOLIDAY': return 'F'
-    case 'COMP_REST': return 'C'
+    case 'PUBLIC_HOLIDAY': {
+      const ref=entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)
+      return ref ? ref[3]+'/'+ref[2] : 'F'
+    }
+    case 'COMP_REST': {
+      const ref=entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
+      return ref ? 'R'+ref[1].replace('-', '/') : 'R'
+    }
     case 'PERMISSION': return 'P'
     case 'PERSONAL_DAY': return 'L'
     case 'TRAINING': return 'E'
@@ -123,9 +130,13 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       return
     }
     setLoading(true)
-    const result=await loadAllStaffDays({hotelId,startDate:next.start,endDate:next.end})
-    if(result.error) setError(result.error.message)
-    else setSnapshot({...next,days:result.data})
+    const [result, holidayResult]=await Promise.all([
+      loadAllStaffDays({hotelId,startDate:next.start,endDate:next.end}),
+      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotelId)
+        .gte('holiday_date',next.start).lte('holiday_date',next.end),
+    ])
+    if(result.error||holidayResult.error) setError((result.error||holidayResult.error)!.message)
+    else setSnapshot({...next,days:result.data,holidayDates:(holidayResult.data??[]).map(h=>h.holiday_date)})
     setLoading(false)
   }
   // Show an immediately useful preview for the current month.
@@ -133,10 +144,15 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     let alive=true
     const start=initialMonth+'-01'
     const end=monthEnd(initialMonth)
-    void loadAllStaffDays({hotelId,startDate:start,endDate:end}).then(result=>{
+    void Promise.all([
+      loadAllStaffDays({hotelId,startDate:start,endDate:end}),
+      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotelId)
+        .gte('holiday_date',start).lte('holiday_date',end),
+    ]).then(([result,holidayResult])=>{
       if(!alive)return
-      if(result.error)setError(result.error.message)
-      else setSnapshot({start,end,operatorId:'ALL',status:'ALL',days:result.data})
+      if(result.error||holidayResult.error)setError((result.error||holidayResult.error)!.message)
+      else setSnapshot({start,end,operatorId:'ALL',status:'ALL',days:result.data,
+        holidayDates:(holidayResult.data??[]).map(h=>h.holiday_date)})
     })
     return ()=>{alive=false}
   },[hotelId,initialMonth])
@@ -145,6 +161,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     ? operators
     : operators.filter(o=>o.id===snapshot?.operatorId),[operators,snapshot?.operatorId])
   const entries=useMemo(()=>new Map((snapshot?.days??[]).map(d=>[d.operator_id+'|'+d.work_date,d])),[snapshot?.days])
+  const holidaySet=useMemo(()=>new Set(snapshot?.holidayDates??[]),[snapshot?.holidayDates])
   const rawDates=useMemo(()=>{
     if(!snapshot)return [] as string[]
     return Array.from({length:dayCount(snapshot.start,snapshot.end)},(_,i)=>addDays(snapshot.start,i))
@@ -198,7 +215,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
     ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Vacaciones'],['MEDICAL_LEAVE','B Baja'],
-    ['PUBLIC_HOLIDAY','F Festivo'],['COMP_REST','C Recuperación'], 
+    ['PUBLIC_HOLIDAY','15/08 Festivo disfrutado'],['COMP_REST','R Recuperable'], 
   ]
   const summaryNote='Horario planificado. No acredita por sí solo la presencia real ni el disfrute efectivo de vacaciones.'
   const previewCapped=weekGroups.length>previewWeeks.length
