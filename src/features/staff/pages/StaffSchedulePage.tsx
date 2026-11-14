@@ -14,8 +14,9 @@ import {
 import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
+import StaffHoursBatch from '../StaffHoursBatch'
 
-type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type PageTab = 'CUADRANTE' | 'ANUAL' | 'VERIFICACION' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
@@ -24,6 +25,7 @@ type DayEditor = {
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
+  {id:'VERIFICACION',label:'Verificar horas',mobile:'Verificar'},
   {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
@@ -430,9 +432,9 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
-          <select value={tab==='CUADRANTE'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
+          <select value={tab==='CUADRANTE'||tab==='VERIFICACION'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
             onChange={e=>{
-              if(tab==='CUADRANTE'){
+              if(tab==='CUADRANTE'||tab==='VERIFICACION'){
                 setCalendarFilter(e.target.value)
                 if(e.target.value!=='ALL') setSelectedId(e.target.value)
               } else if(tab==='VACACIONES'){
@@ -443,13 +445,13 @@ export default function StaffSchedulePage() {
               }
             }}
             className={baseInput+' mt-0.5 sm:mt-1'}>
-            {(tab==='CUADRANTE'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
+            {(tab==='CUADRANTE'||tab==='VERIFICACION'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
           <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {selected&&((tab!=='CUADRANTE'&&tab!=='VERIFICACION')||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
@@ -461,6 +463,17 @@ export default function StaffSchedulePage() {
         hotelName={hotel.name??'Hotel'}
         operators={operators}
         initialYear={year}
+      />}
+
+      {tab==='VERIFICACION'&&hotel?.id&&<StaffHoursBatch
+        key={year}
+        hotelId={hotel.id}
+        year={year}
+        operatorId={calendarFilter}
+        operators={operators}
+        days={days}
+        changedBy={session?.user.id??null}
+        reload={reload}
       />}
 
       {tab==='CUADRANTE'&&<StaffCalendar
