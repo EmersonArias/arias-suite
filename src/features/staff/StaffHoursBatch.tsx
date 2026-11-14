@@ -108,13 +108,18 @@ export default function StaffHoursBatch({
     const timestamp=new Date().toISOString()
     try {
       for(const [minutes,ids] of byMinutes){
-        const result=await supabase.from('staff_schedule_entries')
-          .update({actual_minutes:minutes,actual_confirmed:true,
-            changed_by:changedBy,updated_at:timestamp})
-          .eq('hotel_id',hotelId).eq('state','SHIFT').eq('actual_confirmed',false)
-          .lte('work_date',dateISO(new Date())).in('id',ids).select('id')
-        if(result.error){failure=result.error.message;break}
-        saved+=result.data?.length??0
+        // Keep URL lengths bounded for year-long selections and preserve partial-result feedback.
+        for(let offset=0;offset<ids.length;offset+=80){
+          const subset=ids.slice(offset,offset+80)
+          const result=await supabase.from('staff_schedule_entries')
+            .update({actual_minutes:minutes,actual_confirmed:true,
+              changed_by:changedBy,updated_at:timestamp})
+            .eq('hotel_id',hotelId).eq('state','SHIFT').eq('actual_confirmed',false)
+            .lte('work_date',dateISO(new Date())).in('id',subset).select('id')
+          if(result.error){failure=result.error.message;break}
+          saved+=result.data?.length??0
+        }
+        if(failure)break
       }
       await reload()
       setSelectedIds([])
