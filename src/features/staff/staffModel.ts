@@ -104,9 +104,20 @@ export function isoWeek(value: string) {
   const jan4=new Date(d.getFullYear(),0,4,12); const offset=(jan4.getDay()+6)%7;
   return 1+Math.round((d.getTime()-jan4.getTime()+offset*86400000)/(7*86400000));
 }
+/** El turno 09:00–19:00 es partido: pausa no trabajada de 13:00 a 15:00. */
+export function isSplitShift(start?:string|null,end?:string|null) {
+  return start?.slice(0,5)==='09:00' && end?.slice(0,5)==='19:00'
+}
+export function splitShiftLabel(start?:string|null,end?:string|null) {
+  if(isSplitShift(start,end))return '09:00–13:00 / 15:00–19:00'
+  return (start?.slice(0,5)??'—')+'–'+(end?.slice(0,5)??'—')
+}
+/** Minutos de trabajo planificado, sin la pausa de dos horas del turno partido. */
 export function minutesInShift(start: string, end: string) {
   const parse = (s:string) => { const [h,m]=s.split(':').map(Number); return h*60+m; };
-  const a=parse(start),b=parse(end);return (b-a+1440)%1440;
+  const a=parse(start),b=parse(end);
+  const elapsed=(b-a+1440)%1440
+  return Math.max(0,elapsed-(isSplitShift(start,end)?120:0))
 }
 export function hours(minutes: number | null | undefined) {
   return ((minutes ?? 0)/60).toLocaleString('es-ES',{maximumFractionDigits:2})+' h';
