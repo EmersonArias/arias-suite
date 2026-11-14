@@ -87,7 +87,7 @@ export default function StaffSelfServicePage(){
             const entry=lookup.get(d)
             const state=entry?.state==='SHIFT'?((entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—')):
               entry?.state==='VACATION'||entry?.state==='VACATION_PREVIOUS'?'Vacaciones':
-              entry?.state==='REST'?'Descanso':entry?'No disponible':'Sin asignar'
+              entry?.state==='REST'?'Descanso':entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':entry?'No disponible':'Sin asignar'
             return <div key={d} className="rounded-xl border bg-slate-50 p-3"><p className="text-xs text-slate-500">{fromISO(d).toLocaleDateString('es-ES',{weekday:'long',day:'2-digit',month:'2-digit'})}</p><p className="mt-2 text-sm font-semibold">{state}</p>{entry?.actual_confirmed&&<p className="mt-1 text-xs text-emerald-700">Verificadas {hours(entry.actual_minutes)}</p>}</div>
           })}</div>
         </section>
