@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   addDays, dateISO, fromISO, isoWeek, mondayOf, stateView,
   isVacationState, vacationCode, vacationStageLabel, vacationStage, vacationTone,
-  vacationOriginLabel,
+  vacationOriginLabel, isSplitShift, splitShiftLabel,
   type StaffDay, type StaffOperator,
 } from './staffModel'
 
@@ -46,6 +46,7 @@ function entryTone(entry?:StaffDay) {
 // Show the actual assigned hours for work shifts; other states retain one-letter codes.
 function compactShiftHours(entry: StaffDay) {
   if (!entry.start_time || !entry.end_time) return '–'
+  if (isSplitShift(entry.start_time,entry.end_time))return '9–13\n15–19'
   const format = (time: string) => {
     const [hour, minute] = time.slice(0, 5).split(':')
     if (!hour || !minute) return '–'
@@ -97,8 +98,8 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'SHIFT') {
     const start = entry.start_time?.slice(0, 5) ?? '—'
     const end = entry.end_time?.slice(0, 5) ?? '—'
-    if (compact) return start.slice(0, 2) + '–' + end.slice(0, 2)
-    return start + '–' + end
+    if (compact) return isSplitShift(start,end) ? '9–13 / 15–19' : start.slice(0, 2) + '–' + end.slice(0, 2)
+    return isSplitShift(start,end) ? splitShiftLabel(start,end) + ' · 8 h' : start + '–' + end
   }
   if (entry.state === 'REST') return compact ? 'D' : 'Descanso'
   if (isVacationState(entry.state)) {
@@ -116,7 +117,7 @@ function dayShort(entry?: StaffDay, compact = false) {
 }
 
 const legend: { state: string; code: string; text: string }[] = [
-  { state: 'SHIFT', code: '9–19', text: 'Horario' },
+  { state: 'SHIFT', code: '9–13/15–19', text: 'Turno partido (8 h)' },
   { state: 'REST', code: 'D', text: 'Descanso' },
   { state: 'VACATION', code: 'V', text: 'Programadas' },
   { state: 'VACATION_PREVIOUS', code: 'A25', text: 'Vac. de 2025 (A26: 2026)' },
@@ -204,9 +205,10 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
                 title={person.display_name+' · '+day+' · '+dayShort(entry)}
                 aria-label={person.display_name+', '+day+': '+dayShort(entry)}
                 className={'flex min-h-6 min-w-0 items-center justify-center overflow-hidden rounded-sm px-px text-center font-bold tracking-tighter hover:ring-1 hover:ring-sky-500 '+
-                  (mini?'text-[8px] leading-3':'text-[9px] leading-3 sm:min-h-8 sm:text-[11px]')+
-                  ' '+entryTone(entry)}>
-                <span className="block max-w-full truncate">{dayCode(entry)}</span>
+                  (mini?'text-[8px] leading-[10px]':'text-[9px] leading-[10px] sm:min-h-8 sm:text-[11px]')+
+                  (entry?.state==='SHIFT' && isSplitShift(entry.start_time,entry.end_time) ? ' min-h-8 ' : ' ')+entryTone(entry)}>
+                <span className={'block max-w-full '+(entry?.state==='SHIFT' && isSplitShift(entry.start_time,entry.end_time)
+                  ? 'whitespace-pre-line leading-[10px]' : 'truncate')}>{dayCode(entry)}</span>
               </button>
           })}
         </div>)}
