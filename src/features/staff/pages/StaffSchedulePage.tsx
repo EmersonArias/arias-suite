@@ -178,11 +178,13 @@ export default function StaffSchedulePage() {
   async function saveDay(){
     if(!dayEditor||!hotel?.id)return
     const isShift=dayEditor.state==='SHIFT'
-    if(isShift && (!validDigitalTime(dayEditor.start_time)||!validDigitalTime(dayEditor.end_time))) {
+    const start=normalizeDigitalTime(dayEditor.start_time)
+    const end=normalizeDigitalTime(dayEditor.end_time)
+    if(isShift && (!validDigitalTime(start)||!validDigitalTime(end))) {
       setDayEditorError('Indica las horas con formato digital HH:MM (por ejemplo, 08:00).')
       return
     }
-    const minutes=isShift?minutesInShift(dayEditor.start_time,dayEditor.end_time):null
+    const minutes=isShift?minutesInShift(start,end):null
     const actual=dayEditor.actual_hours.trim()===''?null:Math.round(Number(dayEditor.actual_hours)*60)
     if((isShift && !minutes)|| (actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
       setDayEditorError('Revisa las horas de entrada, salida o las horas efectivas.');return
@@ -191,7 +193,7 @@ export default function StaffSchedulePage() {
     const existing=byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
-      state:dayEditor.state,start_time:isShift?dayEditor.start_time:null,end_time:isShift?dayEditor.end_time:null,
+      state:dayEditor.state,start_time:isShift?start:null,end_time:isShift?end:null,
       planned_minutes:minutes,actual_minutes:actual,
       actual_confirmed:actual!==null&&dayEditor.actual_confirmed,
       justification:dayEditor.justification,
