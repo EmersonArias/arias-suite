@@ -30,6 +30,12 @@ const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
   {id:'REPORTES',label:'Reportes y PDF',mobile:'PDF'},
 ]
+const shiftPresets = [
+  { label:'08:00–16:00', start:'08:00', end:'16:00' },
+  { label:'10:00–18:00', start:'10:00', end:'18:00' },
+  { label:'13:00–21:00', start:'13:00', end:'21:00' },
+  { label:'09–13 / 15–19', start:'09:00', end:'19:00' },
+] as const
 const baseInput='w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-sky-600 sm:px-3 sm:py-2'
 const num = (v:number)=>v.toLocaleString('es-ES')
 function asDisplayDate(iso:string) {return fromISO(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
@@ -102,6 +108,7 @@ export default function StaffSchedulePage() {
   const [selectedId,setSelectedId]=useState('')
   const [hoursDetailOperatorId,setHoursDetailOperatorId]=useState<string|null>(null)
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
+  const [customShiftTime,setCustomShiftTime]=useState(false)
   const [dayEditorError,setDayEditorError]=useState('')
   const [showOperatorForm,setShowOperatorForm]=useState(false)
   const [editingOperatorId,setEditingOperatorId]=useState<string|null>(null)
@@ -254,9 +261,12 @@ export default function StaffSchedulePage() {
   function openDay(operatorId:string,workDate:string){
     setDayEditorError('')
     const row=byDay.get(operatorId+'|'+workDate)
+    const start=row?.start_time?.slice(0,5)??'08:00'
+    const end=row?.end_time?.slice(0,5)??'16:00'
+    setCustomShiftTime(!shiftPresets.some(p=>p.start===start&&p.end===end))
     setDayEditor({
       operator_id:operatorId,work_date:workDate,state:row?.state??'SHIFT',
-      start_time:row?.start_time?.slice(0,5)??'08:00',end_time:row?.end_time?.slice(0,5)??'16:00',
+      start_time:start,end_time:end,
       justification:row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
       vacation_origin_year:row?.vacation_origin_year==null
@@ -962,21 +972,53 @@ export default function StaffSchedulePage() {
           <p className="mt-0.5 text-sm text-slate-500">{operators.find(o=>o.id===dayEditor.operator_id)?.display_name}</p>
           <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
             <label className="block text-xs font-medium">Estado<select className={baseInput+' mt-1'} value={dayEditor.state} onChange={e=>setDayEditor({...dayEditor,state:e.target.value})}>{staffStateOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
-            {dayEditor.state==='SHIFT'&&<div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium">Entrada · HH:MM
-                <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
-                  placeholder="08:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
-                  value={dayEditor.start_time}
-                  onChange={e=>setDayEditor({...dayEditor,start_time:e.target.value})}
-                  onBlur={()=>setDayEditor(prev=>prev?{...prev,start_time:normalizeDigitalTime(prev.start_time)}:prev)}/>
-              </label>
-              <label className="text-xs font-medium">Salida · HH:MM
-                <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
-                  placeholder="16:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
-                  value={dayEditor.end_time}
-                  onChange={e=>setDayEditor({...dayEditor,end_time:e.target.value})}
-                  onBlur={()=>setDayEditor(prev=>prev?{...prev,end_time:normalizeDigitalTime(prev.end_time)}:prev)}/>
-              </label>
+            {dayEditor.state==='SHIFT'&&<div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-700">Horario previsto</p>
+              <div role="group" aria-label="Elegir turno previsto" className="grid grid-cols-2 gap-1.5">
+                {shiftPresets.map(preset=>{
+                  const active=!customShiftTime&&
+                    normalizeDigitalTime(dayEditor.start_time)===preset.start&&
+                    normalizeDigitalTime(dayEditor.end_time)===preset.end
+                  return <button type="button" key={preset.label} aria-pressed={active}
+                    onClick={()=>{setCustomShiftTime(false);setDayEditor({...dayEditor,
+                      start_time:preset.start,end_time:preset.end})}}
+                    className={'min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition '+
+                      (active?'border-sky-600 bg-sky-100 text-sky-900 ring-1 ring-sky-500':
+                        'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')}>
+                    {preset.label}
+                  </button>
+                })}
+                <button type="button" aria-pressed={customShiftTime}
+                  onClick={()=>setCustomShiftTime(true)}
+                  className={'min-h-10 rounded-lg border px-2 text-xs font-semibold '+
+                    (customShiftTime?'border-sky-600 bg-sky-100 text-sky-900':
+                      'border-slate-200 text-slate-700')}>Otro horario</button>
+              </div>
+              {customShiftTime&&<div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-200 p-2">
+                <label className="text-xs font-medium">Entrada · HH:MM
+                  <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
+                    placeholder="08:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
+                    value={dayEditor.start_time}
+                    onChange={e=>setDayEditor({...dayEditor,start_time:e.target.value})}
+                    onBlur={()=>setDayEditor(prev=>prev?{...prev,start_time:normalizeDigitalTime(prev.start_time)}:prev)}/>
+                </label>
+                <label className="text-xs font-medium">Salida · HH:MM
+                  <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={5}
+                    placeholder="16:00" className={baseInput+' mt-1 font-mono text-lg tracking-wider'}
+                    value={dayEditor.end_time}
+                    onChange={e=>setDayEditor({...dayEditor,end_time:e.target.value})}
+                    onBlur={()=>setDayEditor(prev=>prev?{...prev,end_time:normalizeDigitalTime(prev.end_time)}:prev)}/>
+                </label>
+              </div>}
+              <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                Horas previstas calculadas: <strong>{
+                  validDigitalTime(normalizeDigitalTime(dayEditor.start_time))&&
+                  validDigitalTime(normalizeDigitalTime(dayEditor.end_time))
+                    ? hours(minutesInShift(normalizeDigitalTime(dayEditor.start_time),
+                        normalizeDigitalTime(dayEditor.end_time)))
+                    : 'Revisa el horario'
+                }</strong>
+              </p>
             </div>}
             {dayEditor.state==='SHIFT'&&isSplitShift(normalizeDigitalTime(dayEditor.start_time),
               normalizeDigitalTime(dayEditor.end_time))&&<p className="rounded-md bg-sky-50 px-2 py-1.5 text-xs text-sky-900">
