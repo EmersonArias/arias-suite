@@ -157,6 +157,10 @@ export default function StaffSchedulePage() {
   const selectedVacationDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && (d.state==='VACATION'||d.state==='VACATION_PREVIOUS'))
   const selectedVacationPeriods=groupConsecutiveDays(selectedVacationDays)
+  const vacationToday=dateISO(new Date())
+  const selectedVacationTaken=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='TAKEN').length
+  const selectedVacationUpcoming=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='UPCOMING').length
+  const selectedVacationUnverified=selectedVacationDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length
   const selectedMedicalDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && d.state==='MEDICAL_LEAVE')
   const selectedMedicalPeriods=groupConsecutiveDays(selectedMedicalDays)
@@ -259,6 +263,27 @@ export default function StaffSchedulePage() {
     if(result.error)setError(result.error.message);else await reload()
     setBusy(false)
   }
+  async function confirmVacationPeriod(rows:StaffDay[]){
+    if(!hotel?.id)return
+    const today=dateISO(new Date())
+    const pending=rows.filter(d=>isVacationState(d.state) && d.work_date<=today && !d.vacation_taken_confirmed)
+    if(!pending.length)return
+    if(!window.confirm('¿Confirmar como disfrutados '+pending.length+' días de vacaciones de este período? Esta confirmación modifica el estado del saldo disfrutado.'))return
+    setBusy(true);setError('')
+    const now=new Date().toISOString()
+    const result=await supabase.from('staff_schedule_entries')
+      .update({vacation_taken_confirmed:true,vacation_confirmed_at:now,
+        vacation_confirmed_by:session?.user.id??null,updated_at:now})
+      .eq('hotel_id',hotel.id).in('id',pending.map(d=>d.id))
+      .in('state',['VACATION','VACATION_PREVIOUS']).lte('work_date',today)
+      .select('id')
+    if(result.error)setError(result.error.message)
+    else if((result.data?.length??0)!==pending.length)
+      setError('Solo se actualizaron '+(result.data?.length??0)+' de '+pending.length+' días. Revisa tus permisos y vuelve a cargar.')
+    else {setSuccess(pending.length+' días de vacaciones confirmados como disfrutados.');await reload()}
+    setBusy(false)
+  }
+
   async function saveVacation(){
     if(!hotel?.id||!selectedId)return
     const e=entitled.trim()===''?null:Number(entitled)
@@ -456,6 +481,17 @@ export default function StaffSchedulePage() {
               <div className="mt-1 text-lg font-bold">{value}</div>
             </div>)}
           </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+            {[
+              ['Disfrutadas',selectedVacationTaken,'bg-emerald-600 text-white'],
+              ['Pendientes',selectedVacationUpcoming,'bg-emerald-100 text-emerald-950'],
+              ['Por confirmar',selectedVacationUnverified,'bg-amber-50 text-amber-900 ring-1 ring-amber-300'],
+            ].map(([label,value,tone])=><div key={String(label)} className={'rounded-lg p-2 '+tone}>
+              <div className="text-[10px] leading-tight">{label}</div>
+              <div className="mt-1 text-lg font-bold">{value}</div>
+            </div>)}
+          </div>
+          <p className="mt-1.5 text-[10px] text-slate-500">Solo se consideran disfrutadas las vacaciones confirmadas. Los días pasados sin verificar aparecen «Por confirmar».</p>
           {(selectedSummary?.vacationPrevious??0)>0&&<p className="mt-2 text-xs text-slate-600">Días de años anteriores programados: <strong>{selectedSummary?.vacationPrevious}</strong></p>}
           <h4 className="mt-3 text-xs font-bold">Períodos previstos</h4>
           <div className="mt-1 divide-y divide-slate-100">
@@ -464,8 +500,17 @@ export default function StaffSchedulePage() {
                 <span>{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
                 <span className="shrink-0 font-semibold">{p.rows.length} d {p.state==='VACATION_PREVIOUS'?'· ant.':''}</span>
               </summary>
-              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(day=><button type="button" key={day.id} onClick={()=>openDay(day.operator_id,day.work_date)}
-                className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-900">{asDisplayDate(day.work_date).slice(0,5)}</button>)}</div>
+              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(day=><button type="button" key={day.id}
+                onClick={()=>openDay(day.operator_id,day.work_date)}
+                title={vacationStageLabel(vacationStage(day,vacationToday))}
+                className={'rounded px-2 py-1 text-xs font-semibold '+vacationTone(day,vacationToday)}>
+                {asDisplayDate(day.work_date).slice(0,5)}{vacationStage(day,vacationToday)==='UNVERIFIED'?' ?':''}
+              </button>)}</div>
+              {p.rows.some(d=>vacationStage(d,vacationToday)==='UNVERIFIED')&&<button type="button" disabled={busy}
+                onClick={()=>void confirmVacationPeriod(p.rows)}
+                className="mt-2 rounded-lg border border-emerald-400 px-2 py-1.5 text-[11px] font-semibold text-emerald-800 disabled:opacity-50">
+                Confirmar días pasados de este período ({p.rows.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length})
+              </button>}
             </details>)}
             {selectedVacationPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay vacaciones programadas.</p>}
           </div>
