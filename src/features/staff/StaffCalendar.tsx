@@ -11,6 +11,7 @@ type Props = {
   year: number
   operators: StaffOperator[]
   days: StaffDay[]
+  holidays: string[]
   operatorId: string
   onYearChange: (value: number) => void
   onEditDay: (operatorId: string, date: string) => void
@@ -50,9 +51,19 @@ function compactShiftHours(entry: StaffDay) {
   }
   return format(entry.start_time) + '–' + format(entry.end_time)
 }
+function holidayRef(entry: StaffDay) {
+  const match = entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)
+  return match ? match[3] + '/' + match[2] : null
+}
+function recoveryRef(entry: StaffDay) {
+  const match = entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
+  return match ? 'R' + match[1].replace('-', '/') : null
+}
 function dayCode(entry?: StaffDay) {
   if (!entry) return '–'
   if (entry.state === 'SHIFT') return compactShiftHours(entry)
+  if (entry.state === 'PUBLIC_HOLIDAY') return holidayRef(entry) ?? 'F'
+  if (entry.state === 'COMP_REST') return recoveryRef(entry) ?? 'R'
   const codes: Record<string, string> = {
     REST: 'D',
     VACATION: 'V',
@@ -82,8 +93,8 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'VACATION') return compact ? 'V' : 'Vacaciones'
   if (entry.state === 'VACATION_PREVIOUS') return compact ? 'VA' : 'Vac. anteriores'
   if (entry.state === 'MEDICAL_LEAVE') return compact ? 'B' : 'Baja'
-  if (entry.state === 'COMP_REST') return compact ? 'C' : 'Recuperación de horas'
-  if (entry.state === 'PUBLIC_HOLIDAY') return compact ? 'F' : 'Festivo'
+  if (entry.state === 'COMP_REST') return compact ? dayCode(entry) : 'Recuperación de horas' + (entry.source_code ? ' (' + entry.source_code + ')' : '')
+  if (entry.state === 'PUBLIC_HOLIDAY') return compact ? dayCode(entry) : 'Festivo disfrutado' + (holidayRef(entry) ? ' (' + holidayRef(entry) + ')' : '')
   if (entry.state === 'PERSONAL_DAY') return compact ? 'AP' : 'Asuntos propios'
   if (entry.state === 'PERMISSION') return compact ? 'P' : 'Permiso'
   if (entry.state === 'TRAINING') return compact ? 'Fo' : 'Formación'
@@ -97,11 +108,11 @@ const legend: { state: string; code: string; text: string }[] = [
   { state: 'VACATION', code: 'V', text: 'Vacaciones' },
   { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
-  { state: 'PUBLIC_HOLIDAY', code: 'F', text: 'Festivo' },
-  { state: 'COMP_REST', code: 'C', text: 'Recuperación' },
+  { state: 'PUBLIC_HOLIDAY', code: '15/08', text: 'Festivo disfrutado' },
+  { state: 'COMP_REST', code: 'R', text: 'Recuperable' },
 ]
 
-export default function StaffCalendar({ year, operators, days, operatorId, onYearChange, onEditDay }: Props) {
+export default function StaffCalendar({ year, operators, days, holidays, operatorId, onYearChange, onEditDay }: Props) {
   const [mode, setMode] = useState<CalendarMode>('MES')
   const [focusDate, setFocusDate] = useState(dateISO(new Date()))
   const today = dateISO(new Date())
@@ -110,6 +121,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
     () => operatorId === 'ALL' ? operators.filter(o => o.active) : operators.filter(o => o.id === operatorId),
     [operators, operatorId],
   )
+  const officialHolidaySet = useMemo(() => new Set(holidays), [holidays])
   const entries = useMemo(() => new Map(days.map(d => [d.operator_id + '|' + d.work_date, d])), [days])
   const entryFor = (person: StaffOperator, day: string) => entries.get(person.id + '|' + day)
 
@@ -158,8 +170,11 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
         </div>
         {week.map((day,i)=>{
           const outside = inMonth !== undefined && Number(day.slice(5,7)) !== inMonth+1
-          return <div key={day} className={'min-w-0 py-0.5 text-center text-[9px] font-semibold ' +
-            (outside?'text-slate-300':i>4?'text-rose-600':'text-slate-600')}>
+          const officialHoliday = officialHolidaySet.has(day) && !outside
+          return <div key={day}
+            title={officialHoliday ? 'Festivo del calendario · ' + day : undefined}
+            className={'min-w-0 py-0.5 text-center text-[9px] font-semibold ' +
+              (outside?'bg-slate-100 text-slate-300':officialHoliday?'bg-blue-700 text-white':i>4?'text-rose-600':'text-slate-600')}>
             {weekdays[i]} {Number(day.slice(8))}
           </div>
         })}
@@ -213,6 +228,8 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
           onClick={() => navigateBy(-1)} aria-label="Período anterior"><ChevronLeft size={18}/></button>
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-xs font-bold sm:text-base">{periodLabel}</div>
+          {mode === 'DIA' && officialHolidaySet.has(focusDate) &&
+            <span className="inline-block rounded bg-blue-700 px-1.5 py-0.5 text-[10px] font-semibold text-white">Festivo del calendario</span>}
           {mode === 'MES' && <select aria-label="Elegir mes" className="mt-0.5 max-w-[150px] bg-transparent text-center text-[11px] text-slate-500"
             value={month} onChange={event => setFocusDate(year + '-' + pad(Number(event.target.value) + 1) + '-15')}>
             {monthNames.map((name, index) => <option key={name} value={index}>{name}</option>)}
@@ -256,6 +273,9 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
     </div>}
     <div className="mt-2 border-t border-slate-100 pt-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
+        <span className="inline-flex items-center gap-1 text-[9px] text-slate-600">
+          <span className="h-3 w-3 rounded-sm bg-blue-700" aria-hidden="true"/>Cabecera azul: festivo del calendario
+        </span>
         {legend.map(item => <span key={item.state} className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] leading-3 text-slate-600">
           <span className={'inline-flex h-3 min-w-3 items-center justify-center rounded-[2px] px-0.5 text-[8px] font-bold ' + stateView(item.state).tone}>{item.code}</span>{item.text}
         </span>)}
