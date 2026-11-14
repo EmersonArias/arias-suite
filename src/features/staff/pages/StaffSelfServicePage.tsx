@@ -8,6 +8,7 @@ import {
   addDays,dateISO,fromISO,hours,mondayOf, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
 } from '../staffModel'
+import { loadAllStaffDays } from '../staffData'
 
 export default function StaffSelfServicePage(){
   const navigate=useNavigate()
@@ -33,8 +34,11 @@ export default function StaffSelfServicePage(){
       setOperator(me)
       if(!me){setLoading(false);return}
       const [calendar,overtime,vacation]=await Promise.all([
-        supabase.from('staff_schedule_entries').select('id,hotel_id,operator_id,work_date,state,start_time,end_time,planned_minutes,actual_minutes,actual_confirmed,justification,source_kind,source_code')
-          .eq('operator_id',me.id).gte('work_date',String(year)+'-01-01').lte('work_date',String(year)+'-12-31').order('work_date'),
+        loadAllStaffDays({
+          operatorId: me.id,
+          startDate: String(year)+'-01-01',
+          endDate: String(year)+'-12-31',
+        }),
         supabase.from('staff_overtime_ledger').select('id,hotel_id,operator_id,entry_date,entry_type,minutes,reason,confirmed')
           .eq('operator_id',me.id).lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
         supabase.from('staff_vacation_years').select('id,hotel_id,operator_id,year,entitlement_days,carryover_days,adjustment_days')
@@ -77,7 +81,7 @@ export default function StaffSelfServicePage(){
         <section className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="truncate text-sm font-bold sm:text-base">{operator.display_name}</h2>
           <label className="shrink-0 text-xs">Año <select className="ml-1 rounded-lg border px-2 py-1.5 text-sm" value={year} onChange={e=>setYear(Number(e.target.value))}>{[2025,2026,2027,2028].map(y=><option key={y}>{y}</option>)}</select></label></section>
         <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-          {[['Turnos previstos',hours(summary.planned)],['Horas verificadas',hours(summary.actual)],['Vacaciones previstas',summary.vacation+' días'],['Vacaciones pendientes',summary.balance==null?'Sin configurar':summary.balance+' días']].map(([name,value])=>
+          {[['Turnos previstos',hours(summary.planned)],['Horas verificadas',hours(summary.actual)],['Vacaciones previstas',summary.vacation+' días'],['Sin programar',summary.balance==null?'—':summary.balance+' días']].map(([name,value])=>
             <div key={name} className="min-w-0 rounded-lg bg-white p-2 text-center shadow-sm sm:rounded-2xl sm:p-4 sm:text-left"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{name}</p><p className="mt-1 break-words text-xs font-bold sm:mt-2 sm:text-xl">{value}</p></div>)}
         </div>
         <section className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
@@ -92,7 +96,7 @@ export default function StaffSelfServicePage(){
           })}</div>
         </section>
         <section className="grid gap-2 lg:grid-cols-2 lg:gap-4">
-          <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2><p className="mt-1 text-xs text-slate-500">Derecho: {entitlement?.entitlement_days??'—'} d · Anteriores: {entitlement?.carryover_days??0} d</p>
+          <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2><p className="mt-1 text-xs text-slate-500">Asignados: {entitlement?.entitlement_days??'—'} d · Anteriores: {entitlement?.carryover_days??0} d</p>
             <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).length})</summary><div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">{days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-sky-100 px-1.5 py-1 text-xs text-sky-800">{fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
           </div>
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><div className="flex items-center justify-between gap-2"><h2 className="text-sm font-bold sm:text-base">Horas adicionales</h2><strong className="text-sm">{hours(summary.extra)}</strong></div>
