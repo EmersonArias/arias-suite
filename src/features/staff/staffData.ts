@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { StaffDay } from './staffModel'
+import { vacationOriginYear, type StaffDay } from './staffModel'
 
 type DayScope = {
   hotelId?: string
@@ -58,6 +58,24 @@ export function groupConsecutiveDays(entries: StaffDay[]): StaffPeriod[] {
   }
   return periods
 }
+/** Agrupa por continuidad y por año de procedencia, aunque el estado pase de V a V anterior en enero. */
+export function groupVacationPeriods(entries:StaffDay[]):StaffPeriod[] {
+  const sorted=[...entries].sort((a,b)=>a.work_date.localeCompare(b.work_date))
+  const periods:StaffPeriod[]=[]
+  for(const day of sorted){
+    const last=periods[periods.length-1]
+    if(last && toFollowingDate(last.end)===day.work_date &&
+      vacationOriginYear(last.rows[0])===vacationOriginYear(day)){
+      last.end=day.work_date
+      last.rows.push(day)
+    } else {
+      periods.push({start:day.work_date,end:day.work_date,state:day.state,
+        justification:day.justification,rows:[day]})
+    }
+  }
+  return periods
+}
+
 function toFollowingDate(value:string) {
   const date = new Date(value+'T12:00:00')
   date.setDate(date.getDate()+1)
