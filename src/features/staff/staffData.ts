@@ -32,3 +32,34 @@ export async function loadAllStaffDays(scope: DayScope) {
   }
   return { data: [] as StaffDay[], error: new Error('Demasiados registros. Acota el período.') }
 }
+
+export type StaffPeriod = {
+  start: string
+  end: string
+  state: string
+  justification: string
+  rows: StaffDay[]
+}
+
+export function groupConsecutiveDays(entries: StaffDay[]): StaffPeriod[] {
+  const sorted = [...entries].sort((a,b)=>a.work_date.localeCompare(b.work_date))
+  const periods: StaffPeriod[] = []
+  for (const day of sorted) {
+    const last = periods[periods.length - 1]
+    // Keep different absence types / justification levels separated.
+    if (last && last.state === day.state && last.justification === day.justification &&
+        toFollowingDate(last.end) === day.work_date) {
+      last.end = day.work_date
+      last.rows.push(day)
+    } else {
+      periods.push({start:day.work_date,end:day.work_date,state:day.state,
+        justification:day.justification,rows:[day]})
+    }
+  }
+  return periods
+}
+function toFollowingDate(value:string) {
+  const date = new Date(value+'T12:00:00')
+  date.setDate(date.getDate()+1)
+  return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-')
+}
