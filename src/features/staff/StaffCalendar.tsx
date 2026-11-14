@@ -81,8 +81,8 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'REST') return compact ? 'D' : 'Descanso'
   if (entry.state === 'VACATION') return compact ? 'V' : 'Vacaciones'
   if (entry.state === 'VACATION_PREVIOUS') return compact ? 'VA' : 'Vac. anteriores'
-  if (entry.state === 'MEDICAL_LEAVE') return compact ? 'BM' : 'Baja médica'
-  if (entry.state === 'COMP_REST') return compact ? 'RC' : 'Desc. compensatorio'
+  if (entry.state === 'MEDICAL_LEAVE') return compact ? 'B' : 'Baja'
+  if (entry.state === 'COMP_REST') return compact ? 'C' : 'Recuperación de horas'
   if (entry.state === 'PUBLIC_HOLIDAY') return compact ? 'F' : 'Festivo'
   if (entry.state === 'PERSONAL_DAY') return compact ? 'AP' : 'Asuntos propios'
   if (entry.state === 'PERMISSION') return compact ? 'P' : 'Permiso'
@@ -98,13 +98,7 @@ const legend: { state: string; code: string; text: string }[] = [
   { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
   { state: 'PUBLIC_HOLIDAY', code: 'F', text: 'Festivo' },
-  { state: 'PERMISSION', code: 'P', text: 'Permiso' },
-  { state: 'PERSONAL_DAY', code: 'L', text: 'Asuntos propios' },
-  { state: 'COMP_REST', code: 'C', text: 'Compensación' },
-  { state: 'TRAINING', code: 'E', text: 'Formación' },
-  { state: 'UNJUSTIFIED_ABSENCE', code: 'I', text: 'Ausencia' },
-  { state: 'OTHER', code: 'R', text: 'Revisar' },
-  { state: 'UNASSIGNED', code: '–', text: 'Sin asignar' },
+  { state: 'COMP_REST', code: 'C', text: 'Recuperación' },
 ]
 
 export default function StaffCalendar({ year, operators, days, operatorId, onYearChange, onEditDay }: Props) {
