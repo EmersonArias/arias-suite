@@ -220,9 +220,9 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         [{content:weekCaption(start),colSpan:8,styles:{fillColor:[226,232,240] as [number,number,number],
           textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'left' as const}}],
         [
-          {content:'Operario',styles:{fillColor:[30,41,59] as [number,number,number],textColor:[255,255,255] as [number,number,number],fontStyle:'bold' as const}},
-          ...week.map((day,i)=>({content:dateHeading(day,i),styles:{fillColor:[30,41,59] as [number,number,number],
-            textColor:[255,255,255] as [number,number,number],fontStyle:'bold' as const,halign:'center' as const}})),
+          {content:'',styles:{fillColor:[255,255,255] as [number,number,number],textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const}},
+          ...week.map((day,i)=>({content:dateHeading(day,i),styles:{fillColor:[255,255,255] as [number,number,number],
+            textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'center' as const}})),
         ],
         ...displayedOperators.map(person=>[
           {content:person.display_name,styles:{fontStyle:'bold' as const,textColor:[30,41,59] as [number,number,number]}},
@@ -269,7 +269,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
     const heading=esc(hotelName)+' · '+esc(periodLabel)
     const weeklyTables=weekGroups.map(({start,week})=>{
-      const head='<th class="person">Operario</th>'+week.map((day,i)=>'<th>'+esc(dateHeading(day,i))+'</th>').join('')
+      const head='<th class="person"></th>'+week.map((day,i)=>'<th>'+esc(dateHeading(day,i))+'</th>').join('')
       const rows=displayedOperators.map(person=>{
         const cells=week.map(day=>{
           const inRange=dateSet.has(day)
@@ -289,7 +289,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       '@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:9px}'+
       'h1{font-size:14px;margin:0 0 3px}p{margin:2px 0 7px}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
       'thead{display:table-header-group}tr{break-inside:avoid}th,td{border:1px solid #e2e8f0;padding:2px 3px;height:12px}'+
-      'thead th{background:#1e293b;color:white;text-align:center}.person{width:90px;text-align:left}'+
+      'thead th{background:#fff;color:#334155;text-align:center}.person{width:90px;text-align:left}'+
       '.week{break-inside:avoid;page-break-inside:avoid;margin-bottom:5px}.week h2{font-size:9px;margin:3px 0 2px}'+
       '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.footer{margin-top:7px;font-size:8px;line-height:1.6}.notes{font-size:8px;color:#475569}'+
@@ -380,9 +380,9 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         {previewWeeks.map(({start,week})=><section key={start} className="overflow-hidden rounded-lg border border-slate-200">
           <div className="bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700">{weekCaption(start)}</div>
           <table className="w-full table-fixed border-collapse text-[9px] sm:text-xs">
-            <thead><tr className="bg-slate-800 text-white">
-              <th className="w-[68px] border border-white/20 px-1 py-1 text-left sm:w-24">Operario</th>
-              {week.map((day,i)=><th key={day} className="border border-white/20 px-px py-1 text-center">{dateHeading(day,i)}</th>)}
+            <thead><tr className="bg-white text-slate-700">
+              <th className="w-[68px] border border-slate-200 px-1 py-1 text-left sm:w-24"></th>
+              {week.map((day,i)=><th key={day} className="border border-slate-200 px-px py-1 text-center">{dateHeading(day,i)}</th>)}
             </tr></thead>
             <tbody>
               {displayedOperators.map(person=><tr key={person.id}>
