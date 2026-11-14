@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ariasAuth } from '../../../core/auth/authService'
+import { supabase } from '../../../lib/supabase'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -11,18 +12,25 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  async function destinationAfterLogin() {
+    const { data: session } = await ariasAuth.getSession()
+    if (!session) return '/'
+    const access = await supabase.rpc('has_suite_access')
+    if (!access.error && access.data === true) return '/'
+    const own = await supabase.from('staff_operators')
+      .select('id').eq('linked_user_id', session.user.id).eq('active', true).limit(1)
+    return !own.error && (own.data?.length ?? 0) > 0 ? '/mi-horario' : '/'
+  }
+
   useEffect(() => {
     let active = true
-
-    ariasAuth.getSession().then(({ data }) => {
-      if (active && data) {
-        navigate('/', { replace: true })
+    void ariasAuth.getSession().then(async ({ data }) => {
+      if (data) {
+        const destination = await destinationAfterLogin()
+        if (active) navigate(destination, { replace: true })
       }
     })
-
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [navigate])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,7 +48,7 @@ export default function LoginPage() {
       return
     }
 
-    window.location.replace('/')
+    window.location.replace(await destinationAfterLogin())
   }
 
   return (
