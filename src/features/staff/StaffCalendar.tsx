@@ -37,10 +37,6 @@ function calendarMonth(year: number, month: number) {
   return Array.from({ length: count }, (_, i) => addDays(start, i))
 }
 
-function dayKind(entry?: StaffDay) {
-  if (!entry) return 'UNASSIGNED'
-  return entry.state
-}
 function entryTone(entry?:StaffDay) {
   if (!entry) return stateView('UNASSIGNED').tone
   return isVacationState(entry.state) ? vacationTone(entry) : stateView(entry.state).tone
