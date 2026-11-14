@@ -156,46 +156,54 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
   const periodLabel = mode === 'DIA' ? visibleDay :
     mode === 'SEMANA' ? weekLabel : mode === 'MES' ? monthNames[month] + ' ' + year : String(year)
 
-  function monthPanel(calendarYear: number, calendarMonthIndex: number, mini: boolean) {
-    const dates = calendarMonth(calendarYear, calendarMonthIndex)
-    return <section key={calendarYear + '-' + calendarMonthIndex} className={mini ? 'rounded-xl border border-slate-200 p-2' : ''}>
-      {mini && <button type="button" className="mb-1 w-full rounded-md px-1 py-1 text-left text-sm font-bold hover:bg-slate-100"
-        onClick={() => { setFocusDate(calendarYear + '-' + pad(calendarMonthIndex + 1) + '-15'); setMode('MES') }}>
-        {monthNames[calendarMonthIndex]}
-      </button>}
-      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
-        {weekdays.map((wd, i) => <div key={wd} className={'py-1 text-center text-[10px] font-semibold ' + (i > 4 ? 'text-rose-600' : 'text-slate-500')}>{wd}</div>)}
-        {dates.map(day => {
-          const inMonth = Number(day.slice(5, 7)) === calendarMonthIndex + 1 && Number(day.slice(0, 4)) === calendarYear
-          if (!inMonth) return <div key={day} className="rounded bg-slate-50/50" aria-hidden="true" />
-          const entry = visiblePeople.length === 1 ? entryFor(visiblePeople[0], day) : undefined
-          const tone = visiblePeople.length === 1 ? stateView(dayKind(entry)).tone : 'bg-slate-50 text-slate-700'
-          const persons = visiblePeople.length === 1 ? [] : visiblePeople
-          return <button key={day} type="button" onClick={() => chooseDay(day)}
-            aria-label={day + (visiblePeople.length === 1 ? ' · ' + visiblePeople[0].display_name + ' · ' + dayShort(entry) : ' · Ver operarios')}
-            title={day + (visiblePeople.length === 1 ? ' · ' + dayShort(entry) : '')}
-            className={'flex min-w-0 flex-col overflow-hidden rounded-md border px-0.5 text-left transition hover:ring-2 hover:ring-sky-500 ' +
-              (mini ? 'min-h-10 py-0.5 sm:min-h-11' : 'min-h-[74px] py-1 sm:min-h-[100px] sm:px-1') + ' ' +
-              (day === today ? 'border-sky-500 ring-1 ring-sky-400 ' : 'border-transparent ') + tone}>
-            <span className={'text-[10px] font-bold ' + (mini ? 'leading-3' : 'sm:text-xs')}>{Number(day.slice(8))}</span>
-            {visiblePeople.length === 1 ?
-              <span className={'mt-auto w-full truncate text-center font-semibold ' + (mini ? 'text-[7px] leading-3 tracking-tighter' : 'text-[9px] tracking-tight sm:text-xs')}>
-                {dayCode(entry)}
-              </span> :
-              <span className={'mt-0.5 flex w-full flex-col gap-px ' + (mini ? 'gap-px' : 'gap-0.5')}>
-                {persons.map(person => {
-                  const item = entryFor(person, day)
-                  return <span key={person.id}
-                    title={person.display_name + ': ' + dayShort(item)}
-                    className={'block w-full truncate rounded-[3px] px-px text-center font-semibold ' +
-                      (mini ? 'text-[6px] leading-[8px] tracking-tighter' : 'text-[8px] leading-[13px] tracking-tight sm:text-[10px] sm:leading-4') +
-                      ' ' + stateView(dayKind(item)).tone}>
-                    {dayCode(item)}
-                  </span>
-                })}
-              </span>}
-          </button>
+  // One fixed, readable operator-name column in every weekly row.
+  // This keeps identities visible in weekly, monthly and yearly views.
+  function weekMatrix(week: string[], mini: boolean, inMonth?: number) {
+    const gridStyle = {gridTemplateColumns:'minmax(58px, 1.2fr) repeat(7, minmax(0, 1fr))'}
+    return <div key={week[0]} className="min-w-0 overflow-hidden rounded-lg border border-slate-200">
+      <div className="grid items-center gap-px bg-slate-100 p-px" style={gridStyle}>
+        <div className="truncate bg-slate-100 px-1 text-[9px] font-semibold text-slate-500">
+          S{isoWeek(week[0])}
+        </div>
+        {week.map((day,i)=>{
+          const outside = inMonth !== undefined && Number(day.slice(5,7)) !== inMonth+1
+          return <div key={day} className={'min-w-0 py-0.5 text-center text-[9px] font-semibold ' +
+            (outside?'text-slate-300':i>4?'text-rose-600':'text-slate-600')}>
+            {weekdays[i]} {Number(day.slice(8))}
+          </div>
         })}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {visiblePeople.map(person=><div key={person.id} className="grid items-stretch gap-px bg-white p-px" style={gridStyle}>
+          <div className={'flex min-w-0 items-center truncate bg-slate-50 px-1 font-semibold text-slate-800 '+
+            (mini?'text-[9px]':'text-[10px] sm:text-xs')} title={person.display_name}>{person.display_name}</div>
+          {week.map(day=>{
+            const outside = inMonth !== undefined && Number(day.slice(5,7)) !== inMonth+1
+            const entry=entryFor(person,day)
+            return outside ? <span key={day} className="bg-slate-50" /> :
+              <button type="button" key={day} onClick={()=>onEditDay(person.id,day)}
+                title={person.display_name+' · '+day+' · '+dayShort(entry)}
+                aria-label={person.display_name+', '+day+': '+dayShort(entry)}
+                className={'flex min-h-6 min-w-0 items-center justify-center overflow-hidden rounded-sm px-px text-center font-bold tracking-tighter hover:ring-1 hover:ring-sky-500 '+
+                  (mini?'text-[8px] leading-3':'text-[9px] leading-3 sm:min-h-8 sm:text-[11px]')+
+                  ' '+stateView(dayKind(entry)).tone}>
+                <span className="block max-w-full truncate">{dayCode(entry)}</span>
+              </button>
+          })}
+        </div>)}
+      </div>
+    </div>
+  }
+
+  function monthPanel(calendarYear: number, calendarMonthIndex: number, mini: boolean) {
+    const dates=calendarMonth(calendarYear,calendarMonthIndex)
+    const weeks=Array.from({length:dates.length/7},(_,i)=>dates.slice(i*7,i*7+7))
+    return <section key={calendarYear+'-'+calendarMonthIndex}
+      className={'min-w-0 '+(mini?'rounded-xl border border-slate-200 p-1.5 sm:p-2':'')}>
+      {mini&&<button type="button" className="mb-1 w-full rounded-md px-1 py-1 text-left text-xs font-bold hover:bg-slate-100 sm:text-sm"
+        onClick={()=>{setFocusDate(calendarYear+'-'+pad(calendarMonthIndex+1)+'-15');setMode('MES')}}>{monthNames[calendarMonthIndex]}</button>}
+      <div className={'space-y-1 '+(mini?'':'sm:space-y-1.5')}>
+        {weeks.map(week=>weekMatrix(week,mini,calendarMonthIndex))}
       </div>
     </section>
   }
@@ -248,34 +256,14 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
       })}
     </div>}
 
-    {!noPeople && mode === 'SEMANA' && <div className="mt-2 grid gap-1.5 lg:grid-cols-7">
-      {weekDays.map(day => <div key={day} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-100 p-1.5 lg:block lg:p-2">
-        <div className="w-14 shrink-0 text-center lg:mb-2 lg:w-full">
-          <div className="text-[10px] font-semibold text-slate-500">{fromISO(day).toLocaleDateString('es-ES', { weekday: 'short' })}</div>
-          <div className="text-sm font-bold">{Number(day.slice(8))}</div>
-        </div>
-        <div className={'grid min-w-0 flex-1 gap-1 ' + (visiblePeople.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-1')}>
-          {visiblePeople.map(person => {
-            const entry = entryFor(person, day)
-            return <button type="button" key={person.id} onClick={() => onEditDay(person.id, day)}
-              aria-label={person.display_name + ', ' + day + ': ' + dayShort(entry)}
-              className={'min-w-0 truncate rounded-md px-1 py-1.5 text-center text-[10px] font-semibold lg:text-xs ' + stateView(dayKind(entry)).tone}>
-              <span className="block truncate text-[11px] font-bold tracking-tight sm:text-xs">{dayCode(entry)}</span>
-            </button>
-          })}
-        </div>
-      </div>)}
-    </div>}
+    {!noPeople && mode === 'SEMANA' && <div className="mt-2">{weekMatrix(weekDays,false)}</div>}
 
     {!noPeople && mode === 'MES' && <div className="mt-2">{monthPanel(year, month, false)}</div>}
 
-    {!noPeople && mode === 'ANO' && <div className={'mt-2 grid gap-2 ' + (visiblePeople.length === 1 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
+    {!noPeople && mode === 'ANO' && <div className="mt-2 grid gap-2 lg:grid-cols-2">
       {monthNames.map((_, index) => monthPanel(year, index, true))}
     </div>}
     <div className="mt-2 border-t border-slate-100 pt-1.5">
-      {visiblePeople.length > 1 && <p className="mb-1 text-[9px] leading-3 text-slate-500">
-        Orden de las casillas: {visiblePeople.map((person, index) => (index + 1) + ' ' + person.display_name).join(' · ')}
-      </p>}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
         {legend.map(item => <span key={item.state} className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] leading-3 text-slate-600">
           <span className={'inline-flex h-3 min-w-3 items-center justify-center rounded-[2px] px-0.5 text-[8px] font-bold ' + stateView(item.state).tone}>{item.code}</span>{item.text}
