@@ -464,7 +464,7 @@ export default function StaffSchedulePage() {
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h2 className="mb-2 text-sm font-bold sm:text-base">Bajas médicas · {year}</h2>
+          <h2 className="mb-2 text-sm font-bold sm:text-base">Bajas · {year}</h2>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
             {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
               className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
@@ -497,7 +497,7 @@ export default function StaffSchedulePage() {
               <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(d=><button type="button" key={d.id} onClick={()=>openDay(d.operator_id,d.work_date)}
                 className="rounded bg-slate-100 px-2 py-1 text-xs">{asDisplayDate(d.work_date).slice(0,5)}</button>)}</div>
             </details>)}
-            {selectedMedicalPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay bajas médicas registradas.</p>}
+            {selectedMedicalPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay bajas registradas.</p>}
           </div>
           {selectedOtherAbsencePeriods.length>0&&<div className="mt-3 border-t pt-2">
             <h4 className="text-xs font-bold">Otras ausencias</h4>
