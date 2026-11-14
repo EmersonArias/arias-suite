@@ -59,8 +59,16 @@ const stateCode = (entry?:StaffDay) => {
     case 'VACATION_PREVIOUS': return 'A'
     case 'MEDICAL_LEAVE': return 'B'
     case 'PUBLIC_HOLIDAY': {
-      const ref=entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)
-      return ref ? ref[3]+'/'+ref[2] : 'F'
+      const source=entry.source_code??''
+      const ref=source.match(/(\d{4})-(\d{2})-(\d{2})/)
+      if(ref)return ref[3]+'/'+ref[2]
+      const direct=source.match(/^(\d{2})-(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/i)
+      if(direct){
+        const months:Record<string,string>={ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',
+          jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12'}
+        return direct[1]+'/'+months[direct[2].toLowerCase()]
+      }
+      return 'F'
     }
     case 'COMP_REST': {
       const ref=entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
