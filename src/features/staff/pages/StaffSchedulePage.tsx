@@ -47,6 +47,8 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
     compensated:money('REST_TAKEN'),
     paid:money('PAID'),
     adjustedMinus:money('ADJUSTMENT_MINUS'),
+    cumulativeBalance:overtime.filter(e=>e.operator_id===operatorId)
+      .reduce((total,e)=>total+(e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'?e.minutes:-e.minutes),0),
   }
 }
 export default function StaffSchedulePage() {
@@ -105,7 +107,7 @@ export default function StaffSchedulePage() {
         .gte('work_date',String(year-1)+'-12-25').lte('work_date',String(year+1)+'-01-10')
         .order('work_date'),
       supabase.from('staff_overtime_ledger').select('*').eq('hotel_id',hotel.id)
-        .gte('entry_date',String(year)+'-01-01').lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
+        .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
       supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
     ])
@@ -317,9 +319,9 @@ export default function StaffSchedulePage() {
           ].map(([label,value])=><div key={label} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div>)}
         </div>
         <div className="overflow-x-auto rounded-2xl bg-white p-3 shadow-sm">
-          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Turnos previstos</th><th>Horas efectivas verificadas</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo horas extra</th></tr></thead><tbody>
+          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Turnos previstos</th><th>Horas efectivas verificadas</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
-              <td>{hours(s.planned)}</td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.earned-s.compensated-s.paid-s.adjustedMinus)}</td></tr>)}
+              <td>{hours(s.planned)}</td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
           </tbody></table>
           <p className="mt-2 text-xs text-slate-500">Las horas de los turnos se calculan entre entrada y salida, sin descontar pausas no identificadas. No equivalen automáticamente a horas efectivas.</p>
         </div>
@@ -340,7 +342,7 @@ export default function StaffSchedulePage() {
         {selected&&<div className="rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="font-bold">Horas extra y compensaciones · {selected.display_name}</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo', (selectedSummary?.earned??0)-(selectedSummary?.compensated??0)-(selectedSummary?.paid??0)-(selectedSummary?.adjustedMinus??0)]].map(([n,v])=><div key={n} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{n}</p><p className="mt-1 text-lg font-bold">{hours(Number(v))}</p></div>)}
+            {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{n}</p><p className="mt-1 text-lg font-bold">{hours(Number(v))}</p></div>)}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-[180px_170px_120px_1fr_auto]">
             <label className="text-xs">Fecha<input type="date" className={baseInput+' mt-1'} value={overtimeDate} onChange={e=>setOvertimeDate(e.target.value)}/></label>
@@ -351,7 +353,7 @@ export default function StaffSchedulePage() {
             <label className="text-xs">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
             <button disabled={busy} onClick={()=>void saveOvertime()} className="self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Registrar</button>
           </div>
-          <div className="mt-4 max-h-[370px] overflow-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-2">Fecha</th><th>Tipo</th><th>Duración</th><th>Motivo</th></tr></thead><tbody>
+          <p className="mt-3 text-xs text-slate-500">Generadas, disfrutadas y abonadas: movimientos del año seleccionado. El saldo incluye movimientos anteriores hasta el 31 de diciembre de ese año. Las anotaciones del Excel aún no son horas verificadas.</p><div className="mt-4 max-h-[370px] overflow-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-2">Fecha</th><th>Tipo</th><th>Duración</th><th>Motivo</th></tr></thead><tbody>
             {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="p-2">{asDisplayDate(e.entry_date)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td>{e.reason}</td></tr>)}
           </tbody></table></div>
         </div>}
