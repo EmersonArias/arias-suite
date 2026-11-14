@@ -36,7 +36,7 @@ export default function StaffSelfServicePage(){
         supabase.from('staff_schedule_entries').select('id,hotel_id,operator_id,work_date,state,start_time,end_time,planned_minutes,actual_minutes,actual_confirmed,justification,source_kind,source_code')
           .eq('operator_id',me.id).gte('work_date',String(year)+'-01-01').lte('work_date',String(year)+'-12-31').order('work_date'),
         supabase.from('staff_overtime_ledger').select('id,hotel_id,operator_id,entry_date,entry_type,minutes,reason,confirmed')
-          .eq('operator_id',me.id).gte('entry_date',String(year)+'-01-01').lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
+          .eq('operator_id',me.id).lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
         supabase.from('staff_vacation_years').select('id,hotel_id,operator_id,year,entitlement_days,carryover_days,adjustment_days')
           .eq('operator_id',me.id).eq('year',year).maybeSingle(),
       ])
@@ -96,7 +96,7 @@ export default function StaffSelfServicePage(){
             <div className="mt-3 flex max-h-[280px] flex-wrap gap-2 overflow-y-auto">{days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded-lg bg-sky-100 px-2 py-1 text-xs text-sky-800">{fromISO(d.work_date).toLocaleDateString('es-ES')}{d.state==='VACATION_PREVIOUS'?' · anterior':''}</span>)}</div>
             <p className="mt-2 text-xs text-slate-500">Las fechas importadas del Excel no acreditan por sí solas disfrute efectivo.</p>
           </div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><h2 className="font-bold">Mis horas adicionales</h2><p className="mt-2 text-2xl font-bold">{hours(summary.extra)} <span className="text-sm font-normal text-slate-500">saldo registrado</span></p>
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><h2 className="font-bold">Mis horas adicionales</h2><p className="mt-2 text-2xl font-bold">{hours(summary.extra)} <span className="text-sm font-normal text-slate-500">saldo histórico registrado</span></p>
             <div className="mt-3 max-h-[280px] overflow-y-auto">{extras.map(e=><div key={e.id} className="border-t py-2 text-sm"><div className="flex justify-between"><span>{fromISO(e.entry_date).toLocaleDateString('es-ES')} · {e.entry_type==='EARNED'?'Generadas':e.entry_type==='REST_TAKEN'?'Disfrutadas':e.entry_type==='PAID'?'Abonadas':'Ajuste'}</span><strong>{hours(e.minutes)}</strong></div><p className="text-xs text-slate-500">{e.reason}</p></div>)}</div>
           </div>
         </section>
