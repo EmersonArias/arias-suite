@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Plus, Printer, RefreshCw, UserRoundCog } from 'lucide-react'
+import { CalendarDays, Plus, Printer, RefreshCw, UserRoundCog, Pencil } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
@@ -80,6 +80,9 @@ export default function StaffSchedulePage() {
   const [calendarFilter,setCalendarFilter]=useState('ALL')
   const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
+  const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
+  const [checkedAbsenceIds,setCheckedAbsenceIds]=useState<string[]>([])
+  const [bulkAbsenceStatus,setBulkAbsenceStatus]=useState<'DOCUMENTED'|'PENDING'|'UNJUSTIFIED'|'UNKNOWN'>('DOCUMENTED')
   const [tab,setTab]=useState<PageTab>(()=>new URLSearchParams(window.location.search).get('tab')==='reportes'?'REPORTES':'CUADRANTE')
   const [showOvertimeForm,setShowOvertimeForm]=useState(false)
   const [allowed,setAllowed]=useState(false)
@@ -190,6 +193,29 @@ export default function StaffSchedulePage() {
   const selectedOtherAbsences=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && ['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
   const selectedOtherAbsencePeriods=groupConsecutiveDays(selectedOtherAbsences)
+  const absenceSelectableDays=[...selectedMedicalDays,...selectedOtherAbsences]
+  const selectedAbsenceRows=absenceSelectableDays.filter(day=>checkedAbsenceIds.includes(day.id))
+  const selectableVacationRows=vacationGroups.flatMap(group=>group.shown.flatMap(period=>period.visibleDays))
+    .filter(day=>vacationStage(day,vacationToday)==='UNVERIFIED')
+  const selectedVacationRows=selectableVacationRows.filter(day=>checkedVacationIds.includes(day.id))
+
+  useEffect(()=>{
+    setCheckedVacationIds([])
+  },[year,vacationOperatorFilter,vacationStatusFilter,hotel?.id])
+  useEffect(()=>{
+    setCheckedAbsenceIds([])
+  },[year,selectedId,hotel?.id])
+
+  function toggleChecked(id:string,checked:boolean,type:'VACATION'|'ABSENCE'){
+    const setter=type==='VACATION'?setCheckedVacationIds:setCheckedAbsenceIds
+    setter(prev=>checked?[...new Set([...prev,id])]:prev.filter(v=>v!==id))
+  }
+  function togglePeriodSelection(rows:StaffDay[],type:'VACATION'|'ABSENCE'){
+    const setter=type==='VACATION'?setCheckedVacationIds:setCheckedAbsenceIds
+    const ids=rows.map(d=>d.id)
+    setter(prev=>ids.every(id=>prev.includes(id))?prev.filter(id=>!ids.includes(id)):
+      [...new Set([...prev,...ids])])
+  }
 
 
   useEffect(()=>{
@@ -286,24 +312,53 @@ export default function StaffSchedulePage() {
     if(result.error)setError(result.error.message);else await reload()
     setBusy(false)
   }
-  async function confirmVacationPeriod(rows:StaffDay[]){
-    if(!hotel?.id)return
-    const today=dateISO(new Date())
-    const pending=rows.filter(d=>isVacationState(d.state) && d.work_date<=today && !d.vacation_taken_confirmed)
-    if(!pending.length)return
-    if(!window.confirm('¿Confirmar como disfrutados '+pending.length+' días de vacaciones de este período? Esta confirmación modifica el estado del saldo disfrutado.'))return
-    setBusy(true);setError('')
+  async function confirmSelectedVacations(){
+    if(!hotel?.id||busy)return
+    const selected=selectedVacationRows
+    if(!selected.length)return
+    if(!window.confirm('¿Confirmar como disfrutados los '+selected.length+
+      ' días de vacaciones seleccionados? Solo se modificarán esas fechas.'))return
+    setBusy(true);setError('');setSuccess('')
     const now=new Date().toISOString()
     const result=await supabase.from('staff_schedule_entries')
       .update({vacation_taken_confirmed:true,vacation_confirmed_at:now,
-        vacation_confirmed_by:session?.user.id??null,updated_at:now})
-      .eq('hotel_id',hotel.id).in('id',pending.map(d=>d.id))
-      .in('state',['VACATION','VACATION_PREVIOUS']).lte('work_date',today)
+        vacation_confirmed_by:session?.user.id??null,changed_by:session?.user.id??null,updated_at:now})
+      .eq('hotel_id',hotel.id)
+      .in('id',selected.map(d=>d.id)).in('state',['VACATION','VACATION_PREVIOUS'])
+      .lte('work_date',dateISO(new Date())).eq('vacation_taken_confirmed',false)
       .select('id')
     if(result.error)setError(result.error.message)
-    else if((result.data?.length??0)!==pending.length)
-      setError('Solo se actualizaron '+(result.data?.length??0)+' de '+pending.length+' días. Revisa tus permisos y vuelve a cargar.')
-    else {setSuccess(pending.length+' días de vacaciones confirmados como disfrutados.');await reload()}
+    else if((result.data?.length??0)!==selected.length)
+      setError('Se actualizaron '+(result.data?.length??0)+' de '+selected.length+
+        ' días. Puede que algún registro haya cambiado. Actualiza y revisa la selección.')
+    else {setCheckedVacationIds([]);setSuccess(selected.length+' días de vacaciones confirmados.');await reload()}
+    setBusy(false)
+  }
+
+  async function applySelectedAbsences(){
+    if(!hotel?.id||!selectedId||busy)return
+    const selected=selectedAbsenceRows
+    if(!selected.length)return
+    const statusLabel=({
+      DOCUMENTED:'Documentada',PENDING:'Pendiente de verificar',
+      UNJUSTIFIED:'No justificada',UNKNOWN:'Sin verificar',
+    } as Record<string,string>)[bulkAbsenceStatus]
+    if(!window.confirm('¿Aplicar «'+statusLabel+'» a '+selected.length+
+      ' días seleccionados de '+(selected?.length?operators.find(o=>o.id===selectedId)?.display_name??'este operario':'')+
+      '? Comprueba que dispones de la documentación correspondiente.'))return
+    setBusy(true);setError('');setSuccess('')
+    const now=new Date().toISOString()
+    const result=await supabase.from('staff_schedule_entries')
+      .update({justification:bulkAbsenceStatus,changed_by:session?.user.id??null,updated_at:now})
+      .eq('hotel_id',hotel.id).eq('operator_id',selectedId)
+      .in('id',selected.map(d=>d.id))
+      .in('state',['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'])
+      .select('id')
+    if(result.error)setError(result.error.message)
+    else if((result.data?.length??0)!==selected.length)
+      setError('Se actualizaron '+(result.data?.length??0)+' de '+selected.length+
+        ' días. Actualiza y revisa las fechas.')
+    else {setCheckedAbsenceIds([]);setSuccess(selected.length+' días de ausencia actualizados a «'+statusLabel+'».');await reload()}
     setBusy(false)
   }
 
