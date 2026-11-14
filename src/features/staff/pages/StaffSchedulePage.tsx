@@ -705,6 +705,46 @@ export default function StaffSchedulePage() {
               <div className="mt-0.5 text-lg font-bold">{value}</div>
             </div>)}
           </div>
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold">{selectedAbsenceRows.length} días seleccionados</span>
+              <div className="flex flex-wrap gap-1">
+                <button type="button" disabled={busy||!absenceSelectableDays.some(d=>['UNKNOWN','PENDING'].includes(d.justification))}
+                  onClick={()=>togglePeriodSelection(absenceSelectableDays.filter(d=>['UNKNOWN','PENDING'].includes(d.justification)),'ABSENCE')}
+                  className="rounded-md border bg-white px-2 py-1.5 text-[11px] disabled:opacity-40">
+                  {absenceSelectableDays.filter(d=>['UNKNOWN','PENDING'].includes(d.justification)).every(d=>checkedAbsenceIds.includes(d.id))?
+                    'Deseleccionar sin verificar':'Seleccionar sin verificar'}
+                </button>
+                <button type="button" disabled={busy||absenceSelectableDays.length===0}
+                  onClick={()=>togglePeriodSelection(absenceSelectableDays,'ABSENCE')}
+                  className="rounded-md border bg-white px-2 py-1.5 text-[11px] disabled:opacity-40">
+                  {absenceSelectableDays.length>0&&absenceSelectableDays.every(d=>checkedAbsenceIds.includes(d.id))?
+                    'Deseleccionar todos':'Seleccionar todos'}
+                </button>
+                <button type="button" disabled={busy||checkedAbsenceIds.length===0}
+                  onClick={()=>setCheckedAbsenceIds([])} className="rounded-md border bg-white px-2 py-1.5 text-[11px] disabled:opacity-40">
+                  Limpiar
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-end gap-1.5">
+              <label className="min-w-[160px] flex-1 text-[11px] font-semibold">Asignar estado
+                <select className={baseInput+' mt-1'} value={bulkAbsenceStatus}
+                  onChange={e=>setBulkAbsenceStatus(e.target.value as typeof bulkAbsenceStatus)}>
+                  <option value="DOCUMENTED">Documentada</option>
+                  <option value="PENDING">Pendiente de verificar</option>
+                  <option value="UNKNOWN">Sin verificar</option>
+                  <option value="UNJUSTIFIED">No justificada</option>
+                </select>
+              </label>
+              <button type="button" disabled={busy||selectedAbsenceRows.length===0}
+                onClick={()=>void applySelectedAbsences()}
+                className="min-h-9 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                Aplicar a {selectedAbsenceRows.length} días
+              </button>
+            </div>
+            <p className="mt-2 text-[10px] text-slate-500">Marca únicamente los días cuya documentación has comprobado. No modifica el tipo de ausencia ni el motivo.</p>
+          </div>
           <h4 className="mt-3 text-xs font-bold">Períodos de baja</h4>
           <div className="mt-1 divide-y divide-slate-100">
             {selectedMedicalPeriods.map(p=><details key={p.start} className="py-2">
@@ -712,8 +752,26 @@ export default function StaffSchedulePage() {
                 <span className="min-w-0">{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
                 <span className="shrink-0 font-semibold">{p.rows.length} d · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</span>
               </summary>
-              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(d=><button type="button" key={d.id} onClick={()=>openDay(d.operator_id,d.work_date)}
-                className="rounded bg-slate-100 px-2 py-1 text-xs">{asDisplayDate(d.work_date).slice(0,5)}</button>)}</div>
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
+                <input type="checkbox" disabled={busy}
+                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
+                Seleccionar período completo
+              </label>
+              <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
+                <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
+                  <label className="inline-flex cursor-pointer items-center gap-1">
+                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
+                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
+                      aria-label={'Seleccionar baja del '+asDisplayDate(d.work_date)}/>
+                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
+                  </label>
+                  <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
+                    className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
+                    aria-label={'Editar baja del '+asDisplayDate(d.work_date)}>
+                    <Pencil size={11}/>
+                  </button>
+                </div>)}</div>
             </details>)}
             {selectedMedicalPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay bajas registradas.</p>}
           </div>
@@ -721,7 +779,26 @@ export default function StaffSchedulePage() {
             <h4 className="text-xs font-bold">Otras ausencias</h4>
             {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
               <summary className="cursor-pointer text-xs">{stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
-              <div className="mt-1 flex flex-wrap gap-1">{p.rows.map(d=><button type="button" key={d.id} className="rounded bg-slate-100 px-2 py-1 text-xs" onClick={()=>openDay(d.operator_id,d.work_date)}>{asDisplayDate(d.work_date).slice(0,5)}</button>)}</div>
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
+                <input type="checkbox" disabled={busy}
+                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
+                Seleccionar período completo
+              </label>
+              <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
+                <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
+                  <label className="inline-flex cursor-pointer items-center gap-1">
+                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
+                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
+                      aria-label={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}/>
+                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
+                  </label>
+                  <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
+                    className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
+                    aria-label={'Editar ausencia del '+asDisplayDate(d.work_date)}>
+                    <Pencil size={11}/>
+                  </button>
+                </div>)}</div>
             </details>)}
           </div>}
         </div>}
