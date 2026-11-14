@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
-  vacationStage, vacationCode, type StaffDay, type StaffOperator } from './staffModel'
+  vacationStage, vacationCode, isSplitShift, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
 import { supabase } from '../../lib/supabase'
 
@@ -64,7 +64,8 @@ const hourOnly = (time?:string|null) => {
 const stateCode = (entry?:StaffDay) => {
   if(!entry) return '—'
   switch(entry.state){
-    case 'SHIFT': return hourOnly(entry.start_time)+'–'+hourOnly(entry.end_time)
+    case 'SHIFT': return isSplitShift(entry.start_time,entry.end_time)
+      ? '9–13\n15–19' : hourOnly(entry.start_time)+'–'+hourOnly(entry.end_time)
     case 'REST': return 'D'
     case 'VACATION':
     case 'VACATION_PREVIOUS': return vacationCode(entry)
@@ -233,7 +234,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
   const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
-    ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Programadas'],
+    ['SHIFT','Horario (9–13/15–19: 8 h)'],['REST','D Descanso'],['VACATION','V Programadas'],
     ['VACATION_PREVIOUS','A25 Vac. de 2025 / A26 de 2026'],['MEDICAL_LEAVE','B Baja'],
     ['PUBLIC_HOLIDAY','15/08 Festivo disfrutado'],['COMP_REST','R Recuperable'], 
   ]
@@ -289,7 +290,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
           doc.text('Cabecera azul: festivo del calendario   |   Mostaza (15/08): festivo disfrutado   |   Celeste (R): recuperable',9,198.5)
-          doc.text('D: descanso | V: vacaciones | A25: del 2025 | A26: del 2026 | V?: sin confirmar | B: baja',9,201.5)
+          doc.text('9-13 / 15-19: turno partido (8 h) | D: descanso | V: vacaciones | A25/A26: anteriores | B: baja',9,201.5)
           doc.text(summaryNote,9,204.5)
           doc.text('Pag. '+pageNumber,pageWidth-18,204.5)
         },
@@ -317,7 +318,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           const inRange=dateSet.has(day)
           const entry=selectedEntry(person.id,day)
           const color=colorForEntry(entry)
-          return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+';font-weight:700;text-align:center">'+
+          return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+';font-weight:700;text-align:center;white-space:pre-line">'+
             (inRange?esc(stateCode(entry)):'')+'</td>'
         }).join('')
         return '<tr><th class="person">'+esc(person.display_name)+'</th>'+cells+'</tr>'
@@ -326,7 +327,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         '</tr></thead><tbody>'+rows+'</tbody></table></section>'
     }).join('')
     const summary=totals.map(t=>'<span>'+esc(t.person.display_name)+': '+t.shifts+' turnos, '+t.vacations+' vac., '+t.medical+' bajas</span>').join(' · ')
-    const legendHtml=statusLegend.map(([s,label])=>'<span style="display:inline-block;margin-right:10px"><b style="background:'+colorFor(s).bg+';color:'+colorFor(s).fg+';padding:1px 4px;border-radius:3px">'+(s==='SHIFT'?'9–19':s==='REST'?'D':s==='VACATION'?'V':s==='VACATION_PREVIOUS'?'A25':s==='MEDICAL_LEAVE'?'B':s==='PUBLIC_HOLIDAY'?'15/08':s==='COMP_REST'?'R':s==='PERMISSION'?'P':'R')+'</b> '+esc(label)+'</span>').join('')
+    const legendHtml=statusLegend.map(([s,label])=>'<span style="display:inline-block;margin-right:10px"><b style="background:'+colorFor(s).bg+';color:'+colorFor(s).fg+';padding:1px 4px;border-radius:3px">'+(s==='SHIFT'?'9–13/15–19':s==='REST'?'D':s==='VACATION'?'V':s==='VACATION_PREVIOUS'?'A25':s==='MEDICAL_LEAVE'?'B':s==='PUBLIC_HOLIDAY'?'15/08':s==='COMP_REST'?'R':s==='PERMISSION'?'P':'R')+'</b> '+esc(label)+'</span>').join('')
     const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte horario</title><style>'+
       '@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:9px}'+
       'h1{font-size:14px;margin:0 0 3px}p{margin:2px 0 7px}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
@@ -437,7 +438,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
                   const color=colorForEntry(entry)
                   return <td key={day} className="overflow-hidden border border-white p-px text-center font-bold tracking-tighter"
                     style={{background:inRange?color.bg:'#f8fafc',color:color.fg}}>
-                    <span className="block truncate">{inRange?stateCode(entry):''}</span>
+                    <span className={'block '+(entry?.state==='SHIFT'&&isSplitShift(entry.start_time,entry.end_time)
+                       ? 'whitespace-pre-line leading-[11px]' : 'truncate')}>{inRange?stateCode(entry):''}</span>
                   </td>
                 })}
               </tr>)}
@@ -452,7 +454,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-emerald-50 px-1 font-bold text-emerald-950 ring-1 ring-inset ring-amber-500">V?</span>Pasadas por confirmar</span>
         <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-blue-700 px-1 text-white">15</span>Cabecera azul: festivo calendario</span>
         {statusLegend.map(([value,label])=><span key={value} className="text-[9px] text-slate-600">
-          <span className="mr-1 rounded px-1 font-bold" style={{background:colorFor(value).bg,color:colorFor(value).fg}}>{value==='SHIFT'?'9–19':value==='REST'?'D':value==='VACATION'?'V':value==='VACATION_PREVIOUS'?'A25':value==='MEDICAL_LEAVE'?'B':value==='PUBLIC_HOLIDAY'?'15/08':value==='COMP_REST'?'R':value==='PERMISSION'?'P':'R'}</span>{label}
+          <span className="mr-1 rounded px-1 font-bold" style={{background:colorFor(value).bg,color:colorFor(value).fg}}>{value==='SHIFT'?'9–13/15–19':value==='REST'?'D':value==='VACATION'?'V':value==='VACATION_PREVIOUS'?'A25':value==='MEDICAL_LEAVE'?'B':value==='PUBLIC_HOLIDAY'?'15/08':value==='COMP_REST'?'R':value==='PERMISSION'?'P':'R'}</span>{label}
         </span>)}
       </div>
       <p className="mt-2 text-[10px] text-slate-500">{summaryNote}</p>
