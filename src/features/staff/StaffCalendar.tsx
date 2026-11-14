@@ -273,7 +273,7 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
           className="flex min-h-12 w-full items-center justify-between gap-2 rounded-lg border border-slate-100 px-2 py-1.5 text-left hover:bg-slate-50">
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{person.display_name}</span>
           <span className={'min-w-[112px] max-w-[60%] rounded-md px-2 py-2 text-center text-xs font-semibold ' + entryTone(entry)}>
-            {dayShort(entry)}{entry?.state==='SHIFT' && entry.actual_confirmed ? ' ✓' : ''}
+            {dayShort(entry)}
           </span>
         </button>
       })}
