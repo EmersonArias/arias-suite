@@ -6,7 +6,7 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
-  dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions,
+  dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions, isSplitShift,
   stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
   vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
@@ -992,6 +992,11 @@ export default function StaffSchedulePage() {
                   onBlur={()=>setDayEditor(prev=>prev?{...prev,end_time:normalizeDigitalTime(prev.end_time)}:prev)}/>
               </label>
             </div>}
+            {dayEditor.state==='SHIFT'&&isSplitShift(normalizeDigitalTime(dayEditor.start_time),
+              normalizeDigitalTime(dayEditor.end_time))&&<p className="rounded-md bg-sky-50 px-2 py-1.5 text-xs text-sky-900">
+              Turno partido: <strong>09:00–13:00 y 15:00–19:00</strong>.
+              Pausa de 13:00 a 15:00 no trabajada. <strong>8 h previstas</strong>.
+            </p>}
             {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
               <label className="mb-2 block text-xs font-medium">Año al que corresponden las vacaciones
                 <input type="number" inputMode="numeric" min="2000"
