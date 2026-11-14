@@ -132,15 +132,6 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
     if (target.getFullYear() !== year) onYearChange(target.getFullYear())
   }
 
-  function chooseDay(day: string) {
-    if (visiblePeople.length === 1) {
-      onEditDay(visiblePeople[0].id, day)
-    } else {
-      setFocusDate(day)
-      if (Number(day.slice(0, 4)) !== year) onYearChange(Number(day.slice(0, 4)))
-      setMode('DIA')
-    }
-  }
 
   function goToToday() {
     setFocusDate(today)
