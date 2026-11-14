@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Plus, Printer, RefreshCw, UserRoundCog, Pencil } from 'lucide-react'
+import BrandLogo from '../../../shared/components/branding/BrandLogo'
+import { Plus, Printer, RefreshCw, UserRoundCog, Pencil } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
@@ -408,10 +409,14 @@ export default function StaffSchedulePage() {
   return <main className="min-h-screen bg-slate-100 p-1.5 text-slate-900 sm:p-4 lg:p-6 print:bg-white">
     <div className="mx-auto max-w-[1550px] space-y-2 sm:space-y-4">
       <header className="flex items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-2 shadow-sm sm:rounded-2xl sm:p-4">
-        <div className="min-w-0"><h1 className="flex items-center gap-1.5 text-base font-bold sm:gap-2 sm:text-2xl"><CalendarDays size={19} className="shrink-0 sm:h-6 sm:w-6"/> <span className="truncate">Planificador horario</span></h1>
-          <p className="mt-1 hidden truncate text-xs text-slate-500 sm:block">{hotel?.name}</p></div>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-11" />
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold leading-tight sm:text-2xl">Planificador horario</h1>
+            <p className="mt-0.5 hidden truncate text-xs text-slate-500 sm:block">{hotel?.name}</p>
+          </div>
+        </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
-          <button aria-label="Inicio" title="Inicio" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-xs sm:px-3" onClick={()=>navigate('/')}><span className="sm:hidden">⌂</span><span className="hidden sm:inline">Inicio</span></button>
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
           <button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
         </div>
