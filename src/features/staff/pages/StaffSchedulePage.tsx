@@ -7,11 +7,12 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
   dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions,
-  stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone, type VacationStage,
+  stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
+  vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
-import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
+import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 import StaffHoursBatch from '../StaffHoursBatch'
@@ -21,7 +22,7 @@ type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   actual_hours:string; actual_confirmed:boolean; justification:string;
-  vacation_taken_confirmed:boolean;
+  vacation_taken_confirmed:boolean; vacation_origin_year:string;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
@@ -61,8 +62,10 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
     planned:own.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0),
     worked:own.filter(d=>d.actual_confirmed).reduce((t,d)=>t+(d.actual_minutes??0),0),
     shiftsConfirmed:own.filter(d=>d.actual_confirmed).length,
-    vacation:own.filter(d=>d.state==='VACATION').length,
-    vacationPrevious:own.filter(d=>d.state==='VACATION_PREVIOUS').length,
+    vacation:days.filter(d=>d.operator_id===operatorId && isVacationState(d.state)
+      && vacationOriginYear(d)===year).length,
+    vacationPrevious:own.filter(d=>isVacationState(d.state) &&
+      (vacationOriginYear(d)===null || vacationOriginYear(d)!<year)).length,
     sick:own.filter(d=>d.state==='MEDICAL_LEAVE').length,
     sickDocumented:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='DOCUMENTED').length,
     sickUnjustified:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='UNJUSTIFIED').length,
@@ -180,7 +183,7 @@ export default function StaffSchedulePage() {
   // Annual totals count only dates belonging to the selected calendar year.
   const vacationGroups=vacationPeople.map(person=>{
     const annual=vacationYearDays.filter(d=>d.operator_id===person.id)
-    const periods=groupConsecutiveDays(days.filter(d=>d.operator_id===person.id &&
+    const periods=groupVacationPeriods(days.filter(d=>d.operator_id===person.id &&
       isVacationState(d.state))).filter(period=>period.rows.some(d=>d.work_date.startsWith(String(year))))
     const shown=periods.map(period=>({
       ...period,
@@ -237,7 +240,10 @@ export default function StaffSchedulePage() {
       start_time:row?.start_time?.slice(0,5)??'08:00',end_time:row?.end_time?.slice(0,5)??'16:00',
       actual_hours:row?.actual_minutes==null?'':String(row.actual_minutes/60),
       actual_confirmed:row?.actual_confirmed??false,justification:row?.justification??'UNKNOWN',
-      vacation_taken_confirmed:row?.vacation_taken_confirmed??false
+      vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
+      vacation_origin_year:row?.vacation_origin_year==null
+        ? (row?.state==='VACATION_PREVIOUS'?'':workDate.slice(0,4))
+        : String(row.vacation_origin_year)
     })
   }
   async function saveDay(){
@@ -249,6 +255,20 @@ export default function StaffSchedulePage() {
       setDayEditorError('Indica las horas con formato digital HH:MM (por ejemplo, 08:00).')
       return
     }
+    const calendarYear=Number(dayEditor.work_date.slice(0,4))
+    const originText=dayEditor.vacation_origin_year.trim()
+    const vacationOrigin=isVacationState(dayEditor.state)&&originText!==''?Number(originText):null
+    if(isVacationState(dayEditor.state) && vacationOrigin!==null &&
+      (!Number.isInteger(vacationOrigin)||vacationOrigin<2000||vacationOrigin>calendarYear)){
+      setDayEditorError('El año de origen debe ser válido y no posterior al año del día.')
+      return
+    }
+    if(dayEditor.state==='VACATION_PREVIOUS'&&vacationOrigin!==null&&vacationOrigin>=calendarYear){
+      setDayEditorError('En vacaciones anteriores, el año de origen debe ser anterior al año de disfrute.')
+      return
+    }
+    const vacationState=dayEditor.state==='VACATION' && vacationOrigin!==null &&
+      vacationOrigin<calendarYear ? 'VACATION_PREVIOUS' : dayEditor.state
     const minutes=isShift?minutesInShift(start,end):null
     const actual=dayEditor.actual_hours.trim()===''?null:Math.round(Number(dayEditor.actual_hours)*60)
     if((isShift && !minutes)|| (isShift && actual!==null && (!Number.isFinite(actual)||actual<0||actual>1440))){
@@ -265,11 +285,12 @@ export default function StaffSchedulePage() {
     const timeNow=new Date().toISOString()
     const result=await supabase.from('staff_schedule_entries').upsert({
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
-      state:dayEditor.state,start_time:isShift?start:null,end_time:isShift?end:null,
+      state:vacationState,start_time:isShift?start:null,end_time:isShift?end:null,
       planned_minutes:minutes,actual_minutes:isShift?actual:null,
       actual_confirmed:isShift&&actual!==null&&dayEditor.actual_confirmed,
       justification:dayEditor.justification,
       source_kind:'MANUAL',source_code:existing?.source_code??null,
+      vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
       vacation_taken_confirmed:confirmedVacation,
       vacation_confirmed_at:confirmedVacation
         ? (existing?.vacation_taken_confirmed ? existing?.vacation_confirmed_at ?? timeNow : timeNow) : null,
@@ -603,8 +624,12 @@ export default function StaffSchedulePage() {
           {vacationGroups.map(group=>{
             const assigned=vacations.find(v=>v.operator_id===group.person.id)
             const assignedDays=assigned?.entitlement_days
-            const pendingProgram=assignedDays==null?null:assignedDays+assigned!.adjustment_days-
-              group.annual.filter(d=>d.state==='VACATION').length
+            const scheduledForYear=days.filter(d=>d.operator_id===group.person.id &&
+              isVacationState(d.state) && vacationOriginYear(d)===year).length
+            const pendingProgram=assignedDays==null?null:assignedDays+assigned!.adjustment_days-scheduledForYear
+            const previousYears=[...new Set(group.annual.map(d=>vacationOriginYear(d))
+              .filter((v):v is number=>v!==null && v<year))].sort()
+            const unknownPrev=group.annual.filter(d=>vacationFromPriorYear(d) && vacationOriginYear(d)===null).length
             return <section key={group.person.id} className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold">{group.person.display_name}</h3>
@@ -614,10 +639,20 @@ export default function StaffSchedulePage() {
                 </button>
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
-                <span>Programados en {year}: <strong>{group.annual.length} d</strong></span>
+                <span>Disfrute en {year}: <strong>{group.annual.length} d</strong></span>
+                <span>Imputados a {year}: <strong>{scheduledForYear} d</strong></span>
                 <span>Asignados: <strong>{assignedDays==null?'—':assignedDays+' d'}</strong></span>
-                <span>Sin programar: <strong>{pendingProgram==null?'—':pendingProgram+' d'}</strong></span>
+                <span>Sin programar de {year}: <strong>{pendingProgram==null?'—':pendingProgram+' d'}</strong></span>
               </div>
+              {(previousYears.length>0||unknownPrev>0)&&<div className="mt-2 rounded-md bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-900">
+                {previousYears.map(origin=>{
+                  const sourced=group.annual.filter(d=>vacationOriginYear(d)===origin)
+                  return <div key={origin}>Vacaciones de <strong>{origin}</strong> disfrutadas/programadas en {year}:
+                    <strong> {sourced.length} días</strong> · confirmados: {sourced.filter(d=>d.vacation_taken_confirmed).length}</div>
+                })}
+                {unknownPrev>0&&<div>{unknownPrev} día(s) de año anterior con origen pendiente de confirmar</div>}
+              </div>}
+
               <div className="mt-2 divide-y divide-slate-100">
                 {group.shown.map(period=>{
                   const byYear=period.rows.reduce<Record<string,number>>((acc,day)=>{
@@ -636,9 +671,12 @@ export default function StaffSchedulePage() {
                         {period.visibleDays.length} {period.visibleDays.length===1?'día mostrado':'días mostrados'}
                       </span>
                     </div>
+                    <p className="mt-1 text-[10px] font-semibold text-emerald-900">
+                      {vacationOriginLabel(period.rows[0])} · {period.rows.length} días
+                    </p>
                     {splitYear&&<p className="mt-1 rounded-md bg-sky-50 px-2 py-1 text-[10px] text-sky-900">
                       Período continuo · {period.rows.length} días · {splitLabel}
-                    </p>}
+                    </p>
                     {period.visibleDays.some(day=>vacationStage(day,vacationToday)==='UNVERIFIED')&&
                       <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold">
                         <input type="checkbox" disabled={busy}
@@ -658,6 +696,9 @@ export default function StaffSchedulePage() {
                               disabled={busy||!eligible} aria-label={'Seleccionar vacaciones del '+asDisplayDate(day.work_date)}
                               onChange={e=>toggleChecked(day.id,e.target.checked,'VACATION')}/>
                             <span className="text-[11px] font-semibold">{asDisplayDate(day.work_date).slice(0,5)}</span>
+                            {vacationFromPriorYear(day)&&<span className="text-[9px] font-bold">
+                              {vacationOriginYear(day)??'año ?'}
+                            </span>}
                           </label>
                           <button type="button" title={'Editar '+asDisplayDate(day.work_date)}
                             aria-label={'Editar vacaciones del '+asDisplayDate(day.work_date)}
@@ -867,6 +908,16 @@ export default function StaffSchedulePage() {
               </label>
             </div>}
             {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
+              <label className="mb-2 block text-xs font-medium">Año al que corresponden las vacaciones
+                <input type="number" inputMode="numeric" min="2000"
+                  max={Number(dayEditor.work_date.slice(0,4))}
+                  value={dayEditor.vacation_origin_year}
+                  onChange={e=>setDayEditor({...dayEditor,vacation_origin_year:e.target.value})}
+                  className={baseInput+' mt-1'} placeholder="Año de origen por confirmar"/>
+              </label>
+              <p className="mb-2 text-[11px] text-emerald-900">
+                Ejemplo: disfrutadas en enero de 2027 pero correspondientes a 2026.
+              </p>
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={dayEditor.vacation_taken_confirmed}
                   disabled={dayEditor.work_date>dateISO(new Date())}
