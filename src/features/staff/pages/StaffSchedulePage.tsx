@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus, Printer, RefreshCw, UserRoundCog } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Printer, RefreshCw, UserRoundCog } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
@@ -119,14 +119,12 @@ export default function StaffSchedulePage() {
   }
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
-  const selectedVacation=vacations.find(v=>v.operator_id===selectedId)??null
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
   })),[operators,days,overtime,year])
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
   const dates=Array.from({length:7},(_,i)=>addDays(weekStart,i))
-  const yearVacationDays=selectedSummary?.vacation??0
 
   useEffect(()=>{
     const record=vacations.find(v=>v.operator_id===selectedId)
