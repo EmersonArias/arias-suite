@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
-import { addDays, dateISO, fromISO, type StaffDay, type StaffOperator } from './staffModel'
+import { addDays, dateISO, fromISO, isoWeek, mondayOf, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
 
 type PeriodType = 'DAY' | 'MONTH' | 'YEAR' | 'DATES' | 'MONTHS'
@@ -157,6 +157,30 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         : entry?.state===snapshot.status
     })
   }),[rawDates,snapshot?.status,displayedOperators,entries])
+  const selectedEntry = (operatorId:string, date:string):StaffDay|undefined => {
+    if(!dateSet.has(date))return undefined
+    const entry=entries.get(operatorId+'|'+date)
+    if(!entry)return undefined
+    if(snapshot?.status==='ALL')return entry
+    if(snapshot?.status==='VACATION')return ['VACATION','VACATION_PREVIOUS'].includes(entry.state)?entry:undefined
+    return snapshot?.status===entry.state?entry:undefined
+  }
+  const dateSet=new Set(dates)
+  const weekGroups=useMemo(()=>{
+    const groups=new Map<string,string[]>()
+    for(const date of dates){
+      const weekStart=mondayOf(date)
+      if(!groups.has(weekStart))groups.set(weekStart,Array.from({length:7},(_,i)=>addDays(weekStart,i)))
+    }
+    return [...groups].map(([start,week])=>({start,week}))
+  },[dates])
+  const weekCaption=(start:string)=>{
+    const finish=addDays(start,6)
+    return 'Semana '+isoWeek(start)+' · '+shortDate(start)+' – '+shortDate(finish)
+  }
+  const weekdays=['L','M','X','J','V','S','D']
+  const dateHeading=(value:string,index:number)=>weekdays[index]+' '+fromISO(value).getDate()
+  const previewWeeks=weekGroups.slice(0,7)
   const totals=useMemo(()=>displayedOperators.map(o=>{
     const own=(snapshot?.days??[]).filter(d=>d.operator_id===o.id && (snapshot?.status==='ALL' || dates.includes(d.work_date)))
     return {
@@ -177,8 +201,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     ['PUBLIC_HOLIDAY','F Festivo'],['COMP_REST','C Recuperación'], 
   ]
   const summaryNote='Horario planificado. No acredita por sí solo la presencia real ni el disfrute efectivo de vacaciones.'
-  const previewRows=dates.slice(0,50)
-  const previewCapped=dates.length>previewRows.length
+  const previewCapped=weekGroups.length>previewWeeks.length
 
   async function exportPdf(){
     if(!snapshot||loading||exporting||!unchanged)return
@@ -193,25 +216,36 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       doc.setFont('helvetica','normal');doc.setFontSize(8)
       doc.text(hotelName.slice(0,64)+'  ·  '+periodLabel,9,17)
       doc.text('Filtro: '+stateLabel+'  ·  '+(snapshot.operatorId==='ALL'?'Todos los operarios':displayedOperators[0]?.display_name??''),9,22)
-      const head=['Fecha',...displayedOperators.map(o=>o.display_name)]
-      const body=dates.map(d=>[
-        shortDate(d).slice(0,5)+' '+fromISO(d).toLocaleDateString('es-ES',{weekday:'short'}),
-        ...displayedOperators.map(o=>{
-          const e=entries.get(o.id+'|'+d)
-          const color=colorFor(e?.state??'UNASSIGNED')
-          return {content:stateCode(e),styles:{fillColor:color.pdfBg,textColor:color.pdfFg,fontStyle:'bold' as const,halign:'center' as const}}
-        }),
+      const body=weekGroups.flatMap(({start,week})=>[
+        [{content:weekCaption(start),colSpan:8,styles:{fillColor:[226,232,240] as [number,number,number],
+          textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'left' as const}}],
+        [
+          {content:'Operario',styles:{fillColor:[30,41,59] as [number,number,number],textColor:[255,255,255] as [number,number,number],fontStyle:'bold' as const}},
+          ...week.map((day,i)=>({content:dateHeading(day,i),styles:{fillColor:[30,41,59] as [number,number,number],
+            textColor:[255,255,255] as [number,number,number],fontStyle:'bold' as const,halign:'center' as const}})),
+        ],
+        ...displayedOperators.map(person=>[
+          {content:person.display_name,styles:{fontStyle:'bold' as const,textColor:[30,41,59] as [number,number,number]}},
+          ...week.map(day=>{
+            const entry=selectedEntry(person.id,day)
+            const color=colorFor(entry?.state??'UNASSIGNED')
+            const inRange=dateSet.has(day)
+            return {content:inRange?stateCode(entry):'',styles:{
+              fillColor:inRange?color.pdfBg:([248,250,252] as [number,number,number]),
+              textColor:color.pdfFg,fontStyle:'bold' as const,halign:'center' as const,
+            }}
+          }),
+        ]),
       ])
       const compactSummary=totals.map(t=>t.person.display_name+': '+t.shifts+'T '+t.vacations+'V '+t.medical+'B').join('   |   ')
       doc.setFont('helvetica','normal');doc.setFontSize(7)
       doc.text(compactSummary.slice(0,185),9,26)
       autoTable(doc,{
-        head:[head],body,
+        body,
         startY:30,margin:{left:9,right:9,top:9,bottom:15},
         theme:'grid',styles:{font:'helvetica',fontSize:7,cellPadding:1.1,overflow:'ellipsize',minCellHeight:4.4},
-        headStyles:{fillColor:[30,41,59],textColor:[255,255,255],fontStyle:'bold',fontSize:8},
-        columnStyles:{0:{cellWidth:27,fontStyle:'bold',textColor:[30,41,59]}},
-        showHead:'everyPage',
+        columnStyles:{0:{cellWidth:34,fontStyle:'bold',textColor:[30,41,59]}},
+        rowPageBreak:'avoid',
         didDrawPage:({pageNumber})=>{
           doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
@@ -234,25 +268,33 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     const page=window.open('','_blank')
     if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
     const heading=esc(hotelName)+' · '+esc(periodLabel)
-    const th=displayedOperators.map(o=>'<th>'+esc(o.display_name)+'</th>').join('')
-    const trs=dates.map(d=>{
-      const cells=displayedOperators.map(o=>{
-        const e=entries.get(o.id+'|'+d)
-        const color=colorFor(e?.state??'UNASSIGNED')
-        return '<td style="background:'+color.bg+';color:'+color.fg+';font-weight:700;text-align:center">'+esc(stateCode(e))+'</td>'
+    const weeklyTables=weekGroups.map(({start,week})=>{
+      const head='<th class="person">Operario</th>'+week.map((day,i)=>'<th>'+esc(dateHeading(day,i))+'</th>').join('')
+      const rows=displayedOperators.map(person=>{
+        const cells=week.map(day=>{
+          const inRange=dateSet.has(day)
+          const entry=selectedEntry(person.id,day)
+          const color=colorFor(entry?.state??'UNASSIGNED')
+          return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+';font-weight:700;text-align:center">'+
+            (inRange?esc(stateCode(entry)):'')+'</td>'
+        }).join('')
+        return '<tr><th class="person">'+esc(person.display_name)+'</th>'+cells+'</tr>'
       }).join('')
-      return '<tr><th>'+esc(shortDate(d))+'</th>'+cells+'</tr>'
+      return '<section class="week"><h2>'+esc(weekCaption(start))+'</h2><table><thead><tr>'+head+
+        '</tr></thead><tbody>'+rows+'</tbody></table></section>'
     }).join('')
     const summary=totals.map(t=>'<span>'+esc(t.person.display_name)+': '+t.shifts+' turnos, '+t.vacations+' vac., '+t.medical+' bajas</span>').join(' · ')
     const legendHtml=statusLegend.map(([s,label])=>'<span style="display:inline-block;margin-right:10px"><b style="background:'+colorFor(s).bg+';color:'+colorFor(s).fg+';padding:1px 4px;border-radius:3px">'+(s==='SHIFT'?'9–19':s==='REST'?'D':s==='VACATION'?'V':s==='MEDICAL_LEAVE'?'B':s==='PUBLIC_HOLIDAY'?'F':s==='COMP_REST'?'C':s==='PERMISSION'?'P':'R')+'</b> '+esc(label)+'</span>').join('')
     const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte horario</title><style>'+
       '@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:9px}'+
       'h1{font-size:14px;margin:0 0 3px}p{margin:2px 0 7px}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
-      'thead{display:table-header-group}tr{break-inside:avoid}th,td{border:1px solid #e2e8f0;padding:2px 3px;height:13px}'+
-      'thead th{background:#1e293b;color:white;text-align:center}tbody th{width:78px;text-align:left}'+
+      'thead{display:table-header-group}tr{break-inside:avoid}th,td{border:1px solid #e2e8f0;padding:2px 3px;height:12px}'+
+      'thead th{background:#1e293b;color:white;text-align:center}.person{width:90px;text-align:left}'+
+      '.week{break-inside:avoid;page-break-inside:avoid;margin-bottom:5px}.week h2{font-size:9px;margin:3px 0 2px}'+
+      '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.footer{margin-top:7px;font-size:8px;line-height:1.6}.notes{font-size:8px;color:#475569}'+
       '</style></head><body><h1>PLANIFICADOR HORARIO</h1><p>'+heading+' · '+esc(stateLabel)+'</p>'+
-      '<table><thead><tr><th>Fecha</th>'+th+'</tr></thead><tbody>'+trs+'</tbody></table>'+
+      weeklyTables+
       '<div class="footer">'+legendHtml+'</div><p class="notes">'+esc(summary)+'</p><p class="notes">'+esc(summaryNote)+'</p>'+
       '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
     page.document.open();page.document.write(html);page.document.close()
@@ -334,26 +376,34 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           <div className="mt-0.5 text-[10px] text-slate-600">{t.shifts} turnos · {t.vacations} vac. · {t.medical} bajas</div>
         </div>)}
       </div>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full table-fixed border-collapse text-[10px] sm:text-xs">
-          <thead><tr className="bg-slate-800 text-white">
-            <th className="w-[70px] border border-slate-200 p-1 text-left">Fecha</th>
-            {displayedOperators.map(o=><th key={o.id} className="border border-slate-200 p-1">{o.display_name}</th>)}
-          </tr></thead>
-          <tbody>
-            {previewRows.map(d=><tr key={d}>
-              <th className="border border-slate-200 p-1 text-left font-medium">{shortDate(d).slice(0,5)} <span className="text-[9px] text-slate-400">{fromISO(d).toLocaleDateString('es-ES',{weekday:'short'})}</span></th>
-              {displayedOperators.map(o=>{
-                const entry=entries.get(o.id+'|'+d)
-                const color=colorFor(entry?.state??'UNASSIGNED')
-                return <td key={o.id} className="border border-white px-0.5 py-1 text-center font-bold"
-                  style={{background:color.bg,color:color.fg}}>{stateCode(entry)}</td>
-              })}
-            </tr>)}
-          </tbody>
-        </table>
+      <div className="mt-2 space-y-2">
+        {previewWeeks.map(({start,week})=><section key={start} className="overflow-hidden rounded-lg border border-slate-200">
+          <div className="bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700">{weekCaption(start)}</div>
+          <table className="w-full table-fixed border-collapse text-[9px] sm:text-xs">
+            <thead><tr className="bg-slate-800 text-white">
+              <th className="w-[68px] border border-white/20 px-1 py-1 text-left sm:w-24">Operario</th>
+              {week.map((day,i)=><th key={day} className="border border-white/20 px-px py-1 text-center">{dateHeading(day,i)}</th>)}
+            </tr></thead>
+            <tbody>
+              {displayedOperators.map(person=><tr key={person.id}>
+                <th className="border border-slate-200 bg-slate-50 px-1 py-1 text-left text-[9px] font-semibold sm:text-xs">
+                  {person.display_name}
+                </th>
+                {week.map(day=>{
+                  const inRange=dateSet.has(day)
+                  const entry=selectedEntry(person.id,day)
+                  const color=colorFor(entry?.state??'UNASSIGNED')
+                  return <td key={day} className="overflow-hidden border border-white p-px text-center font-bold tracking-tighter"
+                    style={{background:inRange?color.bg:'#f8fafc',color:color.fg}}>
+                    <span className="block truncate">{inRange?stateCode(entry):''}</span>
+                  </td>
+                })}
+              </tr>)}
+            </tbody>
+          </table>
+        </section>)}
       </div>
-      {previewCapped&&<p className="mt-2 text-xs text-slate-500">Vista previa de los primeros 50 días. El PDF y la impresión incluyen los {dates.length} días del reporte.</p>}
+      {previewCapped&&<p className="mt-2 text-xs text-slate-500">Se muestran las primeras siete semanas. El PDF y la impresión incluyen todo el período seleccionado.</p>}
       {dates.length===0&&<p className="py-4 text-center text-xs text-slate-500">No hay días que cumplan el filtro.</p>}
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 pt-2">
         {statusLegend.map(([value,label])=><span key={value} className="text-[9px] text-slate-600">
