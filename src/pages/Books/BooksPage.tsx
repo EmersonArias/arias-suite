@@ -18,7 +18,7 @@ import { supabase } from '../../lib/supabase'
 import { useHotelScope } from '../../shared/context/HotelScopeContext'
 
 type HomeRegister = {
-  icon: string
+  iconIndex: number
   name: string
   path: string | null
   comingSoon?: boolean
@@ -85,11 +85,11 @@ function alertStatusView(alert: MaintenanceAlert) {
 }
 
 const registers: HomeRegister[] = [
-  { icon: '🛠️', name: 'Mantenimiento', path: '/maintenance' },
-  { icon: '📋', name: 'Pendientes', path: '/maintenance/pending' },
-  { icon: '📦', name: 'Materiales y stock', path: '/materials' },
-  { icon: '🗓️', name: 'Planificador horario', path: '/planificador-horario' },
-  { icon: '🏢', name: 'Proveedores', path: '/providers' },
+  { iconIndex: 0, name: 'Mantenimiento', path: '/maintenance' },
+  { iconIndex: 1, name: 'Pendientes', path: '/maintenance/pending' },
+  { iconIndex: 2, name: 'Materiales y stock', path: '/materials' },
+  { iconIndex: 3, name: 'Planificador horario', path: '/planificador-horario' },
+  { iconIndex: 4, name: 'Proveedores', path: '/providers' },
 ]
 
 export default function BooksPage() {
@@ -506,9 +506,15 @@ export default function BooksPage() {
                 className="group flex min-h-[145px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:scale-[1.025] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex min-h-[112px] flex-1 flex-col items-center justify-center px-3 py-3">
-                  <span className="text-[42px] leading-none transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110">
-                    {register.icon}
-                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="block h-14 w-14 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110"
+                    style={{
+                      backgroundImage: 'url(/assets/home-icons-3d.webp)',
+                      backgroundSize: '500% 100%',
+                      backgroundPosition: `${register.iconIndex * 25}% 50%`,
+                    }}
+                  />
                   <span className="mt-2 text-center text-xs font-medium leading-tight text-slate-700">
                     {register.name}
                   </span>
