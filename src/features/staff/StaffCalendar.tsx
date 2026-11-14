@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   addDays, dateISO, fromISO, isoWeek, mondayOf, stateView,
   isVacationState, vacationCode, vacationStageLabel, vacationStage, vacationTone,
+  vacationOriginLabel,
   type StaffDay, type StaffOperator,
 } from './staffModel'
 
@@ -102,8 +103,7 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'REST') return compact ? 'D' : 'Descanso'
   if (isVacationState(entry.state)) {
     if (compact) return vacationCode(entry)
-    return (entry.state === 'VACATION_PREVIOUS' ? 'Vacaciones anteriores' : 'Vacaciones') +
-      ' · ' + vacationStageLabel(vacationStage(entry))
+    return vacationOriginLabel(entry) + ' · ' + vacationStageLabel(vacationStage(entry))
   }
   if (entry.state === 'MEDICAL_LEAVE') return compact ? 'B' : 'Baja'
   if (entry.state === 'COMP_REST') return compact ? dayCode(entry) : 'Recuperación de horas' + (entry.source_code ? ' (' + entry.source_code + ')' : '')
@@ -119,7 +119,7 @@ const legend: { state: string; code: string; text: string }[] = [
   { state: 'SHIFT', code: '9–19', text: 'Horario' },
   { state: 'REST', code: 'D', text: 'Descanso' },
   { state: 'VACATION', code: 'V', text: 'Programadas' },
-  { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
+  { state: 'VACATION_PREVIOUS', code: 'A25', text: 'Vac. de 2025 (A26: 2026)' },
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
   { state: 'PUBLIC_HOLIDAY', code: '15/08', text: 'Festivo disfrutado' },
   { state: 'COMP_REST', code: 'R', text: 'Recuperable' },
