@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import {
-  addDays,dateISO,fromISO,hours,mondayOf, type StaffDay,type StaffOperator,
+  addDays,dateISO,fromISO,hours,mondayOf,stateView, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
 } from '../staffModel'
 import { loadAllStaffDays } from '../staffData'
@@ -16,6 +16,7 @@ export default function StaffSelfServicePage(){
   const [year,setYear]=useState(new Date().getFullYear())
   const [operator,setOperator]=useState<StaffOperator|null>(null)
   const [days,setDays]=useState<StaffDay[]>([])
+  const [holidays,setHolidays]=useState<string[]>([])
   const [extras,setExtras]=useState<StaffOvertime[]>([])
   const [entitlement,setEntitlement]=useState<StaffVacation|null>(null)
   const [loading,setLoading]=useState(true)
@@ -33,7 +34,7 @@ export default function StaffSelfServicePage(){
       const me=staff.data as StaffOperator|null
       setOperator(me)
       if(!me){setLoading(false);return}
-      const [calendar,overtime,vacation]=await Promise.all([
+      const [calendar,overtime,vacation,holidayRows]=await Promise.all([
         loadAllStaffDays({
           operatorId: me.id,
           startDate: String(year)+'-01-01',
@@ -43,12 +44,15 @@ export default function StaffSelfServicePage(){
           .eq('operator_id',me.id).lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
         supabase.from('staff_vacation_years').select('id,hotel_id,operator_id,year,entitlement_days,carryover_days,adjustment_days')
           .eq('operator_id',me.id).eq('year',year).maybeSingle(),
+        supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',me.hotel_id)
+          .gte('holiday_date',String(year)+'-01-01').lte('holiday_date',String(year)+'-12-31'),
       ])
       if(!current)return
-      const failure=calendar.error||overtime.error||vacation.error
+      const failure=calendar.error||overtime.error||vacation.error||holidayRows.error
       if(failure)setError(failure.message)
       else{
         setDays((calendar.data??[]) as StaffDay[])
+        setHolidays((holidayRows.data??[]).map(x=>x.holiday_date))
         setExtras((overtime.data??[]) as StaffOvertime[])
         setEntitlement((vacation.data??null) as StaffVacation|null)
       }
@@ -66,6 +70,7 @@ export default function StaffSelfServicePage(){
     return{planned,actual,vacation,extra,balance}
   },[days,extras,entitlement])
   const lookup=useMemo(()=>new Map(days.map(d=>[d.work_date,d])),[days])
+  const holidaySet=useMemo(()=>new Set(holidays),[holidays])
   const selectedDates=Array.from({length:7},(_,i)=>addDays(week,i))
   async function signOut(){await ariasAuth.signOut();navigate('/login',{replace:true})}
   if(loading||authLoading)return <main className="min-h-screen bg-slate-100 p-8 text-slate-600">Cargando mi horario…</main>
@@ -91,13 +96,16 @@ export default function StaffSelfServicePage(){
             const entry=lookup.get(d)
             const state=entry?.state==='SHIFT'?((entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—')):
               entry?.state==='VACATION'||entry?.state==='VACATION_PREVIOUS'?'Vacaciones':
-              entry?.state==='REST'?'Descanso':entry?.state==='PUBLIC_HOLIDAY'?'Festivo':entry?.state==='MEDICAL_LEAVE'?'Baja':entry?.state==='OTHER'?'Sin clasificar':entry?'No disponible':'Sin asignar'
-            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className="w-28 shrink-0 text-xs text-slate-500 sm:w-auto">{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className="flex-1 text-right text-sm font-semibold sm:mt-2 sm:text-left">{state}</p>{entry?.actual_confirmed&&<p className="text-right text-[10px] text-emerald-700 sm:mt-1 sm:text-left">✓ {hours(entry.actual_minutes)}</p>}</div>
+              entry?.state==='REST'?'Descanso':
+              entry?.state==='PUBLIC_HOLIDAY'?'Festivo disfrutado' + (entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)?.[0] ? ' · ' + entry.source_code.match(/(\d{4})-(\d{2})-(\d{2})/)![0].split('-').reverse().slice(0,2).join('/') : ''):
+              entry?.state==='COMP_REST'?'Recuperable'+(entry.source_code?' · '+entry.source_code:''):
+              entry?.state==='MEDICAL_LEAVE'?'Baja':entry?.state==='OTHER'?'Sin clasificar':entry?'No disponible':'Sin asignar'
+            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className={'w-28 shrink-0 text-xs sm:w-auto '+(holidaySet.has(d)?'rounded bg-blue-700 px-1 py-0.5 font-semibold text-white':'text-slate-500')}>{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className={'flex-1 rounded px-1.5 py-1 text-right text-sm font-semibold sm:mt-2 sm:text-left '+stateView(entry?.state??'UNASSIGNED').tone}>{state}</p>{entry?.actual_confirmed&&<p className="text-right text-[10px] text-emerald-700 sm:mt-1 sm:text-left">✓ {hours(entry.actual_minutes)}</p>}</div>
           })}</div>
         </section>
         <section className="grid gap-2 lg:grid-cols-2 lg:gap-4">
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2><p className="mt-1 text-xs text-slate-500">Asignados: {entitlement?.entitlement_days??'—'} d · Anteriores: {entitlement?.carryover_days??0} d</p>
-            <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).length})</summary><div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">{days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-sky-100 px-1.5 py-1 text-xs text-sky-800">{fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
+            <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).length})</summary><div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">{days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-emerald-200 px-1.5 py-1 text-xs text-emerald-950">{fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
           </div>
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><div className="flex items-center justify-between gap-2"><h2 className="text-sm font-bold sm:text-base">Horas adicionales</h2><strong className="text-sm">{hours(summary.extra)}</strong></div>
             <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver movimientos ({extras.length})</summary><div className="mt-2 max-h-[220px] divide-y overflow-y-auto">{extras.map(e=><div key={e.id} className="py-1.5 text-xs"><div className="flex justify-between gap-2"><span>{fromISO(e.entry_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})} · {e.entry_type==='EARNED'?'Generadas':e.entry_type==='REST_TAKEN'?'Disfrutadas':e.entry_type==='PAID'?'Abonadas':'Ajuste'}</span><strong>{hours(e.minutes)}</strong></div><p className="truncate text-[11px] text-slate-500" title={e.reason}>{e.reason}</p></div>)}</div></details>

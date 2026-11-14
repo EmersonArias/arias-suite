@@ -21,15 +21,15 @@ export type StaffVacation = {
 };
 export type StaffNote = { operator_id: string; hotel_id: string; content: string; };
 export const staffStateOptions = [
-  { value: 'SHIFT', label: 'Turno', tone: 'bg-emerald-100 text-emerald-800' },
-  { value: 'REST', label: 'Descanso', tone: 'bg-rose-100 text-rose-800' },
-  { value: 'VACATION', label: 'Vacaciones', tone: 'bg-sky-100 text-sky-800' },
-  { value: 'VACATION_PREVIOUS', label: 'Vac. año anterior', tone: 'bg-blue-100 text-blue-800' },
-  { value: 'MEDICAL_LEAVE', label: 'Baja', tone: 'bg-slate-200 text-slate-800' },
+  { value: 'SHIFT', label: 'Turno', tone: 'bg-white text-slate-800' },
+  { value: 'REST', label: 'Descanso', tone: 'bg-red-200 text-red-900' },
+  { value: 'VACATION', label: 'Vacaciones', tone: 'bg-emerald-200 text-emerald-950' },
+  { value: 'VACATION_PREVIOUS', label: 'Vac. año anterior', tone: 'bg-emerald-200 text-emerald-950' },
+  { value: 'MEDICAL_LEAVE', label: 'Baja', tone: 'bg-fuchsia-200 text-fuchsia-950' },
   { value: 'PERSONAL_DAY', label: 'Asuntos propios', tone: 'bg-amber-100 text-amber-900' },
   { value: 'PERMISSION', label: 'Permiso', tone: 'bg-amber-100 text-amber-900' },
-  { value: 'COMP_REST', label: 'Recuperación de horas', tone: 'bg-fuchsia-100 text-fuchsia-800' },
-  { value: 'PUBLIC_HOLIDAY', label: 'Festivo', tone: 'bg-violet-100 text-violet-800' },
+  { value: 'COMP_REST', label: 'Recuperación de horas', tone: 'bg-sky-200 text-sky-950' },
+  { value: 'PUBLIC_HOLIDAY', label: 'Festivo disfrutado', tone: 'bg-amber-300 text-amber-950' },
   { value: 'TRAINING', label: 'Formación', tone: 'bg-teal-100 text-teal-800' },
   { value: 'UNJUSTIFIED_ABSENCE', label: 'Ausencia no justificada', tone: 'bg-red-200 text-red-900' },
   { value: 'OTHER', label: 'Otro / por revisar', tone: 'bg-orange-100 text-orange-800' },

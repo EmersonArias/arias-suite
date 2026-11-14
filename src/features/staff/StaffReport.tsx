@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
+import { supabase } from '../../lib/supabase'
 
 type PeriodType = 'DAY' | 'MONTH' | 'YEAR' | 'DATES' | 'MONTHS'
 type ReportOptions = {
@@ -10,7 +11,7 @@ type ReportOptions = {
   operatorId: string
   status: string
 }
-type ReportSnapshot = ReportOptions & { days: StaffDay[] }
+type ReportSnapshot = ReportOptions & { days: StaffDay[]; holidayDates: string[] }
 
 const periodOptions: { value: PeriodType; label: string }[] = [
   { value: 'DAY', label: 'Día' }, { value: 'MONTH', label: 'Mes' },
@@ -28,13 +29,13 @@ const statusOptions = [
 ]
 const input = 'min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-sky-600 sm:text-sm'
 const palette: Record<string, { bg: string; fg: string; pdfBg: [number,number,number]; pdfFg: [number,number,number] }> = {
-  SHIFT: {bg:'#D1FAE5', fg:'#065F46',pdfBg:[209,250,229],pdfFg:[6,95,70]},
-  REST: {bg:'#FFE4E6',fg:'#9F1239',pdfBg:[255,228,230],pdfFg:[159,18,57]},
-  VACATION: {bg:'#DBEAFE',fg:'#1E40AF',pdfBg:[219,234,254],pdfFg:[30,64,175]},
-  VACATION_PREVIOUS: {bg:'#DBEAFE',fg:'#1E40AF',pdfBg:[219,234,254],pdfFg:[30,64,175]},
-  MEDICAL_LEAVE: {bg:'#E2E8F0',fg:'#334155',pdfBg:[226,232,240],pdfFg:[51,65,85]},
-  PUBLIC_HOLIDAY: {bg:'#EDE9FE',fg:'#5B21B6',pdfBg:[237,233,254],pdfFg:[91,33,182]},
-  COMP_REST: {bg:'#FAE8FF',fg:'#86198F',pdfBg:[250,232,255],pdfFg:[134,25,143]},
+  SHIFT: {bg:'#FFFFFF', fg:'#334155',pdfBg:[255,255,255],pdfFg:[51,65,85]},
+  REST: {bg:'#FECACA',fg:'#7F1D1D',pdfBg:[254,202,202],pdfFg:[127,29,29]},
+  VACATION: {bg:'#A7F3D0',fg:'#064E3B',pdfBg:[167,243,208],pdfFg:[6,78,59]},
+  VACATION_PREVIOUS: {bg:'#A7F3D0',fg:'#064E3B',pdfBg:[167,243,208],pdfFg:[6,78,59]},
+  MEDICAL_LEAVE: {bg:'#F5D0FE',fg:'#701A75',pdfBg:[245,208,254],pdfFg:[112,26,117]},
+  PUBLIC_HOLIDAY: {bg:'#FCD34D',fg:'#78350F',pdfBg:[252,211,77],pdfFg:[120,53,15]},
+  COMP_REST: {bg:'#BAE6FD',fg:'#0C4A6E',pdfBg:[186,230,253],pdfFg:[12,74,110]},
   PERMISSION: {bg:'#FEF3C7',fg:'#92400E',pdfBg:[254,243,199],pdfFg:[146,64,14]},
   PERSONAL_DAY: {bg:'#FEF3C7',fg:'#92400E',pdfBg:[254,243,199],pdfFg:[146,64,14]},
   TRAINING: {bg:'#CCFBF1',fg:'#115E59',pdfBg:[204,251,241],pdfFg:[17,94,89]},
@@ -57,8 +58,14 @@ const stateCode = (entry?:StaffDay) => {
     case 'VACATION': return 'V'
     case 'VACATION_PREVIOUS': return 'A'
     case 'MEDICAL_LEAVE': return 'B'
-    case 'PUBLIC_HOLIDAY': return 'F'
-    case 'COMP_REST': return 'C'
+    case 'PUBLIC_HOLIDAY': {
+      const ref=entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)
+      return ref ? ref[3]+'/'+ref[2] : 'F'
+    }
+    case 'COMP_REST': {
+      const ref=entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
+      return ref ? 'R'+ref[1].replace('-', '/') : 'R'
+    }
     case 'PERMISSION': return 'P'
     case 'PERSONAL_DAY': return 'L'
     case 'TRAINING': return 'E'
@@ -123,9 +130,13 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       return
     }
     setLoading(true)
-    const result=await loadAllStaffDays({hotelId,startDate:next.start,endDate:next.end})
-    if(result.error) setError(result.error.message)
-    else setSnapshot({...next,days:result.data})
+    const [result, holidayResult]=await Promise.all([
+      loadAllStaffDays({hotelId,startDate:next.start,endDate:next.end}),
+      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotelId)
+        .gte('holiday_date',next.start).lte('holiday_date',next.end),
+    ])
+    if(result.error||holidayResult.error) setError((result.error||holidayResult.error)!.message)
+    else setSnapshot({...next,days:result.data,holidayDates:(holidayResult.data??[]).map(h=>h.holiday_date)})
     setLoading(false)
   }
   // Show an immediately useful preview for the current month.
@@ -133,10 +144,15 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     let alive=true
     const start=initialMonth+'-01'
     const end=monthEnd(initialMonth)
-    void loadAllStaffDays({hotelId,startDate:start,endDate:end}).then(result=>{
+    void Promise.all([
+      loadAllStaffDays({hotelId,startDate:start,endDate:end}),
+      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotelId)
+        .gte('holiday_date',start).lte('holiday_date',end),
+    ]).then(([result,holidayResult])=>{
       if(!alive)return
-      if(result.error)setError(result.error.message)
-      else setSnapshot({start,end,operatorId:'ALL',status:'ALL',days:result.data})
+      if(result.error||holidayResult.error)setError((result.error||holidayResult.error)!.message)
+      else setSnapshot({start,end,operatorId:'ALL',status:'ALL',days:result.data,
+        holidayDates:(holidayResult.data??[]).map(h=>h.holiday_date)})
     })
     return ()=>{alive=false}
   },[hotelId,initialMonth])
@@ -145,6 +161,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     ? operators
     : operators.filter(o=>o.id===snapshot?.operatorId),[operators,snapshot?.operatorId])
   const entries=useMemo(()=>new Map((snapshot?.days??[]).map(d=>[d.operator_id+'|'+d.work_date,d])),[snapshot?.days])
+  const holidaySet=useMemo(()=>new Set(snapshot?.holidayDates??[]),[snapshot?.holidayDates])
   const rawDates=useMemo(()=>{
     if(!snapshot)return [] as string[]
     return Array.from({length:dayCount(snapshot.start,snapshot.end)},(_,i)=>addDays(snapshot.start,i))
@@ -198,7 +215,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
     ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Vacaciones'],['MEDICAL_LEAVE','B Baja'],
-    ['PUBLIC_HOLIDAY','F Festivo'],['COMP_REST','C Recuperación'], 
+    ['PUBLIC_HOLIDAY','15/08 Festivo disfrutado'],['COMP_REST','R Recuperable'], 
   ]
   const summaryNote='Horario planificado. No acredita por sí solo la presencia real ni el disfrute efectivo de vacaciones.'
   const previewCapped=weekGroups.length>previewWeeks.length
@@ -221,8 +238,10 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'left' as const}}],
         [
           {content:'',styles:{fillColor:[255,255,255] as [number,number,number],textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const}},
-          ...week.map((day,i)=>({content:dateHeading(day,i),styles:{fillColor:[255,255,255] as [number,number,number],
-            textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'center' as const}})),
+          ...week.map((day,i)=>({content:dateHeading(day,i),styles:{
+            fillColor:(holidaySet.has(day)?[29,78,216]:[255,255,255]) as [number,number,number],
+            textColor:(holidaySet.has(day)?[255,255,255]:[30,41,59]) as [number,number,number],
+            fontStyle:'bold' as const,halign:'center' as const}})),
         ],
         ...displayedOperators.map(person=>[
           {content:person.display_name,styles:{fontStyle:'bold' as const,textColor:[30,41,59] as [number,number,number]}},
@@ -249,9 +268,10 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         didDrawPage:({pageNumber})=>{
           doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
-          doc.text('9-19 Horario  |  D Descanso  |  V Vacaciones  |  B Baja  |  F Festivo  |  C Recuperacion',9,199)
-          doc.text(summaryNote,9,203.5)
-          doc.text('Pag. '+pageNumber,pageWidth-18,203.5)
+          doc.text('Cabecera azul: festivo del calendario   |   Mostaza (15/08): festivo disfrutado   |   Celeste (R): recuperable',9,198.5)
+          doc.text('Rojo (D): descanso   |   Verde (V): vacaciones   |   Lila (B): baja   |   Blanco (9-19): turno',9,201.5)
+          doc.text(summaryNote,9,204.5)
+          doc.text('Pag. '+pageNumber,pageWidth-18,204.5)
         },
       })
       if(dates.length===0){doc.setFontSize(10);doc.text('No hay registros para los filtros seleccionados.',10,37)}
@@ -269,7 +289,9 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
     const heading=esc(hotelName)+' · '+esc(periodLabel)
     const weeklyTables=weekGroups.map(({start,week})=>{
-      const head='<th class="person"></th>'+week.map((day,i)=>'<th>'+esc(dateHeading(day,i))+'</th>').join('')
+      const head='<th class="person"></th>'+week.map((day,i)=>'<th'+
+        (holidaySet.has(day)?' style="background:#1d4ed8;color:white"':'')+'>'+
+        esc(dateHeading(day,i))+'</th>').join('')
       const rows=displayedOperators.map(person=>{
         const cells=week.map(day=>{
           const inRange=dateSet.has(day)
@@ -284,7 +306,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         '</tr></thead><tbody>'+rows+'</tbody></table></section>'
     }).join('')
     const summary=totals.map(t=>'<span>'+esc(t.person.display_name)+': '+t.shifts+' turnos, '+t.vacations+' vac., '+t.medical+' bajas</span>').join(' · ')
-    const legendHtml=statusLegend.map(([s,label])=>'<span style="display:inline-block;margin-right:10px"><b style="background:'+colorFor(s).bg+';color:'+colorFor(s).fg+';padding:1px 4px;border-radius:3px">'+(s==='SHIFT'?'9–19':s==='REST'?'D':s==='VACATION'?'V':s==='MEDICAL_LEAVE'?'B':s==='PUBLIC_HOLIDAY'?'F':s==='COMP_REST'?'C':s==='PERMISSION'?'P':'R')+'</b> '+esc(label)+'</span>').join('')
+    const legendHtml=statusLegend.map(([s,label])=>'<span style="display:inline-block;margin-right:10px"><b style="background:'+colorFor(s).bg+';color:'+colorFor(s).fg+';padding:1px 4px;border-radius:3px">'+(s==='SHIFT'?'9–19':s==='REST'?'D':s==='VACATION'?'V':s==='MEDICAL_LEAVE'?'B':s==='PUBLIC_HOLIDAY'?'15/08':s==='COMP_REST'?'R':s==='PERMISSION'?'P':'R')+'</b> '+esc(label)+'</span>').join('')
     const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte horario</title><style>'+
       '@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:9px}'+
       'h1{font-size:14px;margin:0 0 3px}p{margin:2px 0 7px}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
@@ -295,7 +317,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       '.footer{margin-top:7px;font-size:8px;line-height:1.6}.notes{font-size:8px;color:#475569}'+
       '</style></head><body><h1>PLANIFICADOR HORARIO</h1><p>'+heading+' · '+esc(stateLabel)+'</p>'+
       weeklyTables+
-      '<div class="footer">'+legendHtml+'</div><p class="notes">'+esc(summary)+'</p><p class="notes">'+esc(summaryNote)+'</p>'+
+      '<div class="footer"><span style="display:inline-block;background:#1d4ed8;color:white;padding:1px 4px;margin-right:8px">Cabecera azul: festivo del calendario</span>'+legendHtml+'</div><p class="notes">'+esc(summary)+'</p><p class="notes">'+esc(summaryNote)+'</p>'+
       '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
     page.document.open();page.document.write(html);page.document.close()
   }
@@ -382,7 +404,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           <table className="w-full table-fixed border-collapse text-[9px] sm:text-xs">
             <thead><tr className="bg-white text-slate-700">
               <th className="w-[68px] border border-slate-200 px-1 py-1 text-left sm:w-24"></th>
-              {week.map((day,i)=><th key={day} className="border border-slate-200 px-px py-1 text-center">{dateHeading(day,i)}</th>)}
+              {week.map((day,i)=><th key={day} className={'border border-slate-200 px-px py-1 text-center '+(holidaySet.has(day)?'bg-blue-700 text-white':'')}>{dateHeading(day,i)}</th>)}
             </tr></thead>
             <tbody>
               {displayedOperators.map(person=><tr key={person.id}>
@@ -406,8 +428,9 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       {previewCapped&&<p className="mt-2 text-xs text-slate-500">Se muestran las primeras siete semanas. El PDF y la impresión incluyen todo el período seleccionado.</p>}
       {dates.length===0&&<p className="py-4 text-center text-xs text-slate-500">No hay días que cumplan el filtro.</p>}
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 pt-2">
+        <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-blue-700 px-1 text-white">15</span>Cabecera azul: festivo calendario</span>
         {statusLegend.map(([value,label])=><span key={value} className="text-[9px] text-slate-600">
-          <span className="mr-1 rounded px-1 font-bold" style={{background:colorFor(value).bg,color:colorFor(value).fg}}>{value==='SHIFT'?'9–19':value==='REST'?'D':value==='VACATION'?'V':value==='MEDICAL_LEAVE'?'B':value==='PUBLIC_HOLIDAY'?'F':value==='COMP_REST'?'C':value==='PERMISSION'?'P':'R'}</span>{label}
+          <span className="mr-1 rounded px-1 font-bold" style={{background:colorFor(value).bg,color:colorFor(value).fg}}>{value==='SHIFT'?'9–19':value==='REST'?'D':value==='VACATION'?'V':value==='MEDICAL_LEAVE'?'B':value==='PUBLIC_HOLIDAY'?'15/08':value==='COMP_REST'?'R':value==='PERMISSION'?'P':'R'}</span>{label}
         </span>)}
       </div>
       <p className="mt-2 text-[10px] text-slate-500">{summaryNote}</p>
