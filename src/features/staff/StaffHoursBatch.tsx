@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, CheckCheck } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { dateISO, fromISO, hours, type StaffDay, type StaffOperator } from './staffModel'
+import { dateISO, fromISO, hours, splitShiftLabel, type StaffDay, type StaffOperator } from './staffModel'
 
 type PeriodMode = 'MONTH' | 'DATES' | 'YEAR'
 type DisplayFilter = 'PENDING' | 'ALL' | 'CONFIRMED'
@@ -199,7 +199,7 @@ export default function StaffHoursBatch({
             className="h-4 w-4"/>
           <div className="min-w-0">
             <div className="truncate text-[11px] font-semibold sm:text-xs">{names.get(d.operator_id)??'Operario'}</div>
-            <div className="text-[10px] text-slate-600">{spanishDate(d.work_date)} · {d.start_time?.slice(0,5)}–{d.end_time?.slice(0,5)}</div>
+            <div className="text-[10px] text-slate-600">{spanishDate(d.work_date)} · {splitShiftLabel(d.start_time,d.end_time)}</div>
           </div>
           <div className="text-right">
             <div className="text-[9px] text-slate-500">Previstas</div>
