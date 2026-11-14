@@ -22,9 +22,9 @@ const statusOptions = [
   { value: 'SHIFT', label: 'Turnos' },
   { value: 'REST', label: 'Descansos' },
   { value: 'VACATION', label: 'Vacaciones' },
-  { value: 'MEDICAL_LEAVE', label: 'Bajas médicas' },
+  { value: 'MEDICAL_LEAVE', label: 'Bajas' },
   { value: 'PUBLIC_HOLIDAY', label: 'Festivos' },
-  { value: 'OTHER', label: 'Por revisar' },
+  { value: 'COMP_REST', label: 'Recuperación de horas' },
 ]
 const input = 'min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-sky-600 sm:text-sm'
 const palette: Record<string, { bg: string; fg: string; pdfBg: [number,number,number]; pdfFg: [number,number,number] }> = {
@@ -174,8 +174,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
     ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Vacaciones'],['MEDICAL_LEAVE','B Baja'],
-    ['PUBLIC_HOLIDAY','F Festivo'],['COMP_REST','C Compensación'],['PERMISSION','P Permiso'],
-    ['OTHER','R Revisar'],
+    ['PUBLIC_HOLIDAY','F Festivo'],['COMP_REST','C Recuperación'], 
   ]
   const summaryNote='Horario planificado. No acredita por sí solo la presencia real ni el disfrute efectivo de vacaciones.'
   const previewRows=dates.slice(0,50)
@@ -216,7 +215,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         didDrawPage:({pageNumber})=>{
           doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
-          doc.text('9-19 Horario  |  D Descanso  |  V Vacaciones  |  B Baja  |  F Festivo  |  C Compensacion  |  P Permiso  |  R Revisar',9,199)
+          doc.text('9-19 Horario  |  D Descanso  |  V Vacaciones  |  B Baja  |  F Festivo  |  C Recuperacion',9,199)
           doc.text(summaryNote,9,203.5)
           doc.text('Pag. '+pageNumber,pageWidth-18,203.5)
         },
