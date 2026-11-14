@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   addDays, dateISO, fromISO, isoWeek, mondayOf, stateView,
   type StaffDay, type StaffOperator,
@@ -40,6 +40,27 @@ function dayKind(entry?: StaffDay) {
   return entry.state
 }
 
+// Each visible status marker is a single letter, never combined with an operator initial.
+function dayCode(entry?: StaffDay) {
+  if (!entry) return '–'
+  const codes: Record<string, string> = {
+    SHIFT: 'T',
+    REST: 'D',
+    VACATION: 'V',
+    VACATION_PREVIOUS: 'A',
+    MEDICAL_LEAVE: 'B',
+    PUBLIC_HOLIDAY: 'F',
+    PERMISSION: 'P',
+    PERSONAL_DAY: 'L',
+    COMP_REST: 'C',
+    TRAINING: 'E',
+    UNJUSTIFIED_ABSENCE: 'I',
+    OTHER: 'R',
+    UNASSIGNED: '–',
+  }
+  return codes[entry.state] ?? 'R'
+}
+
 function dayShort(entry?: StaffDay, compact = false) {
   if (!entry) return '—'
   if (entry.state === 'SHIFT') {
@@ -61,14 +82,20 @@ function dayShort(entry?: StaffDay, compact = false) {
   return compact ? '?' : stateView(entry.state).label
 }
 
-const legend: { state: string; text: string }[] = [
-  { state: 'SHIFT', text: 'Turno' },
-  { state: 'VACATION', text: 'Vacaciones' },
-  { state: 'REST', text: 'Descanso' },
-  { state: 'MEDICAL_LEAVE', text: 'Baja' },
-  { state: 'PUBLIC_HOLIDAY', text: 'Festivo' },
-  { state: 'PERMISSION', text: 'Permiso' },
-  { state: 'OTHER', text: 'Revisar' },
+const legend: { state: string; code: string; text: string }[] = [
+  { state: 'SHIFT', code: 'T', text: 'Turno' },
+  { state: 'REST', code: 'D', text: 'Descanso' },
+  { state: 'VACATION', code: 'V', text: 'Vacaciones' },
+  { state: 'VACATION_PREVIOUS', code: 'A', text: 'Vac. anteriores' },
+  { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
+  { state: 'PUBLIC_HOLIDAY', code: 'F', text: 'Festivo' },
+  { state: 'PERMISSION', code: 'P', text: 'Permiso' },
+  { state: 'PERSONAL_DAY', code: 'L', text: 'Asuntos propios' },
+  { state: 'COMP_REST', code: 'C', text: 'Compensación' },
+  { state: 'TRAINING', code: 'E', text: 'Formación' },
+  { state: 'UNJUSTIFIED_ABSENCE', code: 'I', text: 'Ausencia' },
+  { state: 'OTHER', code: 'R', text: 'Revisar' },
+  { state: 'UNASSIGNED', code: '–', text: 'Sin asignar' },
 ]
 
 export default function StaffCalendar({ year, operators, days, operatorId, onYearChange, onEditDay }: Props) {
@@ -150,7 +177,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
             <span className={'text-[10px] font-bold ' + (mini ? 'leading-3' : 'sm:text-xs')}>{Number(day.slice(8))}</span>
             {visiblePeople.length === 1 ?
               <span className={'mt-auto w-full truncate text-center font-semibold ' + (mini ? 'text-[8px] leading-3' : 'text-[9px] sm:text-xs')}>
-                {mini && entry?.state === 'SHIFT' ? 'T' : dayShort(entry, mini)}
+                {dayCode(entry)}
               </span> :
               <span className={'mt-0.5 flex w-full flex-col gap-px ' + (mini ? 'gap-px' : 'gap-0.5')}>
                 {persons.map(person => {
@@ -160,7 +187,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
                     className={'block w-full truncate rounded-[3px] px-px text-center font-semibold ' +
                       (mini ? 'text-[7px] leading-[8px]' : 'text-[8px] leading-[13px] sm:text-[10px] sm:leading-4') +
                       ' ' + stateView(dayKind(item)).tone}>
-                    {person.display_name.slice(0, 1).toUpperCase()}{mini ? '' : ' ' + dayShort(item, true)}
+                    {dayCode(item)}
                   </span>
                 })}
               </span>}
@@ -203,12 +230,6 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
       </div>
     </div>
 
-    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-b border-slate-100 pb-2">
-      {legend.map(item => <span key={item.state} className="flex items-center gap-1 text-[10px] text-slate-600 sm:text-xs">
-        <span className={'h-2.5 w-2.5 rounded-sm ' + stateView(item.state).tone} aria-hidden="true"/>{item.text}
-      </span>)}
-    </div>
-
     {noPeople && <p className="p-4 text-center text-sm text-slate-500">Selecciona un operario para ver el calendario.</p>}
 
     {!noPeople && mode === 'DIA' && <div className="mt-2 space-y-1">
@@ -236,8 +257,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
             return <button type="button" key={person.id} onClick={() => onEditDay(person.id, day)}
               aria-label={person.display_name + ', ' + day + ': ' + dayShort(entry)}
               className={'min-w-0 truncate rounded-md px-1 py-1.5 text-center text-[10px] font-semibold lg:text-xs ' + stateView(dayKind(entry)).tone}>
-              {visiblePeople.length > 1 && <span className="block truncate font-bold">{person.display_name}</span>}
-              <span className="block truncate">{dayShort(entry, true)}</span>
+              <span className="block truncate text-sm font-bold">{dayCode(entry)}</span>
             </button>
           })}
         </div>
@@ -249,8 +269,15 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
     {!noPeople && mode === 'ANO' && <div className={'mt-2 grid gap-2 ' + (visiblePeople.length === 1 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
       {monthNames.map((_, index) => monthPanel(year, index, true))}
     </div>}
-    <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-500">
-      <CalendarDays size={12}/><span>Toca una fecha para consultar o modificar el turno.</span>
+    <div className="mt-2 border-t border-slate-100 pt-1.5">
+      {visiblePeople.length > 1 && <p className="mb-1 text-[9px] leading-3 text-slate-500">
+        Orden (de arriba abajo): {visiblePeople.map((person, index) => (index + 1) + ' ' + person.display_name).join(' · ')}
+      </p>}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" aria-label="Leyenda de estados del calendario">
+        {legend.map(item => <span key={item.state} className="inline-flex items-center gap-0.5 whitespace-nowrap text-[9px] leading-3 text-slate-600">
+          <span className={'inline-flex h-3 w-3 items-center justify-center rounded-[2px] text-[9px] font-bold ' + stateView(item.state).tone}>{item.code}</span>{item.text}
+        </span>)}
+      </div>
     </div>
   </section>
 }
