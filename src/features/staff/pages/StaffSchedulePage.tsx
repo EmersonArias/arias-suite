@@ -328,102 +328,127 @@ export default function StaffSchedulePage() {
         </div>
       </section>}
 
-      {tab==='ANUAL'&&<section className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-3">
+      {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
             ['Operarios activos',String(operators.filter(o=>o.active).length)],
             ['Jornadas verificadas',String(summary.reduce((v,s)=>v+s.shiftsConfirmed,0))],
             ['Fines de semana previstos',String(summary.reduce((v,s)=>v+s.total,0))],
-          ].map(([label,value])=><div key={label} className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div>)}
+          ].map(([label,value])=><div key={label} className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</p><p className="mt-0.5 text-lg font-bold sm:mt-1 sm:text-2xl">{value}</p></div>)}
         </div>
-        <div className="overflow-x-auto rounded-2xl bg-white p-3 shadow-sm">
+        <div className="space-y-1.5 md:hidden">
+          {summary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
+            <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              {[['Previstas',hours(s.planned)],['Reales',hours(s.worked)],['F. semana',String(s.total)],
+              ['Vacaciones',s.vacation+' d'],['Baja',s.sick+' d'],['H. extra',hours(s.cumulativeBalance)]].map(([label,value])=>
+                <div key={label} className="rounded-md bg-slate-50 px-1 py-1"><div className="text-[10px] text-slate-500">{label}</div><div className="text-xs font-semibold">{value}</div></div>)}
+            </div>
+          </div>)}
+        </div>
+        <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
           <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Turnos previstos</th><th>Horas efectivas verificadas</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td>{hours(s.planned)}</td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
           </tbody></table>
-          <p className="mt-2 text-xs text-slate-500">Las horas de los turnos se calculan entre entrada y salida, sin descontar pausas no identificadas. No equivalen automáticamente a horas efectivas.</p>
         </div>
       </section>}
 
-      {tab==='FINES'&&<section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-bold">Historial de fines de semana · {year}</h2>
-        <p className="mt-1 text-sm text-slate-500">Total por operario y detalle de semanas concretas, sin limitarse al último fin de semana.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{summary.map(s=><div key={s.operator.id} className="rounded-xl border p-3">
-          <p className="font-semibold">{s.operator.display_name}</p><p className="mt-1 text-2xl font-bold">{num(s.total)} <span className="text-sm font-normal text-slate-500">semanas</span></p>
-          <p className="text-xs text-slate-500">{s.full} completos · {s.verified} con presencia verificada</p>
-          <p className="mt-1 text-xs text-slate-500">{s.operator.rotation_type==='EXCEPTIONAL'?'Cobertura excepcional':s.operator.rotation_type==='NONE'?'Fuera de rotación':'Rotación habitual'}</p>
-          <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">{s.weeks.map(([m,w])=><p key={m} className="rounded bg-slate-50 px-2 py-1 text-xs">Semana {isoWeek(m)} · {asDisplayDate(m)} · {w.saturday?'Sáb':''}{w.saturday&&w.sunday?' + ':''}{w.sunday?'Dom':''}{w.confirmed?' ✓ verificado':' · previsto'}</p>)}</div>
-        </div>)}</div>
+      {tab==='FINES'&&<section className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
+        <h2 className="mb-2 text-sm font-bold sm:text-lg">Fines de semana · {year}</h2>
+        <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">{summary.map(s=><details key={s.operator.id} className="group rounded-lg border px-3 py-2 sm:rounded-xl sm:p-3">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-sm font-semibold">{s.operator.display_name}</span>
+            <span className="shrink-0 text-sm font-bold">{num(s.total)} <span className="text-xs font-normal text-slate-500">sem.</span> <span className="text-slate-400">⌄</span></span>
+          </summary>
+          <div className="mt-1 text-[11px] text-slate-500">{s.full} completos · {s.verified} verificados</div>
+          <div className="mt-1 max-h-56 divide-y overflow-y-auto">{s.weeks.map(([m,w])=><p key={m} className="py-1 text-xs">S{isoWeek(m)} · {asDisplayDate(m)} · {w.saturday?'Sáb':''}{w.saturday&&w.sunday?' + ':''}{w.sunday?'Dom':''}{w.confirmed?' ✓':''}</p>)}</div>
+        </details>)}</div>
       </section>}
 
-      {tab==='EXTRAS'&&<section className="space-y-4">
-        {selected&&<div className="rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="font-bold">Horas extra y compensaciones · {selected.display_name}</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{n}</p><p className="mt-1 text-lg font-bold">{hours(Number(v))}</p></div>)}
+      {tab==='EXTRAS'&&<section className="space-y-2 sm:space-y-4">
+        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
+          <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
+            {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{n}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{hours(Number(v))}</p></div>)}
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[180px_170px_120px_1fr_auto]">
+          <button className="mt-2 w-full rounded-lg border px-3 py-2 text-left text-xs font-semibold md:hidden" onClick={()=>setShowOvertimeForm(v=>!v)} aria-expanded={showOvertimeForm}>{showOvertimeForm?'Cerrar registro':'＋ Nuevo movimiento'}</button>
+          <div className={'mt-2 grid grid-cols-2 gap-2 md:mt-4 md:grid-cols-[180px_170px_120px_1fr_auto] md:gap-3 '+(showOvertimeForm?'':'hidden md:grid')}>
             <label className="text-xs">Fecha<input type="date" className={baseInput+' mt-1'} value={overtimeDate} onChange={e=>setOvertimeDate(e.target.value)}/></label>
             <label className="text-xs">Movimiento<select className={baseInput+' mt-1'} value={overtimeType} onChange={e=>setOvertimeType(e.target.value)}>
               <option value="EARNED">Horas generadas</option><option value="REST_TAKEN">Descanso disfrutado</option><option value="PAID">Abonadas</option><option value="ADJUSTMENT_PLUS">Ajuste positivo</option><option value="ADJUSTMENT_MINUS">Ajuste negativo</option>
             </select></label>
             <label className="text-xs">Horas<input type="number" min="0.01" step="0.25" className={baseInput+' mt-1'} value={overtimeHours} onChange={e=>setOvertimeHours(e.target.value)} placeholder="2,5"/></label>
-            <label className="text-xs">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
-            <button disabled={busy} onClick={()=>void saveOvertime()} className="self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Registrar</button>
+            <label className="col-span-2 text-xs md:col-span-1">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
+            <button disabled={busy} onClick={()=>void saveOvertime()} className="col-span-2 min-h-9 self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-1">Registrar</button>
           </div>
-          <p className="mt-3 text-xs text-slate-500">Generadas, disfrutadas y abonadas: movimientos del año seleccionado. El saldo incluye movimientos anteriores hasta el 31 de diciembre de ese año. Las anotaciones del Excel aún no son horas verificadas.</p><div className="mt-4 max-h-[370px] overflow-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-2">Fecha</th><th>Tipo</th><th>Duración</th><th>Motivo</th></tr></thead><tbody>
-            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="p-2">{asDisplayDate(e.entry_date)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td>{e.reason}</td></tr>)}
+          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full" text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th></tr></thead><tbody>
+            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td></tr>)}
           </tbody></table></div>
         </div>}
       </section>}
 
-      {tab==='VACACIONES'&&<section className="space-y-4">
-        <div className="overflow-x-auto rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="font-bold">Vacaciones · control anual {year}</h2>
-          <table className="mt-3 w-full min-w-[640px] text-left text-sm"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Derecho configurado</th><th>Previstas en cuadrante</th><th>Año anterior</th><th>Saldo provisional</th></tr></thead><tbody>{summary.map(s=>{
+      {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-4">
+        <div className="overflow-x-auto rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2>
+          <div className="mt-2 space-y-1 md:hidden">{summary.map(s=>{
+            const v=vacations.find(t=>t.operator_id===s.operator.id);
+            const balance=v?.entitlement_days==null?'—':String(v.entitlement_days+v.carryover_days+v.adjustment_days-s.vacation);
+            return <div key={s.operator.id} className="grid grid-cols-[minmax(0,1fr)_repeat(3,46px)] items-center gap-2 border-b py-1.5 text-xs">
+              <span className="truncate font-semibold">{s.operator.display_name}</span>
+              <span title="Derecho" className="text-center">{v?.entitlement_days??'—'}</span>
+              <span title="Previstas" className="text-center">{s.vacation}</span>
+              <span title="Saldo provisional" className="text-center font-bold">{balance}</span>
+            </div>
+          })}<p className="text-right text-[10px] text-slate-500">Derecho · Previstas · Saldo</p></div>
+          <table className="mt-3 hidden w-full min-w-[640px] text-left text-sm md:table"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Derecho configurado</th><th>Previstas en cuadrante</th><th>Año anterior</th><th>Saldo provisional</th></tr></thead><tbody>{summary.map(s=>{
             const v=vacations.find(t=>t.operator_id===s.operator.id);const balance=v?.entitlement_days==null?'Sin configurar':String(v.entitlement_days+v.carryover_days+v.adjustment_days-s.vacation)
             return <tr key={s.operator.id} className="border-b"><td className="p-2 font-semibold">{s.operator.display_name}</td><td>{v?.entitlement_days==null?'—':v.entitlement_days+' d'}</td><td>{s.vacation} d</td><td>{s.vacationPrevious} d</td><td>{balance}</td></tr>
           })}</tbody></table>
-          <p className="mt-3 text-xs text-slate-500">Los días importados del Excel son previstos, no se certifican como disfrutados. El derecho legal anual y las compensaciones requieren configuración expresa.</p>
         </div>
-        {selected&&<div className="rounded-2xl bg-white p-4 shadow-sm">
-          <h3 className="font-bold">Configuración de vacaciones de {selected.display_name}</h3>
-          <div className="mt-3 flex flex-wrap items-end gap-3">
+        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+          <h3 className="text-sm font-bold sm:text-base">Saldo · {selected.display_name}</h3>
+          <div className="mt-2 flex flex-wrap items-end gap-2 sm:mt-3 sm:gap-3">
             <label className="text-xs">Derecho anual (días naturales)<input type="number" min="0" max="366" className={baseInput+' mt-1 w-40'} value={entitled} onChange={e=>setEntitled(e.target.value)} placeholder="Sin configurar"/></label>
             <label className="text-xs">Pendientes anteriores<input type="number" className={baseInput+' mt-1 w-36'} value={carry} onChange={e=>setCarry(e.target.value)}/></label>
             <label className="text-xs">Ajuste (+ / −)<input type="number" className={baseInput+' mt-1 w-32'} value={adjust} onChange={e=>setAdjust(e.target.value)}/></label>
             <button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveVacation()}>Guardar saldo</button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Observación: los 30 días del Excel no se trasladan como derecho contractual automáticamente.</p>
-          <div className="mt-4 flex flex-wrap gap-2">{days.filter(d=>d.operator_id===selectedId&&d.work_date.startsWith(String(year))&&['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded-lg bg-sky-100 px-2 py-1 text-xs text-sky-900">{asDisplayDate(d.work_date)}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div>
+          <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Fechas de vacaciones</summary><div className="mt-2 flex flex-wrap gap-1">{days.filter(d=>d.operator_id===selectedId&&d.work_date.startsWith(String(year))&&['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-sky-100 px-1.5 py-1 text-xs text-sky-900">{asDisplayDate(d.work_date).slice(0,5)}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
         </div>}
       </section>}
 
-      {tab==='AUSENCIAS'&&<section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="font-bold">Bajas y ausencias · {year}</h2>
-        <p className="mt-1 text-sm text-slate-500">Justificación documental, fechas y días registrados. No se guardan diagnósticos.</p>
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Fecha</th><th>Estado</th><th>Justificación</th><th>Edición</th></tr></thead><tbody>
+      {tab==='AUSENCIAS'&&<section className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        <h2 className="text-sm font-bold sm:text-base">Bajas y ausencias · {year}</h2>
+        <div className="mt-2 space-y-1.5 md:hidden">
+          {days.filter(d=>d.work_date.startsWith(String(year))&&['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state)).map(d=>
+            <button key={d.id} className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1 text-left" onClick={()=>openDay(d.operator_id,d.work_date)}>
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold">{operators.find(o=>o.id===d.operator_id)?.display_name}</span>
+              <span className="shrink-0 text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
+              <span className="max-w-[42%] truncate text-[11px] text-slate-600">{stateView(d.state).label}</span>
+              <span className="shrink-0 text-[10px] font-bold">{d.justification==='DOCUMENTED'?'✓':d.justification==='UNJUSTIFIED'?'!':'·'}</span>
+            </button>)}
+        </div>
+        <div className="mt-3 hidden overflow-x-auto md:block"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b bg-slate-50"><th className="p-2">Operario</th><th>Fecha</th><th>Estado</th><th>Justificación</th><th>Edición</th></tr></thead><tbody>
           {days.filter(d=>d.work_date.startsWith(String(year))&&['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state)).map(d=><tr key={d.id} className="border-b"><td className="p-2">{operators.find(o=>o.id===d.operator_id)?.display_name}</td><td>{asDisplayDate(d.work_date)}</td><td>{stateView(d.state).label}</td><td>{({UNKNOWN:'Sin verificar',PENDING:'Pendiente',DOCUMENTED:'Documentada',UNJUSTIFIED:'No justificada'} as Record<string,string>)[d.justification]??'Sin dato'}</td><td><button className="rounded border px-2 py-1 text-xs" onClick={()=>openDay(d.operator_id,d.work_date)}>Revisar</button></td></tr>)}
         </tbody></table></div>
       </section>}
 
-      {tab==='NOTAS'&&<section className="max-w-3xl rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="font-bold">Observaciones privadas de {selected?.display_name??'operario'}</h2>
-        <p className="mt-1 text-sm text-slate-500">Exclusivas de responsables autorizados. Nunca aparecen en la vista del operario.</p>
-        <textarea value={privateNote} onChange={e=>setPrivateNote(e.target.value)} rows={8} className={baseInput+' mt-4'} placeholder="Observaciones administrativas y organizativas, sin diagnósticos ni información médica innecesaria."/>
+      {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        <h2 className="text-sm font-bold sm:text-base">Observaciones · {selected?.display_name??'operario'}</h2>
+        <textarea value={privateNote} onChange={e=>setPrivateNote(e.target.value)} rows={4} className={baseInput+' mt-2'} placeholder="Observaciones administrativas y organizativas, sin diagnósticos ni información médica innecesaria."/>
         <button disabled={busy||!selected} onClick={()=>void saveNote()} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Guardar observaciones</button>
       </section>}
 
-      {showOperatorForm&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setShowOperatorForm(false)}}>
-        <section role="dialog" aria-modal="true" aria-label="Editar operario" className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+      {showOperatorForm&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-2 sm:p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setShowOperatorForm(false)}}>
+        <section role="dialog" aria-modal="true" aria-label="Editar operario" className="max-h-[95dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-3 shadow-xl sm:rounded-2xl sm:p-5">
           <h2 className="text-lg font-bold">Ficha del operario</h2>
-          <div className="mt-4 space-y-3">
+          <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
             <label className="block text-xs font-medium">Nombre del operario<input className={baseInput+' mt-1'} value={name} onChange={e=>setName(e.target.value)}/></label>
             <label className="block text-xs font-medium">Jornada objetivo semanal (horas)<input type="number" min="0" max="100" step="0.25" className={baseInput+' mt-1'} value={weeklyHours} onChange={e=>setWeeklyHours(e.target.value)}/></label>
             <label className="block text-xs font-medium">Participación en fines de semana<select className={baseInput+' mt-1'} value={rotation} onChange={e=>setRotation(e.target.value as typeof rotation)}>
               <option value="NORMAL">Rotación habitual</option><option value="EXCEPTIONAL">Cobertura excepcional</option><option value="NONE">Fuera de rotación</option></select></label>
             <label className="block text-xs font-medium">ID de cuenta Arias Suite (opcional)<input className={baseInput+' mt-1'} value={userId} onChange={e=>setUserId(e.target.value)} placeholder="UUID · para acceso personal"/></label>
-            <p className="text-xs text-slate-500">La ficha de operario es independiente de su cuenta. Si se vincula una cuenta, su titular podrá entrar en «Mi horario» y ver solo sus propios datos. La vinculación se validará con permisos de base de datos.</p>
           </div>
           <div className="mt-5 flex flex-wrap justify-between gap-2">
             {selected&&<button disabled={busy} onClick={()=>void changeActive(selected)} className="rounded-lg border border-orange-300 px-3 py-2 text-xs text-orange-800">{selected.active?'Desactivar (conservar historial)':'Reactivar'}</button>}
@@ -431,11 +456,11 @@ export default function StaffSchedulePage() {
           </div>
         </section>
       </div>}
-      {dayEditor&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setDayEditor(null)}}>
-        <section role="dialog" aria-modal="true" aria-label="Editar jornada" className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+      {dayEditor&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-2 sm:p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setDayEditor(null)}}>
+        <section role="dialog" aria-modal="true" aria-label="Editar jornada" className="max-h-[95dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-3 shadow-xl sm:rounded-2xl sm:p-5">
           <h2 className="font-bold">Editar jornada · {asDisplayDate(dayEditor.work_date)}</h2>
-          <p className="mt-1 text-sm text-slate-500">{operators.find(o=>o.id===dayEditor.operator_id)?.display_name}</p>
-          <div className="mt-4 space-y-3">
+          <p className="mt-0.5 text-sm text-slate-500">{operators.find(o=>o.id===dayEditor.operator_id)?.display_name}</p>
+          <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
             <label className="block text-xs font-medium">Estado<select className={baseInput+' mt-1'} value={dayEditor.state} onChange={e=>setDayEditor({...dayEditor,state:e.target.value})}>{staffStateOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
             {dayEditor.state==='SHIFT'&&<div className="grid grid-cols-2 gap-3">
               <label className="text-xs">Entrada<input type="time" className={baseInput+' mt-1'} value={dayEditor.start_time} onChange={e=>setDayEditor({...dayEditor,start_time:e.target.value})}/></label>
@@ -447,7 +472,7 @@ export default function StaffSchedulePage() {
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
           </div>
-          <div className="mt-5 flex justify-end gap-2"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
+          <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
         </section>
       </div>}
     </div>
