@@ -15,13 +15,13 @@ type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   actual_hours:string; actual_confirmed:boolean; justification:string;
 }
-const tabs: Array<{id:PageTab;label:string}> = [
-  {id:'CUADRANTE',label:'Cuadrante'}, {id:'ANUAL',label:'Resumen anual'},
-  {id:'FINES',label:'Fines de semana'}, {id:'EXTRAS',label:'Horas extra'},
-  {id:'VACACIONES',label:'Vacaciones'}, {id:'AUSENCIAS',label:'Bajas y ausencias'},
-  {id:'NOTAS',label:'Observaciones privadas'},
+const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
+  {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
+  {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
+  {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
+  {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
 ]
-const baseInput='w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-600'
+const baseInput='w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-sky-600 sm:px-3 sm:py-2'
 const num = (v:number)=>v.toLocaleString('es-ES')
 function asDisplayDate(iso:string) {return fromISO(iso).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
 function getWeekendSummary(days:StaffDay[],operatorId:string,year:number) {
@@ -58,6 +58,8 @@ export default function StaffSchedulePage() {
   const [year,setYear]=useState(new Date().getFullYear())
   const [weekStart,setWeekStart]=useState(mondayOf(dateISO(new Date())))
   const [tab,setTab]=useState<PageTab>('CUADRANTE')
+  const [mobileDayIndex,setMobileDayIndex]=useState((new Date().getDay()+6)%7)
+  const [showOvertimeForm,setShowOvertimeForm]=useState(false)
   const [allowed,setAllowed]=useState(false)
   const [checking,setChecking]=useState(true)
   const [busy,setBusy]=useState(false)
@@ -246,68 +248,84 @@ export default function StaffSchedulePage() {
   }
   if(checking)return <main className="p-8 text-slate-600">Comprobando permisos del planificador…</main>
   if(!allowed)return <main className="mx-auto max-w-xl p-8"><h1 className="text-xl font-bold">Planificador horario</h1><p className="mt-3 text-slate-600">La gestión de horarios y las observaciones del personal están reservadas a responsables autorizados.</p><button onClick={()=>navigate('/')} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-white">Volver</button></main>
-  return <main className="min-h-screen bg-slate-100 p-3 text-slate-900 sm:p-6 print:bg-white">
-    <div className="mx-auto max-w-[1550px] space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm">
-        <div><h1 className="flex items-center gap-2 text-xl font-bold sm:text-2xl"><CalendarDays size={25}/> Planificador horario</h1>
-          <p className="mt-1 text-sm text-slate-500">{hotel?.name} · Cuadrante, operarios, jornada, vacaciones y compensaciones</p></div>
-        <div className="flex flex-wrap gap-2 print:hidden">
-          <button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>navigate('/')}>Inicio</button>
-          <button className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm" onClick={()=>void reload()} disabled={busy}><RefreshCw size={15}/> Actualizar</button>
-          <button className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm" onClick={()=>window.print()}><Printer size={15}/> Imprimir</button>
+  return <main className="min-h-screen bg-slate-100 p-1.5 text-slate-900 sm:p-4 lg:p-6 print:bg-white">
+    <div className="mx-auto max-w-[1550px] space-y-2 sm:space-y-4">
+      <header className="flex items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-2 shadow-sm sm:rounded-2xl sm:p-4">
+        <div className="min-w-0"><h1 className="flex items-center gap-1.5 text-base font-bold sm:gap-2 sm:text-2xl"><CalendarDays size={19} className="shrink-0 sm:h-6 sm:w-6"/> <span className="truncate">Planificador horario</span></h1>
+          <p className="mt-1 hidden truncate text-xs text-slate-500 sm:block">{hotel?.name}</p></div>
+        <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
+          <button aria-label="Inicio" title="Inicio" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-xs sm:px-3" onClick={()=>navigate('/')}><span className="sm:hidden">⌂</span><span className="hidden sm:inline">Inicio</span></button>
+          <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
+          <button aria-label="Imprimir" title="Imprimir" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>window.print()}><Printer size={16}/></button>
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
       {success&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" onClick={()=>setSuccess('')}>{success}</div>}
-      <section className="flex flex-wrap items-end justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs font-semibold text-slate-600">Año
-            <select value={year} onChange={e=>{const y=Number(e.target.value);setYear(y);setWeekStart(mondayOf(String(y)+'-01-05'))}} className={baseInput+' mt-1'}>
-              {[2025,2026,2027,2028].map(v=><option key={v} value={v}>{v}</option>)}
-            </select>
-          </label>
-          <label className="min-w-[170px] text-xs font-semibold text-slate-600">Operario
-            <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className={baseInput+' mt-1'}>
-              {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-2 print:hidden">
-          <button className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={16}/> Operario</button>
-          {selected&&<button className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm" onClick={()=>editOperator(selected)}><UserRoundCog size={16}/> Editar ficha</button>}
+      <section className="flex items-end gap-1.5 rounded-xl bg-white p-2 shadow-sm sm:flex-wrap sm:gap-3 sm:rounded-2xl sm:p-4">
+        <label className="w-[76px] shrink-0 text-[10px] font-semibold text-slate-600 sm:w-24 sm:text-xs">Año
+          <select value={year} onChange={e=>{const y=Number(e.target.value);setYear(y);setWeekStart(mondayOf(String(y)+'-01-05'))}} className={baseInput+' mt-0.5 sm:mt-1'}>
+            {[2025,2026,2027,2028].map(v=><option key={v} value={v}>{v}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
+          <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className={baseInput+' mt-0.5 sm:mt-1'}>
+            {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
+          </select>
+        </label>
+        <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
+          <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
+          {selected&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
-      <nav className="flex gap-1 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={'whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}>{t.label}</button>)}
+      <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
+        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
 
-      {tab==='CUADRANTE'&&<section className="rounded-2xl bg-white p-3 shadow-sm sm:p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="font-bold">Semana {isoWeek(weekStart)}</h2><p className="text-xs text-slate-500">{asDisplayDate(weekStart)} — {asDisplayDate(addDays(weekStart,6))} · Pulsa una casilla para editar</p></div>
-          <div className="flex gap-2 print:hidden">
-            <button className="rounded-lg border p-2" aria-label="Semana anterior" onClick={()=>setWeekStart(addDays(weekStart,-7))}><ChevronLeft size={18}/></button>
-            <button className="rounded-lg border px-3 py-2 text-xs" onClick={()=>setWeekStart(mondayOf(dateISO(new Date())))}>Esta semana</button>
-            <button className="rounded-lg border p-2" aria-label="Semana siguiente" onClick={()=>setWeekStart(addDays(weekStart,7))}><ChevronRight size={18}/></button>
+      {tab==='CUADRANTE'&&<section className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="min-w-0"><h2 className="text-sm font-bold sm:text-base">Semana {isoWeek(weekStart)} <span className="font-normal text-slate-500">· {asDisplayDate(weekStart).slice(0,5)}–{asDisplayDate(addDays(weekStart,6)).slice(0,5)}</span></h2></div>
+          <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
+            <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana anterior" onClick={()=>setWeekStart(addDays(weekStart,-7))}><ChevronLeft size={17}/></button>
+            <button className="min-h-9 rounded-lg border px-2 text-xs" onClick={()=>{setWeekStart(mondayOf(dateISO(new Date())));setMobileDayIndex((new Date().getDay()+6)%7)}}>Hoy</button>
+            <button className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" aria-label="Semana siguiente" onClick={()=>setWeekStart(addDays(weekStart,7))}><ChevronRight size={17}/></button>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[840px] border-collapse text-sm">
-            <thead><tr className="bg-slate-50 text-left text-xs text-slate-500"><th className="sticky left-0 bg-slate-50 p-3">Operario</th>
-              {dates.map(d=><th key={d} className="p-2 text-center">{fromISO(d).toLocaleDateString('es-ES',{weekday:'short'})}<br/>{asDisplayDate(d).slice(0,5)}</th>)}</tr></thead>
+        <div className="md:hidden">
+          <div className="grid grid-cols-7 gap-1" role="group" aria-label="Elegir día de la semana">
+            {dates.map((d,i)=><button key={d} onClick={()=>setMobileDayIndex(i)} aria-pressed={mobileDayIndex===i}
+              className={'flex min-h-11 flex-col items-center justify-center rounded-lg text-[11px] leading-tight '+(mobileDayIndex===i?'bg-slate-900 font-bold text-white':'bg-slate-100 text-slate-700')}>
+              <span>{['L','M','X','J','V','S','D'][i]}</span><span className="mt-0.5">{fromISO(d).getDate()}</span>
+            </button>)}
+          </div>
+          <div className="mt-2 divide-y divide-slate-100">
+            {operators.filter(o=>o.active).map(o=>{
+              const d=dates[mobileDayIndex];const entry=byDay.get(o.id+'|'+d);
+              const view=stateView(entry?.state??'UNASSIGNED');
+              const label=entry?.state==='SHIFT'? (entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—') :
+                entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':view.label;
+              return <button key={o.id} onClick={()=>openDay(o.id,d)} className="flex min-h-12 w-full items-center justify-between gap-2 py-1.5 text-left">
+                <span className="min-w-0 flex-1 truncate pl-1 text-sm font-semibold">{o.display_name}</span>
+                <span className={'flex min-w-[116px] max-w-[62%] items-center justify-center rounded-md px-2 py-2 text-center text-xs font-semibold '+view.tone}>{label}{entry?.actual_confirmed?' ✓':''}</span>
+              </button>
+            })}
+          </div>
+        </div>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[840px] border-collapse text-xs">
+            <thead><tr className="bg-slate-50 text-left text-xs text-slate-500"><th className="sticky left-0 bg-slate-50 p-2">Operario</th>
+              {dates.map(d=><th key={d} className="p-1 text-center">{fromISO(d).toLocaleDateString('es-ES',{weekday:'short'})}<br/>{asDisplayDate(d).slice(0,5)}</th>)}</tr></thead>
             <tbody>{operators.filter(o=>o.active).map(o=><tr key={o.id} className="border-t">
-              <td className="sticky left-0 bg-white p-3 font-semibold">{o.display_name}<div className="text-[10px] font-normal text-slate-400">{o.rotation_type==='EXCEPTIONAL'?'Cobertura excepcional':o.rotation_type==='NONE'?'Sin rotación':'Rotación habitual'}</div></td>
+              <td className="sticky left-0 bg-white p-2 font-semibold">{o.display_name}</td>
               {dates.map(d=>{const entry=byDay.get(o.id+'|'+d);const state=stateView(entry?.state??'UNASSIGNED');
                 return <td key={d} className="p-1">
-                  <button className={'min-h-[65px] w-full rounded-lg px-2 py-2 text-center text-xs font-semibold hover:ring-2 hover:ring-sky-400 '+state.tone}
+                  <button className={'min-h-10 w-full rounded-md px-1 py-1.5 text-center text-xs font-semibold hover:ring-2 hover:ring-sky-400 '+state.tone}
                     onClick={()=>openDay(o.id,d)} title={'Editar '+o.display_name+' · '+asDisplayDate(d)}>
                     <span className="block">{entry?.state==='SHIFT'?(entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—'):entry?.source_code?.startsWith('Festivo/ref.')?'Festivo por revisar':state.label}</span>
-                    {entry?.source_kind?.startsWith('EXCEL')&&<span className="mt-1 block text-[10px] font-normal opacity-75">Excel · sin verificar</span>}
                     {entry?.actual_confirmed&&<span className="mt-1 block text-[10px]">✓ Real</span>}
                   </button>
                 </td>})}</tr>)}</tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-slate-500">Los horarios importados son planificación histórica, no un registro confirmado de presencia. Algunas fechas de festivos del Excel no coinciden con el día de la casilla y están marcadas para revisar.</p>
       </section>}
 
       {tab==='ANUAL'&&<section className="space-y-3">
