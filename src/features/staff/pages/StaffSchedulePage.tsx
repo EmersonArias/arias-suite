@@ -180,7 +180,8 @@ export default function StaffSchedulePage() {
       ...period,
       visibleDays:period.rows.filter(d=>vacationStatusFilter==='ALL' ||
         vacationStage(d,vacationToday)===vacationStatusFilter),
-    })).filter(period=>period.visibleDays.length>0)
+    })).filter(period=>period.visibleDays.length>0 &&
+      period.visibleDays.some(d=>d.work_date.startsWith(String(year))))
     return {person,annual,shown}
   }).filter(group=>group.shown.length>0)
   const selectedMedicalDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
@@ -472,83 +473,121 @@ export default function StaffSchedulePage() {
         </div>}
       </section>}
 
-      {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-4">
+      {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h2 className="mb-2 text-sm font-bold sm:text-base">Vacaciones · {year}</h2>
-          <div className="mb-1 grid grid-cols-[minmax(0,1fr)_repeat(3,55px)] gap-1 text-[10px] font-semibold text-slate-500 sm:grid-cols-[minmax(0,1fr)_repeat(3,130px)] sm:text-xs">
-            <span>Operario</span><span className="text-center">Asignados</span>
-            <span className="text-center">Previstos</span><span className="text-center">Sin planificar</span>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold sm:text-base">
+              Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
+            </h2>
+            {vacationOperatorFilter!=='ALL'&&<button type="button" onClick={()=>setVacationOperatorFilter('ALL')}
+              className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-[11px] font-semibold">
+              Ver todos
+            </button>}
           </div>
-          <div className="divide-y divide-slate-100">
-            {summary.map(s=>{
-              const v=vacations.find(t=>t.operator_id===s.operator.id)
-              const assigned=v?.entitlement_days
-              const balance=assigned==null?null:assigned+v!.adjustment_days-s.vacation
-              return <button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
-                className={'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_repeat(3,55px)] items-center gap-1 rounded-md px-1 text-xs sm:grid-cols-[minmax(0,1fr)_repeat(3,130px)] sm:text-sm '+(selectedId===s.operator.id?'bg-sky-50':'hover:bg-slate-50')}>
-                <span className="truncate text-left font-semibold">{s.operator.display_name}</span>
-                <span className="text-center">{assigned==null?'—':assigned+' d'}</span>
-                <span className="text-center">{s.vacation} d</span>
-                <span className="text-center font-bold">{balance==null?'—':balance+' d'}</span>
-              </button>
-            })}
+          <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
+          <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
+            {([
+              {key:'ALL',label:'Todas',tone:'bg-slate-100 text-slate-800'},
+              {key:'TAKEN',label:'Disfrutadas',tone:'bg-emerald-600 text-white'},
+              {key:'UPCOMING',label:'Pendientes',tone:'bg-emerald-200 text-emerald-950'},
+              {key:'UNVERIFIED',label:'Por confirmar',tone:'bg-amber-50 text-amber-900'},
+            ] as const).map(item=><button type="button" key={item.key} onClick={()=>setVacationStatusFilter(item.key)}
+              aria-pressed={vacationStatusFilter===item.key}
+              className={'min-h-14 rounded-lg border px-1 py-2 text-center transition sm:min-h-16 '+
+                item.tone+(vacationStatusFilter===item.key?' border-slate-900 ring-2 ring-slate-800 ring-offset-1':' border-transparent')}>
+              <span className="block text-[9px] font-semibold leading-3 sm:text-xs">{item.label}</span>
+              <span className="mt-1 block text-base font-bold sm:text-xl">{vacationCounts[item.key]}</span>
+            </button>)}
           </div>
+          <p className="mt-2 text-[10px] text-slate-500">
+            Los contadores son del año {year}. «Por confirmar» no significa disfrutadas.
+            Los períodos que continúan en enero muestran ambos años.
+          </p>
         </div>
-        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h3 className="text-sm font-bold sm:text-base">Vacaciones de {selected.display_name}</h3>
-          <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-3">
-            {[
-              ['Días asignados',vacations.find(v=>v.operator_id===selectedId)?.entitlement_days==null?'—':String(vacations.find(v=>v.operator_id===selectedId)!.entitlement_days)],
-              ['Días programados',String(selectedSummary?.vacation??0)],
-              ['Sin programar',vacations.find(v=>v.operator_id===selectedId)?.entitlement_days==null?'—':String(vacations.find(v=>v.operator_id===selectedId)!.entitlement_days!+vacations.find(v=>v.operator_id===selectedId)!.adjustment_days-(selectedSummary?.vacation??0))],
-            ].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 px-1 py-2 text-center">
-              <div className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</div>
-              <div className="mt-1 text-lg font-bold">{value}</div>
-            </div>)}
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
-            {[
-              ['Disfrutadas',selectedVacationTaken,'bg-emerald-600 text-white'],
-              ['Pendientes',selectedVacationUpcoming,'bg-emerald-100 text-emerald-950'],
-              ['Por confirmar',selectedVacationUnverified,'bg-amber-50 text-amber-900 ring-1 ring-amber-300'],
-            ].map(([label,value,tone])=><div key={String(label)} className={'rounded-lg p-2 '+tone}>
-              <div className="text-[10px] leading-tight">{label}</div>
-              <div className="mt-1 text-lg font-bold">{value}</div>
-            </div>)}
-          </div>
-          <p className="mt-1.5 text-[10px] text-slate-500">Solo se consideran disfrutadas las vacaciones confirmadas. Los días pasados sin verificar aparecen «Por confirmar».</p>
-          {(selectedSummary?.vacationPrevious??0)>0&&<p className="mt-2 text-xs text-slate-600">Días de años anteriores programados: <strong>{selectedSummary?.vacationPrevious}</strong></p>}
-          <h4 className="mt-3 text-xs font-bold">Períodos previstos</h4>
-          <div className="mt-1 divide-y divide-slate-100">
-            {selectedVacationPeriods.map(p=><details key={p.start} className="py-1.5">
-              <summary className="flex cursor-pointer items-center justify-between gap-2 text-xs">
-                <span>{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
-                <span className="shrink-0 font-semibold">{p.rows.length} d {p.state==='VACATION_PREVIOUS'?'· ant.':''}</span>
+
+        <div className="space-y-2">
+          {vacationGroups.map(group=>{
+            const assigned=vacations.find(v=>v.operator_id===group.person.id)
+            const assignedDays=assigned?.entitlement_days
+            const pendingProgram=assignedDays==null?null:assignedDays+assigned!.adjustment_days-
+              group.annual.filter(d=>d.state==='VACATION').length
+            return <section key={group.person.id} className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">{group.person.display_name}</h3>
+                <button type="button" className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold"
+                  onClick={()=>{setSelectedId(group.person.id);setVacationOperatorFilter(group.person.id)}}>
+                  Ver solo este operario
+                </button>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
+                <span>Programados en {year}: <strong>{group.annual.length} d</strong></span>
+                <span>Asignados: <strong>{assignedDays==null?'—':assignedDays+' d'}</strong></span>
+                <span>Sin programar: <strong>{pendingProgram==null?'—':pendingProgram+' d'}</strong></span>
+              </div>
+              <div className="mt-2 divide-y divide-slate-100">
+                {group.shown.map(period=>{
+                  const byYear=period.rows.reduce<Record<string,number>>((acc,day)=>{
+                    const y=day.work_date.slice(0,4)
+                    acc[y]=(acc[y]??0)+1
+                    return acc
+                  },{})
+                  const splitYear=Object.keys(byYear).length>1
+                  const splitLabel=Object.entries(byYear).map(([y,n])=>n+' d en '+y).join(' · ')
+                  return <div key={period.start+'|'+period.state} className="py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-xs font-semibold">
+                        {asDisplayDate(period.start)} – {asDisplayDate(period.end)}
+                      </span>
+                      <span className="text-[11px] text-slate-600">
+                        {period.visibleDays.length} {period.visibleDays.length===1?'día mostrado':'días mostrados'}
+                      </span>
+                    </div>
+                    {splitYear&&<p className="mt-1 rounded-md bg-sky-50 px-2 py-1 text-[10px] text-sky-900">
+                      Período continuo · {period.rows.length} días · {splitLabel}
+                    </p>}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {period.visibleDays.map(day=><button type="button" key={day.id}
+                        onClick={()=>openDay(day.operator_id,day.work_date)}
+                        title={vacationStageLabel(vacationStage(day,vacationToday))+' · '+asDisplayDate(day.work_date)}
+                        className={'rounded px-2 py-1 text-[11px] font-semibold '+vacationTone(day,vacationToday)}>
+                        {asDisplayDate(day.work_date).slice(0,5)}
+                        {vacationStage(day,vacationToday)==='UNVERIFIED'?' ?':''}
+                      </button>)}
+                    </div>
+                    {period.visibleDays.some(d=>vacationStage(d,vacationToday)==='UNVERIFIED')&&
+                      <button type="button" disabled={busy}
+                        onClick={()=>void confirmVacationPeriod(period.visibleDays)}
+                        className="mt-2 rounded-lg border border-emerald-400 px-2 py-1.5 text-[11px] font-semibold text-emerald-800 disabled:opacity-50">
+                        Confirmar los {period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length} días pasados
+                      </button>}
+                  </div>
+                })}
+              </div>
+            </section>
+          })}
+          {vacationGroups.length===0&&<p className="rounded-xl bg-white p-4 text-center text-xs text-slate-500">
+            No hay vacaciones que coincidan con el operario, año y estado seleccionados.
+          </p>}
+        </div>
+
+        {vacationOperatorFilter!=='ALL'&&selected&&selected.id===vacationOperatorFilter&&
+          <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+            <details>
+              <summary className="cursor-pointer text-xs font-semibold">
+                Configurar días asignados de {selected.display_name}
               </summary>
-              <div className="mt-2 flex flex-wrap gap-1">{p.rows.map(day=><button type="button" key={day.id}
-                onClick={()=>openDay(day.operator_id,day.work_date)}
-                title={vacationStageLabel(vacationStage(day,vacationToday))}
-                className={'rounded px-2 py-1 text-xs font-semibold '+vacationTone(day,vacationToday)}>
-                {asDisplayDate(day.work_date).slice(0,5)}{vacationStage(day,vacationToday)==='UNVERIFIED'?' ?':''}
-              </button>)}</div>
-              {p.rows.some(d=>vacationStage(d,vacationToday)==='UNVERIFIED')&&<button type="button" disabled={busy}
-                onClick={()=>void confirmVacationPeriod(p.rows)}
-                className="mt-2 rounded-lg border border-emerald-400 px-2 py-1.5 text-[11px] font-semibold text-emerald-800 disabled:opacity-50">
-                Confirmar días pasados de este período ({p.rows.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED').length})
-              </button>}
-            </details>)}
-            {selectedVacationPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay vacaciones programadas.</p>}
-          </div>
-          <details className="mt-3 border-t pt-2">
-            <summary className="cursor-pointer text-xs font-semibold">Configurar días asignados</summary>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
-              <label className="text-xs">Asignación anual (días)<input type="number" min="0" max="366" className={baseInput+' mt-1'} value={entitled} onChange={e=>setEntitled(e.target.value)} placeholder="Sin asignar"/></label>
-              <label className="text-xs">De años anteriores<input type="number" className={baseInput+' mt-1'} value={carry} onChange={e=>setCarry(e.target.value)}/></label>
-              <label className="text-xs">Ajuste (+ / −)<input type="number" className={baseInput+' mt-1'} value={adjust} onChange={e=>setAdjust(e.target.value)}/></label>
-              <button disabled={busy} className="min-h-9 self-end rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white" onClick={()=>void saveVacation()}>Guardar</button>
-            </div>
-          </details>
-        </div>}
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+                <label className="text-xs">Asignación anual (días)<input type="number" min="0" max="366"
+                  className={baseInput+' mt-1'} value={entitled} onChange={e=>setEntitled(e.target.value)} placeholder="Sin asignar"/></label>
+                <label className="text-xs">De años anteriores<input type="number" className={baseInput+' mt-1'}
+                  value={carry} onChange={e=>setCarry(e.target.value)}/></label>
+                <label className="text-xs">Ajuste (+ / −)<input type="number" className={baseInput+' mt-1'}
+                  value={adjust} onChange={e=>setAdjust(e.target.value)}/></label>
+                <button disabled={busy} className="min-h-9 self-end rounded-lg bg-slate-900 px-3 py-2 text-xs text-white"
+                  onClick={()=>void saveVacation()}>Guardar</button>
+              </div>
+            </details>
+          </div>}
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
