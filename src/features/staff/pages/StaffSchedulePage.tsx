@@ -69,6 +69,7 @@ export default function StaffSchedulePage() {
   const [selectedId,setSelectedId]=useState('')
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
   const [showOperatorForm,setShowOperatorForm]=useState(false)
+  const [editingOperatorId,setEditingOperatorId]=useState<string|null>(null)
   const [name,setName]=useState('')
   const [weeklyHours,setWeeklyHours]=useState('40')
   const [rotation,setRotation]=useState<'NORMAL'|'EXCEPTIONAL'|'NONE'>('NORMAL')
@@ -168,7 +169,8 @@ export default function StaffSchedulePage() {
     setBusy(false)
   }
   function editOperator(operator:StaffOperator|null) {
-    setSelectedId(operator?.id??selectedId)
+    setEditingOperatorId(operator?.id??null)
+    if(operator) setSelectedId(operator.id)
     setName(operator?.display_name??'')
     setWeeklyHours(operator?.weekly_target_minutes==null?'':String(operator.weekly_target_minutes/60))
     setRotation(operator?.rotation_type??'NORMAL')
@@ -186,8 +188,8 @@ export default function StaffSchedulePage() {
     const payload={hotel_id:hotel.id,display_name:name.trim(),
       weekly_target_minutes:minutes,rotation_type:rotation,
       linked_user_id:userId.trim()||null,updated_at:new Date().toISOString()}
-    const result=selected&&showOperatorForm&&name!==''&&operators.some(p=>p.id===selected.id&&p.display_name===name)
-      ?await supabase.from('staff_operators').update(payload).eq('id',selected.id).eq('hotel_id',hotel.id)
+    const result=editingOperatorId
+      ?await supabase.from('staff_operators').update(payload).eq('id',editingOperatorId).eq('hotel_id',hotel.id)
       :await supabase.from('staff_operators').insert(payload)
     if(result.error)setError(result.error.message)
     else{setShowOperatorForm(false);setSuccess('Ficha de operario guardada.');await reload()}
