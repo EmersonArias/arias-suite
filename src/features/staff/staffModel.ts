@@ -9,6 +9,9 @@ export type StaffDay = {
   planned_minutes: number | null; actual_minutes: number | null;
   actual_confirmed: boolean; justification: string;
   source_kind: string; source_code: string | null;
+  vacation_taken_confirmed: boolean;
+  vacation_confirmed_at: string | null;
+  vacation_confirmed_by: string | null;
 };
 export type StaffOvertime = {
   id: string; hotel_id: string; operator_id: string; entry_date: string;
@@ -38,6 +41,29 @@ export const staffStateOptions = [
 export function stateView(state: string) {
   return staffStateOptions.find((item) => item.value === state) ?? staffStateOptions[staffStateOptions.length - 1];
 }
+
+export type VacationStage = 'TAKEN' | 'UPCOMING' | 'UNVERIFIED';
+export function isVacationState(state: string) {
+  return state === 'VACATION' || state === 'VACATION_PREVIOUS';
+}
+/** Nunca inferir disfrute por el paso del tiempo. */
+export function vacationStage(day: StaffDay, today = dateISO(new Date())): VacationStage {
+  if (day.vacation_taken_confirmed) return 'TAKEN';
+  return day.work_date < today ? 'UNVERIFIED' : 'UPCOMING';
+}
+export function vacationStageLabel(stage: VacationStage) {
+  return stage === 'TAKEN' ? 'Disfrutadas' : stage === 'UNVERIFIED' ? 'Pasadas por confirmar' : 'Pendientes de disfrutar';
+}
+export function vacationTone(day: StaffDay, today = dateISO(new Date())) {
+  const stage = vacationStage(day,today);
+  return stage === 'TAKEN' ? 'bg-emerald-600 text-white' :
+    stage === 'UNVERIFIED' ? 'bg-emerald-100 text-emerald-950 ring-1 ring-inset ring-amber-500' :
+    'bg-emerald-200 text-emerald-950';
+}
+export function vacationCode(day: StaffDay, today = dateISO(new Date())) {
+  return vacationStage(day,today) === 'UNVERIFIED' ? 'V?' : 'V';
+}
+
 export function dateISO(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
 }
