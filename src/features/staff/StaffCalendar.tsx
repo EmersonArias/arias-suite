@@ -151,7 +151,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
             <span className={'text-[10px] font-bold ' + (mini ? 'leading-3' : 'sm:text-xs')}>{Number(day.slice(8))}</span>
             {visiblePeople.length === 1 ?
               <span className={'mt-auto w-full truncate text-center font-semibold ' + (mini ? 'text-[8px] leading-3' : 'text-[9px] sm:text-xs')}>
-                {dayShort(entry, mini)}
+                {mini && entry?.state === 'SHIFT' ? 'T' : dayShort(entry, mini)}
               </span> :
               <span className={'mt-0.5 flex w-full flex-col gap-px ' + (mini ? 'gap-px' : 'gap-0.5')}>
                 {persons.map(person => {
@@ -247,7 +247,7 @@ export default function StaffCalendar({ year, operators, days, operatorId, onYea
 
     {!noPeople && mode === 'MES' && <div className="mt-2">{monthPanel(year, month, false)}</div>}
 
-    {!noPeople && mode === 'ANO' && <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+    {!noPeople && mode === 'ANO' && <div className={'mt-2 grid gap-2 ' + (visiblePeople.length === 1 ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
       {monthNames.map((_, index) => monthPanel(year, index, true))}
     </div>}
     <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-500">
