@@ -66,11 +66,11 @@ export default function StaffSelfServicePage(){
   const summary=useMemo(()=>{
     const calendarDays=days.filter(d=>d.work_date.startsWith(String(year)))
     const planned=calendarDays.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0)
-    const actual=calendarDays.filter(d=>d.actual_confirmed).reduce((t,d)=>t+(d.actual_minutes??0),0)
+    const shifts=calendarDays.filter(d=>d.state==='SHIFT').length
     const vacation=days.filter(d=>isVacationState(d.state) && vacationOriginYear(d)===year).length
     const extra=extras.reduce((t,e)=>t+(e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'?e.minutes:-e.minutes),0)
     const balance=entitlement?.entitlement_days==null?null:entitlement.entitlement_days+entitlement.carryover_days+entitlement.adjustment_days-vacation
-    return{planned,actual,vacation,extra,balance}
+    return{planned,shifts,vacation,extra,balance}
   },[days,extras,entitlement,year])
   const vacationDays=days.filter(d=>d.work_date.startsWith(String(year))&&isVacationState(d.state))
   const previousVacationDays=vacationDays.filter(d=>vacationFromPriorYear(d))
@@ -96,7 +96,7 @@ export default function StaffSelfServicePage(){
         <section className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="truncate text-sm font-bold sm:text-base">{operator.display_name}</h2>
           <label className="shrink-0 text-xs">Año <select className="ml-1 rounded-lg border px-2 py-1.5 text-sm" value={year} onChange={e=>setYear(Number(e.target.value))}>{[2025,2026,2027,2028].map(y=><option key={y}>{y}</option>)}</select></label></section>
         <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-          {[['Turnos previstos',hours(summary.planned)],['Horas verificadas',hours(summary.actual)],['Vacaciones previstas',summary.vacation+' días'],['Sin programar',summary.balance==null?'—':summary.balance+' días']].map(([name,value])=>
+          {[['Horas previstas',hours(summary.planned)],['Turnos previstos',String(summary.shifts)],['Vacaciones previstas',summary.vacation+' días'],['Sin programar',summary.balance==null?'—':summary.balance+' días']].map(([name,value])=>
             <div key={name} className="min-w-0 rounded-lg bg-white p-2 text-center shadow-sm sm:rounded-2xl sm:p-4 sm:text-left"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{name}</p><p className="mt-1 break-words text-xs font-bold sm:mt-2 sm:text-xl">{value}</p></div>)}
         </div>
         <section className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
@@ -110,7 +110,7 @@ export default function StaffSelfServicePage(){
               entry?.state==='PUBLIC_HOLIDAY'?'Festivo disfrutado' + (entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)?.[0] ? ' · ' + entry.source_code.match(/(\d{4})-(\d{2})-(\d{2})/)![0].split('-').reverse().slice(0,2).join('/') : ''):
               entry?.state==='COMP_REST'?'Recuperable'+(entry.source_code?' · '+entry.source_code:''):
               entry?.state==='MEDICAL_LEAVE'?'Baja':entry?.state==='OTHER'?'Sin clasificar':entry?'No disponible':'Sin asignar'
-            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className={'w-28 shrink-0 text-xs sm:w-auto '+(holidaySet.has(d)?'rounded bg-blue-700 px-1 py-0.5 font-semibold text-white':'text-slate-500')}>{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className={'flex-1 rounded px-1.5 py-1 text-right text-sm font-semibold sm:mt-2 sm:text-left '+(entry&&isVacationState(entry.state)?vacationTone(entry):stateView(entry?.state??'UNASSIGNED').tone)}>{state}</p>{entry?.state==='SHIFT'&&entry.actual_confirmed&&<p className="text-right text-[10px] text-emerald-700 sm:mt-1 sm:text-left">✓ {hours(entry.actual_minutes)}</p>}</div>
+            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className={'w-28 shrink-0 text-xs sm:w-auto '+(holidaySet.has(d)?'rounded bg-blue-700 px-1 py-0.5 font-semibold text-white':'text-slate-500')}>{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className={'flex-1 rounded px-1.5 py-1 text-right text-sm font-semibold sm:mt-2 sm:text-left '+(entry&&isVacationState(entry.state)?vacationTone(entry):stateView(entry?.state??'UNASSIGNED').tone)}>{state}</p></div>
           })}</div>
         </section>
         <section className="grid gap-2 lg:grid-cols-2 lg:gap-4">
