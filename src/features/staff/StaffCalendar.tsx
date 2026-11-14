@@ -37,13 +37,11 @@ function calendarMonth(year: number, month: number) {
 
 function dayKind(entry?: StaffDay) {
   if (!entry) return 'UNASSIGNED'
-  if (entry.source_code?.startsWith('Festivo/ref.')) return 'OTHER'
   return entry.state
 }
 
 function dayShort(entry?: StaffDay, compact = false) {
   if (!entry) return '—'
-  if (entry.source_code?.startsWith('Festivo/ref.')) return compact ? '?' : 'Por revisar'
   if (entry.state === 'SHIFT') {
     const start = entry.start_time?.slice(0, 5) ?? '—'
     const end = entry.end_time?.slice(0, 5) ?? '—'
@@ -68,6 +66,7 @@ const legend: { state: string; text: string }[] = [
   { state: 'VACATION', text: 'Vacaciones' },
   { state: 'REST', text: 'Descanso' },
   { state: 'MEDICAL_LEAVE', text: 'Baja' },
+  { state: 'PUBLIC_HOLIDAY', text: 'Festivo' },
   { state: 'PERMISSION', text: 'Permiso' },
   { state: 'OTHER', text: 'Revisar' },
 ]
