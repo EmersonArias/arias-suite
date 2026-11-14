@@ -9,6 +9,7 @@ export type StaffDay = {
   planned_minutes: number | null; actual_minutes: number | null;
   actual_confirmed: boolean; justification: string;
   source_kind: string; source_code: string | null;
+  vacation_origin_year: number | null;
   vacation_taken_confirmed: boolean;
   vacation_confirmed_at: string | null;
   vacation_confirmed_by: string | null;
@@ -60,9 +61,31 @@ export function vacationTone(day: StaffDay, today = dateISO(new Date())) {
     stage === 'UNVERIFIED' ? 'bg-emerald-100 text-emerald-950 ring-1 ring-inset ring-amber-500' :
     'bg-emerald-200 text-emerald-950';
 }
+/** NULL in a previous-vacation entry means the accounting origin is unknown; do not guess. */
+export function vacationOriginYear(day: StaffDay): number | null {
+  if(!isVacationState(day.state))return null
+  if(day.vacation_origin_year !== null && day.vacation_origin_year !== undefined)
+    return day.vacation_origin_year
+  return day.state === 'VACATION_PREVIOUS' ? null : Number(day.work_date.slice(0,4))
+}
+export function vacationFromPriorYear(day: StaffDay) {
+  const origin=vacationOriginYear(day)
+  return day.state==='VACATION_PREVIOUS' ||
+    (origin!==null && origin<Number(day.work_date.slice(0,4)))
+}
+export function vacationOriginLabel(day: StaffDay) {
+  const origin=vacationOriginYear(day)
+  if(origin===null)return 'Vacaciones anteriores · año de origen por confirmar'
+  return origin < Number(day.work_date.slice(0,4))
+    ? 'Vacaciones correspondientes a '+origin+' (año anterior)'
+    : 'Vacaciones correspondientes a '+origin
+}
 export function vacationCode(day: StaffDay, today = dateISO(new Date())) {
-  const prefix = day.state === 'VACATION_PREVIOUS' ? 'A' : 'V';
-  return prefix + (vacationStage(day,today) === 'UNVERIFIED' ? '?' : '');
+  const origin=vacationOriginYear(day)
+  const prefix=vacationFromPriorYear(day)
+    ? 'A'+(origin===null?'':String(origin).slice(2))
+    : 'V'
+  return prefix+(vacationStage(day,today)==='UNVERIFIED'?'?':'')
 }
 
 export function dateISO(date: Date) {
