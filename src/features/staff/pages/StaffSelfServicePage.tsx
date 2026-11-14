@@ -6,7 +6,8 @@ import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import {
   addDays,dateISO,fromISO,hours,mondayOf,stateView,
-  isVacationState,vacationStage,vacationStageLabel,vacationTone, type StaffDay,type StaffOperator,
+  isVacationState,vacationStage,vacationStageLabel,vacationTone,
+  vacationOriginYear,vacationOriginLabel,vacationFromPriorYear, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
 } from '../staffModel'
 import { loadAllStaffDays } from '../staffData'
@@ -38,8 +39,8 @@ export default function StaffSelfServicePage(){
       const [calendar,overtime,vacation,holidayRows]=await Promise.all([
         loadAllStaffDays({
           operatorId: me.id,
-          startDate: String(year)+'-01-01',
-          endDate: String(year)+'-12-31',
+          startDate: String(year-1)+'-12-01',
+          endDate: String(year+1)+'-01-31',
         }),
         supabase.from('staff_overtime_ledger').select('id,hotel_id,operator_id,entry_date,entry_type,minutes,reason,confirmed')
           .eq('operator_id',me.id).lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
@@ -63,14 +64,18 @@ export default function StaffSelfServicePage(){
     return()=>{current=false}
   },[authLoading,session?.user.id,year,navigate])
   const summary=useMemo(()=>{
-    const planned=days.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0)
-    const actual=days.filter(d=>d.actual_confirmed).reduce((t,d)=>t+(d.actual_minutes??0),0)
-    const vacation=days.filter(d=>d.state==='VACATION').length
+    const calendarDays=days.filter(d=>d.work_date.startsWith(String(year)))
+    const planned=calendarDays.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0)
+    const actual=calendarDays.filter(d=>d.actual_confirmed).reduce((t,d)=>t+(d.actual_minutes??0),0)
+    const vacation=days.filter(d=>isVacationState(d.state) && vacationOriginYear(d)===year).length
     const extra=extras.reduce((t,e)=>t+(e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'?e.minutes:-e.minutes),0)
     const balance=entitlement?.entitlement_days==null?null:entitlement.entitlement_days+entitlement.carryover_days+entitlement.adjustment_days-vacation
     return{planned,actual,vacation,extra,balance}
-  },[days,extras,entitlement])
-  const vacationDays=days.filter(d=>isVacationState(d.state))
+  },[days,extras,entitlement,year])
+  const vacationDays=days.filter(d=>d.work_date.startsWith(String(year))&&isVacationState(d.state))
+  const previousVacationDays=vacationDays.filter(d=>vacationFromPriorYear(d))
+  const previousVacationOrigins=[...new Set(previousVacationDays.map(d=>vacationOriginYear(d)))]
+    .sort((a,b)=>(a??0)-(b??0))
   const vacationTaken=vacationDays.filter(d=>vacationStage(d)==='TAKEN').length
   const vacationPending=vacationDays.filter(d=>vacationStage(d)==='UPCOMING').length
   const vacationUnverified=vacationDays.filter(d=>vacationStage(d)==='UNVERIFIED').length
@@ -100,7 +105,7 @@ export default function StaffSelfServicePage(){
           <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-7 sm:gap-2">{selectedDates.map(d=>{
             const entry=lookup.get(d)
             const state=entry?.state==='SHIFT'?((entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—')):
-              entry&&isVacationState(entry.state)?'Vacaciones · '+vacationStageLabel(vacationStage(entry)) :
+              entry&&isVacationState(entry.state)?vacationOriginLabel(entry)+' · '+vacationStageLabel(vacationStage(entry)) :
               entry?.state==='REST'?'Descanso':
               entry?.state==='PUBLIC_HOLIDAY'?'Festivo disfrutado' + (entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)?.[0] ? ' · ' + entry.source_code.match(/(\d{4})-(\d{2})-(\d{2})/)![0].split('-').reverse().slice(0,2).join('/') : ''):
               entry?.state==='COMP_REST'?'Recuperable'+(entry.source_code?' · '+entry.source_code:''):
@@ -115,12 +120,19 @@ export default function StaffSelfServicePage(){
               <span className="rounded bg-emerald-200 px-1.5 py-1 text-emerald-950">Pendientes: {vacationPending}</span>
               <span className="rounded bg-emerald-50 px-1.5 py-1 text-emerald-950 ring-1 ring-inset ring-amber-500">Por confirmar: {vacationUnverified}</span>
             </div>
+            {previousVacationOrigins.map(origin=>{
+              const matches=previousVacationDays.filter(d=>vacationOriginYear(d)===origin)
+              return <p key={String(origin)} className="mt-2 text-[11px] font-semibold text-emerald-900">
+                {matches.length} días de vacaciones de {origin??'año sin confirmar'} en {year}
+                {' · '}confirmados: {matches.filter(d=>d.vacation_taken_confirmed).length}
+              </p>
+            })}
             <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({vacationDays.length})</summary>
               <div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">
-                {vacationDays.map(d=><span key={d.id} title={vacationStageLabel(vacationStage(d))}
+                {vacationDays.map(d=><span key={d.id} title={vacationOriginLabel(d)+' · '+vacationStageLabel(vacationStage(d))}
                   className={'rounded px-1.5 py-1 text-xs '+vacationTone(d)}>
                   {fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}
-                  {d.state==='VACATION_PREVIOUS'?' · ant.':''}
+                  {vacationFromPriorYear(d)?' · '+(vacationOriginYear(d)??'año ?'):''}
                   {vacationStage(d)==='UNVERIFIED'?' ?':''}
                 </span>)}
               </div>
