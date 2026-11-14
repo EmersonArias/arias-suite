@@ -11,8 +11,9 @@ import {
 } from '../staffModel'
 import { groupConsecutiveDays, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
+import StaffReport from '../StaffReport'
 
-type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS'
+type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   actual_hours:string; actual_confirmed:boolean; justification:string;
@@ -22,6 +23,7 @@ const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
+  {id:'REPORTES',label:'Reportes y PDF',mobile:'PDF'},
 ]
 const baseInput='w-full min-h-9 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-sky-600 sm:px-3 sm:py-2'
 const num = (v:number)=>v.toLocaleString('es-ES')
@@ -290,7 +292,7 @@ export default function StaffSchedulePage() {
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Inicio" title="Inicio" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-xs sm:px-3" onClick={()=>navigate('/')}><span className="sm:hidden">⌂</span><span className="hidden sm:inline">Inicio</span></button>
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          <button aria-label="Imprimir" title="Imprimir" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>window.print()}><Printer size={16}/></button>
+          <button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -324,6 +326,13 @@ export default function StaffSchedulePage() {
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
+
+      {tab==='REPORTES'&&hotel?.id&&<StaffReport
+        hotelId={hotel.id}
+        hotelName={hotel.name??'Hotel'}
+        operators={operators}
+        initialYear={year}
+      />}
 
       {tab==='CUADRANTE'&&<StaffCalendar
         year={year}
