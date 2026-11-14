@@ -5,7 +5,8 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import {
-  addDays,dateISO,fromISO,hours,mondayOf,stateView, type StaffDay,type StaffOperator,
+  addDays,dateISO,fromISO,hours,mondayOf,stateView,
+  isVacationState,vacationStage,vacationStageLabel,vacationTone, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
 } from '../staffModel'
 import { loadAllStaffDays } from '../staffData'
@@ -69,6 +70,10 @@ export default function StaffSelfServicePage(){
     const balance=entitlement?.entitlement_days==null?null:entitlement.entitlement_days+entitlement.carryover_days+entitlement.adjustment_days-vacation
     return{planned,actual,vacation,extra,balance}
   },[days,extras,entitlement])
+  const vacationDays=days.filter(d=>isVacationState(d.state))
+  const vacationTaken=vacationDays.filter(d=>vacationStage(d)==='TAKEN').length
+  const vacationPending=vacationDays.filter(d=>vacationStage(d)==='UPCOMING').length
+  const vacationUnverified=vacationDays.filter(d=>vacationStage(d)==='UNVERIFIED').length
   const lookup=useMemo(()=>new Map(days.map(d=>[d.work_date,d])),[days])
   const holidaySet=useMemo(()=>new Set(holidays),[holidays])
   const selectedDates=Array.from({length:7},(_,i)=>addDays(week,i))
@@ -95,17 +100,31 @@ export default function StaffSelfServicePage(){
           <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-7 sm:gap-2">{selectedDates.map(d=>{
             const entry=lookup.get(d)
             const state=entry?.state==='SHIFT'?((entry.start_time?.slice(0,5)??'—')+'–'+(entry.end_time?.slice(0,5)??'—')):
-              entry?.state==='VACATION'||entry?.state==='VACATION_PREVIOUS'?'Vacaciones':
+              entry&&isVacationState(entry.state)?'Vacaciones · '+vacationStageLabel(vacationStage(entry)) :
               entry?.state==='REST'?'Descanso':
               entry?.state==='PUBLIC_HOLIDAY'?'Festivo disfrutado' + (entry.source_code?.match(/(\d{4})-(\d{2})-(\d{2})/)?.[0] ? ' · ' + entry.source_code.match(/(\d{4})-(\d{2})-(\d{2})/)![0].split('-').reverse().slice(0,2).join('/') : ''):
               entry?.state==='COMP_REST'?'Recuperable'+(entry.source_code?' · '+entry.source_code:''):
               entry?.state==='MEDICAL_LEAVE'?'Baja':entry?.state==='OTHER'?'Sin clasificar':entry?'No disponible':'Sin asignar'
-            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className={'w-28 shrink-0 text-xs sm:w-auto '+(holidaySet.has(d)?'rounded bg-blue-700 px-1 py-0.5 font-semibold text-white':'text-slate-500')}>{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className={'flex-1 rounded px-1.5 py-1 text-right text-sm font-semibold sm:mt-2 sm:text-left '+stateView(entry?.state??'UNASSIGNED').tone}>{state}</p>{entry?.actual_confirmed&&<p className="text-right text-[10px] text-emerald-700 sm:mt-1 sm:text-left">✓ {hours(entry.actual_minutes)}</p>}</div>
+            return <div key={d} className="flex min-h-10 items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-1.5 sm:block sm:rounded-xl sm:p-3"><p className={'w-28 shrink-0 text-xs sm:w-auto '+(holidaySet.has(d)?'rounded bg-blue-700 px-1 py-0.5 font-semibold text-white':'text-slate-500')}>{fromISO(d).toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'})}</p><p className={'flex-1 rounded px-1.5 py-1 text-right text-sm font-semibold sm:mt-2 sm:text-left '+(entry&&isVacationState(entry.state)?vacationTone(entry):stateView(entry?.state??'UNASSIGNED').tone)}>{state}</p>{entry?.state==='SHIFT'&&entry.actual_confirmed&&<p className="text-right text-[10px] text-emerald-700 sm:mt-1 sm:text-left">✓ {hours(entry.actual_minutes)}</p>}</div>
           })}</div>
         </section>
         <section className="grid gap-2 lg:grid-cols-2 lg:gap-4">
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><h2 className="text-sm font-bold sm:text-base">Vacaciones · {year}</h2><p className="mt-1 text-xs text-slate-500">Asignados: {entitlement?.entitlement_days??'—'} d · Anteriores: {entitlement?.carryover_days??0} d</p>
-            <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).length})</summary><div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">{days.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).map(d=><span key={d.id} className="rounded bg-emerald-200 px-1.5 py-1 text-xs text-emerald-950">{fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}{d.state==='VACATION_PREVIOUS'?' · ant.':''}</span>)}</div></details>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+              <span className="rounded bg-emerald-600 px-1.5 py-1 font-semibold text-white">Disfrutadas: {vacationTaken}</span>
+              <span className="rounded bg-emerald-200 px-1.5 py-1 text-emerald-950">Pendientes: {vacationPending}</span>
+              <span className="rounded bg-emerald-50 px-1.5 py-1 text-emerald-950 ring-1 ring-inset ring-amber-500">Por confirmar: {vacationUnverified}</span>
+            </div>
+            <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver fechas ({vacationDays.length})</summary>
+              <div className="mt-2 flex max-h-[180px] flex-wrap gap-1 overflow-y-auto">
+                {vacationDays.map(d=><span key={d.id} title={vacationStageLabel(vacationStage(d))}
+                  className={'rounded px-1.5 py-1 text-xs '+vacationTone(d)}>
+                  {fromISO(d.work_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})}
+                  {d.state==='VACATION_PREVIOUS'?' · ant.':''}
+                  {vacationStage(d)==='UNVERIFIED'?' ?':''}
+                </span>)}
+              </div>
+            </details>
           </div>
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4"><div className="flex items-center justify-between gap-2"><h2 className="text-sm font-bold sm:text-base">Horas adicionales</h2><strong className="text-sm">{hours(summary.extra)}</strong></div>
             <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Ver movimientos ({extras.length})</summary><div className="mt-2 max-h-[220px] divide-y overflow-y-auto">{extras.map(e=><div key={e.id} className="py-1.5 text-xs"><div className="flex justify-between gap-2"><span>{fromISO(e.entry_date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})} · {e.entry_type==='EARNED'?'Generadas':e.entry_type==='REST_TAKEN'?'Disfrutadas':e.entry_type==='PAID'?'Abonadas':'Ajuste'}</span><strong>{hours(e.minutes)}</strong></div><p className="truncate text-[11px] text-slate-500" title={e.reason}>{e.reason}</p></div>)}</div></details>
