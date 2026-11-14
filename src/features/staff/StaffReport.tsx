@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
-import { addDays, dateISO, fromISO, isoWeek, mondayOf, type StaffDay, type StaffOperator } from './staffModel'
+import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
+  vacationStage, vacationCode, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
 import { supabase } from '../../lib/supabase'
 
@@ -44,6 +45,16 @@ const palette: Record<string, { bg: string; fg: string; pdfBg: [number,number,nu
   UNASSIGNED: {bg:'#F1F5F9',fg:'#64748B',pdfBg:[241,245,249],pdfFg:[100,116,139]},
 }
 const colorFor = (state: string) => palette[state] ?? palette.UNASSIGNED
+const colorForEntry = (entry?: StaffDay) => {
+  if(!entry)return palette.UNASSIGNED
+  if(!isVacationState(entry.state))return colorFor(entry.state)
+  const stage=vacationStage(entry)
+  if(stage==='TAKEN')return {bg:'#047857',fg:'#FFFFFF',
+    pdfBg:[4,120,87] as [number,number,number],pdfFg:[255,255,255] as [number,number,number]}
+  if(stage==='UNVERIFIED')return {bg:'#ECFDF5',fg:'#065F46',
+    pdfBg:[236,253,245] as [number,number,number],pdfFg:[6,95,70] as [number,number,number]}
+  return colorFor(entry.state)
+}
 const shortDate = (day: string) => fromISO(day).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})
 const hourOnly = (time?:string|null) => {
   if (!time) return '—'
@@ -55,8 +66,8 @@ const stateCode = (entry?:StaffDay) => {
   switch(entry.state){
     case 'SHIFT': return hourOnly(entry.start_time)+'–'+hourOnly(entry.end_time)
     case 'REST': return 'D'
-    case 'VACATION': return 'V'
-    case 'VACATION_PREVIOUS': return 'A'
+    case 'VACATION':
+    case 'VACATION_PREVIOUS': return vacationCode(entry)
     case 'MEDICAL_LEAVE': return 'B'
     case 'PUBLIC_HOLIDAY': {
       const source=entry.source_code??''
@@ -222,10 +233,10 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
   const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
-    ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Vacaciones'],['MEDICAL_LEAVE','B Baja'],
+    ['SHIFT','Horario'],['REST','D Descanso'],['VACATION','V Programadas'],['MEDICAL_LEAVE','B Baja'],
     ['PUBLIC_HOLIDAY','15/08 Festivo disfrutado'],['COMP_REST','R Recuperable'], 
   ]
-  const summaryNote='Horario planificado. No acredita por sí solo la presencia real ni el disfrute efectivo de vacaciones.'
+  const summaryNote='Horario previsto. Las vacaciones pasadas no se consideran disfrutadas hasta su confirmación.'
   const previewCapped=weekGroups.length>previewWeeks.length
 
   async function exportPdf(){
@@ -255,7 +266,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           {content:person.display_name,styles:{fontStyle:'bold' as const,textColor:[30,41,59] as [number,number,number]}},
           ...week.map(day=>{
             const entry=selectedEntry(person.id,day)
-            const color=colorFor(entry?.state??'UNASSIGNED')
+            const color=colorForEntry(entry)
             const inRange=dateSet.has(day)
             return {content:inRange?stateCode(entry):'',styles:{
               fillColor:inRange?color.pdfBg:([248,250,252] as [number,number,number]),
@@ -277,7 +288,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
           doc.setFont('helvetica','normal');doc.setFontSize(6.2)
           doc.setTextColor(75,85,99)
           doc.text('Cabecera azul: festivo del calendario   |   Mostaza (15/08): festivo disfrutado   |   Celeste (R): recuperable',9,198.5)
-          doc.text('Rojo (D): descanso   |   Verde (V): vacaciones   |   Lila (B): baja   |   Blanco (9-19): turno',9,201.5)
+          doc.text('Rojo D: descanso | Verde claro V: pendientes | Verde oscuro V: disfrutadas | Verde palido V?: por confirmar | Lila B: baja',9,201.5)
           doc.text(summaryNote,9,204.5)
           doc.text('Pag. '+pageNumber,pageWidth-18,204.5)
         },
@@ -304,7 +315,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         const cells=week.map(day=>{
           const inRange=dateSet.has(day)
           const entry=selectedEntry(person.id,day)
-          const color=colorFor(entry?.state??'UNASSIGNED')
+          const color=colorForEntry(entry)
           return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+';font-weight:700;text-align:center">'+
             (inRange?esc(stateCode(entry)):'')+'</td>'
         }).join('')
@@ -422,7 +433,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
                 {week.map(day=>{
                   const inRange=dateSet.has(day)
                   const entry=selectedEntry(person.id,day)
-                  const color=colorFor(entry?.state??'UNASSIGNED')
+                  const color=colorForEntry(entry)
                   return <td key={day} className="overflow-hidden border border-white p-px text-center font-bold tracking-tighter"
                     style={{background:inRange?color.bg:'#f8fafc',color:color.fg}}>
                     <span className="block truncate">{inRange?stateCode(entry):''}</span>
@@ -436,6 +447,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       {previewCapped&&<p className="mt-2 text-xs text-slate-500">Se muestran las primeras siete semanas. El PDF y la impresión incluyen todo el período seleccionado.</p>}
       {dates.length===0&&<p className="py-4 text-center text-xs text-slate-500">No hay días que cumplan el filtro.</p>}
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 pt-2">
+        <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-emerald-600 px-1 font-bold text-white">V</span>Disfrutadas</span>
+        <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-emerald-50 px-1 font-bold text-emerald-950 ring-1 ring-inset ring-amber-500">V?</span>Pasadas por confirmar</span>
         <span className="text-[9px] text-slate-600"><span className="mr-1 rounded bg-blue-700 px-1 text-white">15</span>Cabecera azul: festivo calendario</span>
         {statusLegend.map(([value,label])=><span key={value} className="text-[9px] text-slate-600">
           <span className="mr-1 rounded px-1 font-bold" style={{background:colorFor(value).bg,color:colorFor(value).fg}}>{value==='SHIFT'?'9–19':value==='REST'?'D':value==='VACATION'?'V':value==='MEDICAL_LEAVE'?'B':value==='PUBLIC_HOLIDAY'?'15/08':value==='COMP_REST'?'R':value==='PERMISSION'?'P':'R'}</span>{label}
