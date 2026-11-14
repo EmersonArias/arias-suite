@@ -9,7 +9,7 @@ import './index.css'
 
 function RoutedApplication() {
   const { pathname } = useLocation()
-  if (pathname === '/mi-horario') {
+  if (['/mi-horario','/login','/activate','/forgot-password','/update-password'].includes(pathname)) {
     return <SystemDialogProvider><App /></SystemDialogProvider>
   }
   return <HotelScopeProvider><SystemDialogProvider><App /></SystemDialogProvider></HotelScopeProvider>
