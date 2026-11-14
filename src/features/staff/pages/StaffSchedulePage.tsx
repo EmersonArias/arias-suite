@@ -876,8 +876,8 @@ export default function StaffSchedulePage() {
               <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
             </div>}
             {dayEditor.state==='SHIFT'&&<>
-              <label className="block text-xs">Horas efectivamente verificadas<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas realmente trabajadas</label>
+              <label className="block text-xs">Horas realmente trabajadas (opcional)<input type="number" min="0" max="24" step="0.25" className={baseInput+' mt-1'} value={dayEditor.actual_hours} onChange={e=>setDayEditor({...dayEditor,actual_hours:e.target.value})} placeholder="No verificadas"/></label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dayEditor.actual_confirmed} onChange={e=>setDayEditor({...dayEditor,actual_confirmed:e.target.checked})}/> Confirmar horas reales comprobadas</label>
             </>}
             {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
