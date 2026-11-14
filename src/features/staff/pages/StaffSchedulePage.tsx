@@ -43,7 +43,8 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
     vacationPrevious:own.filter(d=>d.state==='VACATION_PREVIOUS').length,
     sick:own.filter(d=>d.state==='MEDICAL_LEAVE').length,
     sickDocumented:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='DOCUMENTED').length,
-    sickUnknown:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification!=='DOCUMENTED').length,
+    sickUnjustified:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='UNJUSTIFIED').length,
+    sickUnknown:own.filter(d=>d.state==='MEDICAL_LEAVE' && ['UNKNOWN','PENDING'].includes(d.justification)).length,
     earned:money('EARNED')+money('ADJUSTMENT_PLUS'),
     compensated:money('REST_TAKEN'),
     paid:money('PAID'),
@@ -471,17 +472,18 @@ export default function StaffSchedulePage() {
               className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
               <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
               <div className="mt-1 text-xl font-bold">{s.sick} <span className="text-xs font-normal">días</span></div>
-              <div className="mt-0.5 text-[10px] text-slate-500">{s.sickDocumented} justificados · {s.sickUnknown} por revisar</div>
+              <div className="mt-0.5 text-[10px] text-slate-500">{s.sickDocumented} justif. · {s.sickUnjustified} no justif. · {s.sickUnknown} por revisar</div>
             </button>)}
           </div>
         </div>
         {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
             {[
               ['Total',selectedSummary?.sick??0],
               ['Justificados',selectedSummary?.sickDocumented??0],
-              ['Sin verificar',selectedSummary?.sickUnknown??0],
+              ['Sin justificar',selectedSummary?.sickUnjustified??0],
+              ['Por revisar',selectedSummary?.sickUnknown??0],
             ].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 px-1.5 py-2 text-center">
               <div className="text-[10px] text-slate-500">{label}</div>
               <div className="mt-0.5 text-lg font-bold">{value}</div>
