@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
-import { Plus, Printer, RefreshCw, UserRoundCog, Pencil } from 'lucide-react'
+import { Plus, Printer, RefreshCw, UserRoundCog, Pencil, X } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
@@ -103,6 +103,7 @@ export default function StaffSchedulePage() {
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [selectedId,setSelectedId]=useState('')
+  const [hoursDetailOperatorId,setHoursDetailOperatorId]=useState<string|null>(null)
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
   const [dayEditorError,setDayEditorError]=useState('')
   const [showOperatorForm,setShowOperatorForm]=useState(false)
@@ -165,6 +166,27 @@ export default function StaffSchedulePage() {
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
   })),[operators,days,overtime,year])
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
+  const hoursDetailOperator=operators.find(o=>o.id===hoursDetailOperatorId)??null
+  const hoursMonthly=useMemo(()=>Array.from({length:12},(_,i)=>{
+    const month=String(i+1).padStart(2,'0')
+    const entries=days.filter(d=>d.operator_id===hoursDetailOperatorId &&
+      d.work_date.slice(0,7)===year+'-'+month && d.state==='SHIFT')
+    return {
+      month:new Date(year,i,1).toLocaleDateString('es-ES',{month:'long'}),
+      shifts:entries.length,
+      minutes:entries.reduce((sum,d)=>sum+(d.planned_minutes??0),0),
+    }
+  }),[days,hoursDetailOperatorId,year])
+  const hoursMonthlyTotal=hoursMonthly.reduce((sum,row)=>sum+row.minutes,0)
+  const hoursMonthlyShifts=hoursMonthly.reduce((sum,row)=>sum+row.shifts,0)
+  useEffect(()=>{
+    if(!hoursDetailOperatorId)return
+    const onKeyDown=(event:KeyboardEvent)=>{
+      if(event.key==='Escape')setHoursDetailOperatorId(null)
+    }
+    window.addEventListener('keydown',onKeyDown)
+    return ()=>window.removeEventListener('keydown',onKeyDown)
+  },[hoursDetailOperatorId])
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
   const vacationToday=dateISO(new Date())
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
@@ -521,14 +543,27 @@ export default function StaffSchedulePage() {
             <div className="grid grid-cols-3 gap-1.5 text-center">
               {[['Previstas',hours(s.planned)],['Reales',hours(s.worked)],['F. semana',String(s.total)],
               ['Vacaciones',s.vacation+' d'],['Baja',s.sick+' d'],['H. extra',hours(s.cumulativeBalance)]].map(([label,value])=>
-                <div key={label} className="rounded-md bg-slate-50 px-1 py-1"><div className="text-[10px] text-slate-500">{label}</div><div className="text-xs font-semibold">{value}</div></div>)}
+                label==='Previstas'
+                ? <button type="button" key={label} onClick={()=>setHoursDetailOperatorId(s.operator.id)}
+                    title={'Ver horas previstas por mes de '+s.operator.display_name}
+                    aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
+                    className="rounded-md bg-sky-50 px-1 py-1 ring-1 ring-inset ring-sky-200 transition hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
+                    <div className="text-[10px] text-sky-700">Previstas <span aria-hidden="true">⌄</span></div>
+                    <div className="text-xs font-bold text-sky-900 underline decoration-dotted underline-offset-2">{value}</div>
+                  </button>
+                : <div key={label} className="rounded-md bg-slate-50 px-1 py-1"><div className="text-[10px] text-slate-500">{label}</div><div className="text-xs font-semibold">{value}</div></div>)}
             </div>
           </div>)}
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
           <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Turnos previstos</th><th>Horas efectivas verificadas</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
-              <td>{hours(s.planned)}</td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
+              <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
+                title={'Ver horas previstas por mes de '+s.operator.display_name}
+                aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
+                className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
+                {hours(s.planned)}
+              </button></td><td>{hours(s.worked)}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
           </tbody></table>
         </div>
       </section>}
@@ -869,6 +904,56 @@ export default function StaffSchedulePage() {
         <button disabled={busy||!selected} onClick={()=>void saveNote()} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Guardar observaciones</button>
       </section>}
 
+
+      {hoursDetailOperator&&<div role="presentation"
+        className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/50 p-3 print:hidden"
+        onMouseDown={e=>{if(e.target===e.currentTarget)setHoursDetailOperatorId(null)}}>
+        <section role="dialog" aria-modal="true"
+          aria-label={'Desglose mensual de horas previstas de '+hoursDetailOperator.display_name}
+          className="flex max-h-[88dvh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-900">Horas previstas · {year}</h2>
+              <p className="mt-0.5 truncate text-xs font-medium text-slate-600">{hoursDetailOperator.display_name}</p>
+            </div>
+            <button type="button" onClick={()=>setHoursDetailOperatorId(null)}
+              aria-label="Cerrar desglose de horas" title="Cerrar"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100">
+              <X size={18}/>
+            </button>
+          </div>
+          <div className="min-h-0 overflow-y-auto px-4 py-3">
+            <table className="w-full border-collapse text-xs">
+              <thead><tr className="border-b border-slate-200 text-left text-slate-500">
+                <th className="pb-2 font-semibold">Mes</th>
+                <th className="pb-2 text-right font-semibold">Turnos</th>
+                <th className="pb-2 text-right font-semibold">Horas</th>
+              </tr></thead>
+              <tbody>
+                {hoursMonthly.map((row,i)=><tr key={i} className="border-b border-slate-100">
+                  <td className="py-1.5 capitalize text-slate-700">{row.month}</td>
+                  <td className="py-1.5 text-right tabular-nums text-slate-600">{row.shifts}</td>
+                  <td className="py-1.5 text-right font-semibold tabular-nums">{hours(row.minutes)}</td>
+                </tr>)}
+              </tbody>
+              <tfoot><tr className="bg-slate-50 font-bold">
+                <td className="rounded-l-lg px-2 py-2">TOTAL {year}</td>
+                <td className="py-2 text-right tabular-nums">{hoursMonthlyShifts}</td>
+                <td className="rounded-r-lg py-2 pr-2 text-right tabular-nums text-sky-900">{hours(hoursMonthlyTotal)}</td>
+              </tr></tfoot>
+            </table>
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              Horas previstas según el cuadrante del año seleccionado. No equivalen a horas realmente trabajadas o verificadas.
+            </p>
+          </div>
+          <div className="shrink-0 border-t border-slate-200 p-3 text-right">
+            <button type="button" onClick={()=>setHoursDetailOperatorId(null)}
+              className="min-h-9 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">
+              Cerrar
+            </button>
+          </div>
+        </section>
+      </div>}
       {showOperatorForm&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-2 sm:p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setShowOperatorForm(false)}}>
         <section role="dialog" aria-modal="true" aria-label="Editar operario" className="max-h-[95dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-3 shadow-xl sm:rounded-2xl sm:p-5">
           <h2 className="text-lg font-bold">Ficha del operario</h2>
