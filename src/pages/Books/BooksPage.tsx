@@ -293,7 +293,7 @@ export default function BooksPage() {
         <div className="mx-auto w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
           <header className="relative z-20 mb-6 rounded-3xl border border-white bg-white/95 px-4 py-4 shadow-sm sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
-              <BrandLogo onActivate={() => window.location.reload()} label="Actualizar Arias Suite" showTagline className="h-20 w-auto max-w-[70vw] object-contain sm:h-24" />
+              <BrandLogo onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-20 w-auto max-w-[70vw] object-contain sm:h-24" />
               <div className="order-3 flex w-full items-center gap-3 border-t border-slate-100 pt-4 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700"><Building2 size={22} /></span>
                 <div className="min-w-0">
