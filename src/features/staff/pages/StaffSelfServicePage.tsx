@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/context/AuthProvider'
 import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import {
-  addDays,dateISO,fromISO,hours,mondayOf,stateView,
+  addDays,dateISO,fromISO,hours,mondayOf,stateView,plannedMinutes,
   isVacationState,vacationStage,vacationStageLabel,vacationTone,splitShiftLabel,
   vacationOriginYear,vacationOriginLabel,vacationFromPriorYear, type StaffDay,type StaffOperator,
   type StaffOvertime,type StaffVacation,
@@ -65,7 +65,7 @@ export default function StaffSelfServicePage(){
   },[authLoading,session?.user.id,year,navigate])
   const summary=useMemo(()=>{
     const calendarDays=days.filter(d=>d.work_date.startsWith(String(year)))
-    const planned=calendarDays.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0)
+    const planned=calendarDays.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+plannedMinutes(d),0)
     const shifts=calendarDays.filter(d=>d.state==='SHIFT').length
     const vacation=days.filter(d=>isVacationState(d.state) && vacationOriginYear(d)===year).length
     const extra=extras.reduce((t,e)=>t+(e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'?e.minutes:-e.minutes),0)
