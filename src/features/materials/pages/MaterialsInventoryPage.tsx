@@ -103,6 +103,9 @@ type MovementForm = {
 
 type TabKey = 'request' | 'inventory' | 'catalog' | 'history'
 
+// Email delivery is deferred; keep the integration available for a later rollout.
+const MATERIAL_REQUEST_EMAIL_ENABLED = false
+
 const EMPTY_MATERIAL_FORM: MaterialForm = {
   description: '',
   order_code: '',
@@ -716,7 +719,7 @@ export default function MaterialsInventoryPage() {
     setRequests((current) => [request, ...current])
     setReviewOpen(false)
     resetRequestForm()
-    setSuccess('Petición ' + request.request_number + ' confirmada y guardada. Puedes descargar el PDF o preparar el correo.')
+    setSuccess('Petición ' + request.request_number + ' confirmada y guardada. Puedes descargar el PDF y adjuntarlo a tu correo de empresa.')
     setSaving(false)
     await loadData()
   }
@@ -745,6 +748,7 @@ export default function MaterialsInventoryPage() {
   }
 
   async function openEmail(request: RequestRecord, lines: RequestLine[]) {
+    if (!MATERIAL_REQUEST_EMAIL_ENABLED) return
     const providerEmails = Array.from(new Set(lines
       .map((line) => line.provider_id ? providerById.get(line.provider_id)?.email_main?.trim().toLowerCase() ?? '' : '')
       .filter((email) => isValidEmail(email))))
@@ -999,7 +1003,7 @@ export default function MaterialsInventoryPage() {
               </label>
 
               <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center">
-                <p className="text-[11px] leading-5 text-slate-500">Guardar no envía ningún correo ni descuenta unidades del stock. La petición se registra solo tras la confirmación final.</p>
+                <p className="text-[11px] leading-5 text-slate-500">Guarda la petición y descarga el PDF para adjuntarlo a tu correo de empresa. La petición no modifica las existencias.</p>
                 <button type="button" disabled={!moduleReady || !canReviewRequest || saving} onClick={() => { setError(''); setReviewOpen(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"><ClipboardList size={16}/>Revisar y confirmar</button>
               </div>
             </div>
@@ -1119,7 +1123,7 @@ export default function MaterialsInventoryPage() {
                 <div className="space-y-2">
                   {requests.map((request) => (
                     <button key={request.id} type="button" onClick={() => void selectHistoryRequest(request)} className={'w-full rounded-xl border p-3 text-left transition hover:bg-slate-50 ' + (historySelected?.request.id === request.id ? 'border-slate-500 bg-slate-50' : 'border-slate-200')}>
-                      <div className="flex items-start justify-between gap-2"><div><div className="text-sm font-semibold text-slate-800">{request.request_number}</div><div className="mt-0.5 text-[10px] text-slate-500">{formatDate(request.confirmed_at)} · {request.requester_name}</div></div><span className={'rounded-full px-2 py-1 text-[9px] font-semibold ' + emailStatusClass(request.email_status)}>{emailStatusLabel(request.email_status)}</span></div>
+                      <div className="flex items-start justify-between gap-2"><div><div className="text-sm font-semibold text-slate-800">{request.request_number}</div><div className="mt-0.5 text-[10px] text-slate-500">{formatDate(request.confirmed_at)} · {request.requester_name}</div></div>{MATERIAL_REQUEST_EMAIL_ENABLED && <span className={'rounded-full px-2 py-1 text-[9px] font-semibold ' + emailStatusClass(request.email_status)}>{emailStatusLabel(request.email_status)}</span>}</div>
                       <div className="mt-2 text-xs text-slate-600">{request.cause}</div>
                     </button>
                   ))}
@@ -1131,14 +1135,14 @@ export default function MaterialsInventoryPage() {
                 {historyLoading && <div className="rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-400">Cargando detalle…</div>}
                 {!historyLoading && historySelected && (
                   <div className="rounded-xl border border-slate-200 p-3">
-                    <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-bold text-slate-800">{historySelected.request.request_number}</h4><p className="mt-1 text-[10px] text-slate-500">{historySelected.request.requester_name} · {formatDate(historySelected.request.confirmed_at)}</p></div><span className={'rounded-full px-2 py-1 text-[9px] font-semibold ' + emailStatusClass(historySelected.request.email_status)}>{emailStatusLabel(historySelected.request.email_status)}</span></div>
+                    <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-bold text-slate-800">{historySelected.request.request_number}</h4><p className="mt-1 text-[10px] text-slate-500">{historySelected.request.requester_name} · {formatDate(historySelected.request.confirmed_at)}</p></div>{MATERIAL_REQUEST_EMAIL_ENABLED && <span className={'rounded-full px-2 py-1 text-[9px] font-semibold ' + emailStatusClass(historySelected.request.email_status)}>{emailStatusLabel(historySelected.request.email_status)}</span>}</div>
                     <div className="mt-3 space-y-2">
                       {historySelected.lines.map((line, index) => <div key={line.id ?? index} className="rounded-lg bg-slate-50 p-2.5"><div className="text-xs font-semibold text-slate-800">{line.description}</div><div className="mt-1 text-[10px] text-slate-500">{formatQuantity(line.quantity)} {line.unit_of_measure} · {line.provider_name ?? 'Sin proveedor'} · {line.order_code ?? 'Sin código'}</div>{line.purchase_url && <button type="button" onClick={() => openLinePurchaseLink(line.purchase_url)} className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700"><ExternalLink size={11}/>Enlace de compra</button>}</div>)}
                     </div>
-                    {historySelected.request.email_error && <p className="mt-2 rounded-lg bg-rose-50 p-2 text-[10px] text-rose-700">{historySelected.request.email_error}</p>}
+                    {MATERIAL_REQUEST_EMAIL_ENABLED && historySelected.request.email_error && <p className="mt-2 rounded-lg bg-rose-50 p-2 text-[10px] text-rose-700">{historySelected.request.email_error}</p>}
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
                       <button type="button" onClick={() => downloadPdf(historySelected.request, historySelected.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700"><FileDown size={14}/>Descargar PDF</button>
-                      {historySelected.request.email_status !== 'SENT' && <button type="button" onClick={() => void openEmail(historySelected.request, historySelected.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[11px] font-semibold text-white"><Mail size={14}/>Enviar correo</button>}
+                      {MATERIAL_REQUEST_EMAIL_ENABLED && historySelected.request.email_status !== 'SENT' && <button type="button" onClick={() => void openEmail(historySelected.request, historySelected.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[11px] font-semibold text-white"><Mail size={14}/>Enviar correo</button>}
                     </div>
                   </div>
                 )}
@@ -1211,10 +1215,10 @@ export default function MaterialsInventoryPage() {
       {lastRequest && (
         <div className="fixed bottom-4 left-3 right-3 z-40 mx-auto max-w-3xl rounded-2xl border border-emerald-200 bg-white p-3 shadow-2xl sm:bottom-5 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-2"><CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600"/><div><div className="text-sm font-bold text-slate-900">Petición {lastRequest.request.request_number} guardada</div><p className="mt-0.5 text-xs text-slate-500">Puedes descargar el PDF o preparar el envío por correo con confirmación.</p></div></div>
+            <div className="flex min-w-0 items-start gap-2"><CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600"/><div><div className="text-sm font-bold text-slate-900">Petición {lastRequest.request.request_number} guardada</div><p className="mt-0.5 text-xs text-slate-500">Descarga el PDF y adjúntalo a tu correo de empresa.</p></div></div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => downloadPdf(lastRequest.request, lastRequest.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700"><FileDown size={14}/>PDF</button>
-              <button type="button" onClick={() => void openEmail(lastRequest.request, lastRequest.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white"><Mail size={14}/>Enviar email</button>
+              {MATERIAL_REQUEST_EMAIL_ENABLED && <button type="button" onClick={() => void openEmail(lastRequest.request, lastRequest.lines)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white"><Mail size={14}/>Enviar email</button>}
               <button type="button" onClick={() => { setLastRequest(null); resetRequestForm(); setTab('request') }} aria-label="Cerrar" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={14}/></button>
             </div>
           </div>
@@ -1272,7 +1276,7 @@ export default function MaterialsInventoryPage() {
         </div>
       )}
 
-      {emailTarget && (
+      {MATERIAL_REQUEST_EMAIL_ENABLED && emailTarget && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/40 p-3 backdrop-blur-[2px]">
           <form onSubmit={(event) => void sendRequestEmail(event)} className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <header className="flex items-center justify-between border-b border-slate-200 px-4 py-4"><div><h2 className="text-base font-bold">Confirmar envío por correo</h2><p className="mt-1 text-xs text-slate-500">Se enviará el PDF adjunto de {emailTarget.request.request_number}.</p></div><button type="button" onClick={() => setEmailTarget(null)} disabled={sending} className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100" aria-label="Cerrar"><X size={16}/></button></header>
