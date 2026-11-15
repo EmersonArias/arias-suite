@@ -379,7 +379,46 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     if(!snapshot||loading||!unchanged)return
     const page=window.open('','_blank')
     if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
+
     const heading=esc(hotelName)+' · '+esc(periodLabel)
+    // El botón Imprimir utiliza también el formato mensual compacto de una sola hoja.
+    if(period==='MONTH'){
+      const monthDays=rawDates
+      const peopleCount=Math.max(1,displayedOperators.length)
+      const rowHeight=Math.min(11,160/peopleCount)
+      const fontSize=Math.min(6,Math.max(2,rowHeight*0.72))
+      const dayHeaders=monthDays.map(date=>{
+        const d=fromISO(date)
+        const holiday=holidaySet.has(date)
+        const headingStyle=holiday?' style="background:#1d4ed8;color:#fff"':''
+        return '<th'+headingStyle+'>'+esc(weekdays[(d.getDay()+6)%7])+'<br>'+d.getDate()+'</th>'
+      }).join('')
+      const workers=displayedOperators.map(person=>{
+        const cells=monthDays.map(date=>{
+          const inRange=dateSet.has(date)
+          const entry=selectedEntry(person.id,date)
+          const color=colorForEntry(entry)
+          const content=inRange?esc(stateCode(entry)).replace(/\n/g,'<br>'):''
+          return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+'">'+content+'</td>'
+        }).join('')
+        return '<tr><th class="person">'+esc(person.display_name)+'</th>'+cells+'</tr>'
+      }).join('')
+      const compactHtml='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte mensual · 1 hoja</title><style>'+
+        '@page{size:A4 landscape;margin:6mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:8pt}'+
+        'h1{font-size:12pt;margin:0 0 2mm}p{font-size:7pt;margin:0 0 2mm}'+
+        'table{border-collapse:collapse;table-layout:fixed;width:100%}'+
+        'th,td{border:1px solid #cbd5e1;text-align:center;vertical-align:middle;'+
+        'padding:0;line-height:1.02;overflow:hidden;font-size:'+fontSize+'pt;height:'+rowHeight+'mm}'+
+        'thead th{height:8mm;background:#f1f5f9}.person{width:35mm;text-align:left;padding-left:1mm}'+
+        'tr{break-inside:avoid}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+        '</style></head><body><h1>PLANIFICADOR HORARIO · MENSUAL</h1><p>'+
+        heading+' · '+esc(stateLabel)+'</p><table><thead><tr><th class="person">Trabajador</th>'+
+        dayHeaders+'</tr></thead><tbody>'+workers+'</tbody></table>'+
+        '<p style="margin-top:3mm">9-13 / 15-19: turno partido (8 h). '+esc(summaryNote)+'</p>'+
+        '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
+      page.document.open();page.document.write(compactHtml);page.document.close()
+      return
+    }
     const weeklyTables=weekGroups.map(({start,week})=>{
       const head='<th class="person"></th>'+week.map((day,i)=>'<th'+
         (holidaySet.has(day)?' style="background:#1d4ed8;color:white"':'')+'>'+
@@ -482,7 +521,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><h3 className="text-sm font-bold">Vista previa · {periodLabel}</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">{stateLabel} · {displayedOperators.length} operario(s) · {dates.length} día(s)</p></div>
-        <span className="text-[10px] text-slate-500">A4 horizontal · páginas automáticas</span>
+        <span className="text-[10px] text-slate-500">{period==='MONTH'?'A4 horizontal · una sola página':'A4 horizontal · páginas automáticas'}</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {totals.map(t=><div key={t.person.id} className="rounded-md bg-slate-50 p-2">
