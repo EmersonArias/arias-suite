@@ -23,6 +23,8 @@ type Material = {
   active: boolean
   unit_of_measure: string
   stock_quantity: number
+  stock_verified: boolean
+  stock_counted_at: string | null
   minimum_stock: number
   purchase_url: string | null
   storage_location: string | null
@@ -108,7 +110,7 @@ const EMPTY_MATERIAL_FORM: MaterialForm = {
   provider_id: '',
   unit_of_measure: 'ud',
   minimum_stock: '0',
-  initial_stock: '0',
+  initial_stock: '',
   purchase_url: '',
   storage_location: '',
   notes: '',
@@ -202,6 +204,9 @@ export default function MaterialsInventoryPage() {
   const [movementMaterial, setMovementMaterial] = useState<Material | null>(null)
   const [movementForm, setMovementForm] = useState<MovementForm>(EMPTY_MOVEMENT)
   const [savingMovement, setSavingMovement] = useState(false)
+  const [countingMaterial, setCountingMaterial] = useState<Material | null>(null)
+  const [stockCountForm, setStockCountForm] = useState({ quantity: '', reason: 'Inventario físico', reference: '' })
+  const [savingStockCount, setSavingStockCount] = useState(false)
 
   const [historySelected, setHistorySelected] = useState<{ request: RequestRecord; lines: RequestLine[] } | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -224,11 +229,13 @@ export default function MaterialsInventoryPage() {
     }
 
     setLoading(true)
-    const [materialResult, providerLinks, requestResult, movementResult] = await Promise.all([
+    const [materialResult, providerLinks, requestResult, movementResult, stockSchemaResult, linesSchemaResult] = await Promise.all([
       supabase.from('maintenance_material_catalog').select('*').eq('hotel_id', hotel.id).order('description', { ascending: true }),
       supabase.from('provider_hotels').select('provider_id').eq('hotel_id', hotel.id).eq('active', true),
       supabase.from('maintenance_material_requests').select('*').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('maintenance_stock_movements').select('id, hotel_id, material_id, movement_type, quantity_delta, stock_before, stock_after, reason, reference, created_by, created_at').eq('hotel_id', hotel.id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('maintenance_material_catalog').select('stock_verified, stock_counted_at, stock_quantity, minimum_stock').eq('hotel_id', hotel.id).limit(1),
+      supabase.from('maintenance_material_request_lines').select('id, delivery_date').limit(1),
     ])
 
     if (materialResult.error) {
@@ -266,6 +273,8 @@ export default function MaterialsInventoryPage() {
       reference_code: (item.reference_code as string | null | undefined) ?? null,
       unit_of_measure: (item.unit_of_measure as string | null | undefined) ?? 'ud',
       stock_quantity: Number(item.stock_quantity ?? 0),
+      stock_verified: Boolean(item.stock_verified ?? false),
+      stock_counted_at: (item.stock_counted_at as string | null | undefined) ?? null,
       minimum_stock: Number(item.minimum_stock ?? 0),
       purchase_url: (item.purchase_url as string | null | undefined) ?? null,
       storage_location: (item.storage_location as string | null | undefined) ?? null,
@@ -280,12 +289,14 @@ export default function MaterialsInventoryPage() {
     const missingParts = [
       requestResult.error ? 'solicitudes/pedidos' : '',
       movementResult.error ? 'movimientos de stock' : '',
+      stockSchemaResult.error ? 'inventario físico del catálogo' : '',
+      linesSchemaResult.error ? 'detalle de peticiones' : '',
     ].filter(Boolean)
     const schemaReady = missingParts.length === 0
     setModuleReady(schemaReady)
     setMigrationNotice(schemaReady ? '' :
       'La migración 078 no aparece aplicada o completa en Supabase. El catálogo se conserva y se muestra en modo de consulta, pero no se pueden confirmar pedidos ni registrar movimientos de stock hasta corregir la base de datos. No se ha creado ni modificado ningún pedido. Detalle técnico: ' +
-      [requestResult.error?.message, movementResult.error?.message].filter(Boolean).join(' · '))
+      [requestResult.error?.message, movementResult.error?.message, stockSchemaResult.error?.message, linesSchemaResult.error?.message].filter(Boolean).join(' · '))
     setLoading(false)
   }
 
@@ -316,7 +327,11 @@ export default function MaterialsInventoryPage() {
   }, [emailTarget, providerById])
   const activeMaterials = useMemo(() => materials.filter((material) => material.active), [materials])
   const lowStockMaterials = useMemo(
-    () => moduleReady ? activeMaterials.filter((material) => Number(material.stock_quantity) <= Number(material.minimum_stock)) : [],
+    () => moduleReady ? activeMaterials.filter((material) => material.stock_verified && Number(material.stock_quantity) <= Number(material.minimum_stock)) : [],
+    [activeMaterials, moduleReady],
+  )
+  const uncountedMaterials = useMemo(
+    () => moduleReady ? activeMaterials.filter((material) => !material.stock_verified) : [],
     [activeMaterials, moduleReady],
   )
   const inventoryFiltered = useMemo(() => {
@@ -341,7 +356,7 @@ export default function MaterialsInventoryPage() {
   const selectedDraftLines = useMemo(() => draftLines.map((line) => {
     const material = activeMaterials.find((item) => item.id === line.material_id) ?? null
     const quantity = Number(line.quantity)
-    return { ...line, material, validQuantity: Number.isFinite(quantity) && quantity > 0 }
+    return { ...line, material, validQuantity: Number.isFinite(quantity) && quantity > 0 && Math.abs(Math.round(quantity * 100) - quantity * 100) < 1e-8 }
   }), [draftLines, activeMaterials])
 
   const canReviewRequest = moduleReady && selectedDraftLines.length > 0
@@ -401,7 +416,7 @@ export default function MaterialsInventoryPage() {
       provider_id: material.provider_id,
       unit_of_measure: material.unit_of_measure || 'ud',
       minimum_stock: String(material.minimum_stock ?? 0),
-      initial_stock: '0',
+      initial_stock: '',
       purchase_url: material.purchase_url ?? '',
       storage_location: material.storage_location ?? '',
       notes: material.notes ?? '',
@@ -423,14 +438,15 @@ export default function MaterialsInventoryPage() {
       return
     }
     const minimum = Number(materialForm.minimum_stock || 0)
-    const initial = Number(materialForm.initial_stock || 0)
-    if (!Number.isFinite(minimum) || minimum < 0 || !Number.isFinite(initial) || initial < 0) {
+    const hasInitialStock = materialForm.initial_stock.trim() !== ''
+    const initial = Number(materialForm.initial_stock)
+    if (!Number.isFinite(minimum) || minimum < 0 || (hasInitialStock && (!Number.isFinite(initial) || initial < 0))) {
       setError('Las cantidades de stock no pueden ser negativas.')
       return
     }
     const prompt = editingMaterialId
       ? '¿Confirmas los cambios del artículo «' + materialForm.description.trim() + '»?'
-      : '¿Confirmas el alta del artículo «' + materialForm.description.trim() + '»' + (initial > 0 ? ' con stock inicial de ' + formatQuantity(initial) + ' ' + materialForm.unit_of_measure + '?' : '?')
+      : '¿Confirmas el alta del artículo «' + materialForm.description.trim() + '»' + (hasInitialStock ? ' con inventario físico inicial de ' + formatQuantity(initial) + ' ' + materialForm.unit_of_measure : ' dejando el stock pendiente de inventario') + '?'
     if (!window.confirm(prompt)) return
 
     setSavingMaterial(true)
@@ -462,22 +478,15 @@ export default function MaterialsInventoryPage() {
       else {
         savedSuccessfully = true
         savedId = result.data.id
-        if (initial > 0 && savedId) {
-          const movement = await supabase.rpc('record_maintenance_stock_movement', {
-            target_hotel_id: hotel.id,
-            target_material_id: savedId,
-            target_movement_type: 'RECEIVE',
-            target_quantity_delta: initial,
-            target_reason: 'Stock inicial de alta de artículo',
-            target_reference: 'Alta de catálogo',
+        if (hasInitialStock && savedId) {
+          const count = await supabase.rpc('count_maintenance_material_stock', {
+            target_hotel_id: hotel.id, target_material_id: savedId, target_quantity: initial,
+            target_reason: 'Inventario físico inicial de alta de artículo', target_reference: 'Alta de catálogo',
           })
-          if (movement.error) {
-            setError('El artículo se creó, pero el stock inicial no pudo registrarse: ' + movement.error.message)
-          } else {
-            setSuccess('Artículo creado y stock inicial registrado.')
-          }
+          if (count.error) setError('El artículo se creó, pero no se pudo registrar el conteo inicial: ' + count.error.message)
+          else setSuccess('Artículo creado e inventario físico inicial registrado.')
         } else {
-          setSuccess('Artículo creado.')
+          setSuccess('Artículo creado. El stock queda pendiente de inventario físico.')
         }
       }
     }
@@ -487,7 +496,35 @@ export default function MaterialsInventoryPage() {
     await loadData()
   }
 
+  function openStockCount(material: Material) {
+    setCountingMaterial(material)
+    setStockCountForm({ quantity: material.stock_verified ? String(material.stock_quantity) : '', reason: 'Inventario físico', reference: '' })
+    setError('')
+  }
+
+  async function saveStockCount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!hotel?.id || !countingMaterial || savingStockCount) return
+    if (!moduleReady) { setError('La migración 078 no está disponible. No se ha guardado el conteo.'); return }
+    if (stockCountForm.quantity.trim() === '') { setError('Introduce la cantidad contada, incluido 0 si el inventario físico es cero.'); return }
+    const quantity = Number(stockCountForm.quantity)
+    if (!Number.isFinite(quantity) || quantity < 0 || Math.abs(Math.round(quantity * 100) - quantity * 100) > 1e-8) { setError('La cantidad contada debe ser cero o mayor, con máximo dos decimales.'); return }
+    if (stockCountForm.reason.trim().length < 2) { setError('Indica el motivo del conteo físico.'); return }
+    if (!window.confirm('¿Confirmas el conteo físico de ' + formatQuantity(quantity) + ' ' + countingMaterial.unit_of_measure + ' para «' + countingMaterial.description + '»? El saldo anterior se ajustará al recuento.')) return
+    setSavingStockCount(true); setError('')
+    const result = await supabase.rpc('count_maintenance_material_stock', {
+      target_hotel_id: hotel.id, target_material_id: countingMaterial.id, target_quantity: quantity,
+      target_reason: stockCountForm.reason.trim(), target_reference: stockCountForm.reference.trim() || null,
+    })
+    setSavingStockCount(false)
+    if (result.error) { setError('No se registró el conteo físico: ' + result.error.message); return }
+    setCountingMaterial(null)
+    setSuccess('Conteo físico guardado. El stock y el movimiento histórico se han actualizado.')
+    await loadData()
+  }
+
   function openMovement(material: Material, type: MovementForm['type']) {
+    if (!material.stock_verified) { setError('Antes de registrar entradas, salidas o ajustes, confirma el inventario físico del artículo.'); return }
     setMovementMaterial(material)
     setMovementForm({ ...EMPTY_MOVEMENT, type })
     setError('')
@@ -497,8 +534,9 @@ export default function MaterialsInventoryPage() {
     event.preventDefault()
     if (!hotel?.id || !movementMaterial || savingMovement) return
     if (!moduleReady) { setError('La migración 078 no está disponible. No se ha registrado el movimiento.'); return }
+    if (!movementMaterial.stock_verified) { setError('Primero registra un conteo físico del stock.'); return }
     const quantity = Number(movementForm.quantity)
-    if (!Number.isFinite(quantity) || (movementForm.type === 'ADJUSTMENT' ? quantity === 0 : quantity <= 0)) {
+    if (!Number.isFinite(quantity) || Math.abs(Math.round(quantity * 100) - quantity * 100) > 1e-8 || (movementForm.type === 'ADJUSTMENT' ? quantity === 0 : quantity <= 0)) {
       setError(movementForm.type === 'ADJUSTMENT' ? 'Introduce una diferencia distinta de cero (positiva o negativa).' : 'Introduce una cantidad mayor que cero.')
       return
     }
@@ -933,7 +971,7 @@ export default function MaterialsInventoryPage() {
                             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
                               <span>Proveedor: <strong className="text-slate-700">{provider?.label ?? 'Sin proveedor'}</strong></span>
                               <span>Código: <strong className="text-slate-700">{material.order_code}</strong></span>
-                              <span>Stock actual: <strong className={moduleReady && Number(material.stock_quantity) <= Number(material.minimum_stock) ? 'text-rose-700' : 'text-slate-700'}>{moduleReady ? formatQuantity(material.stock_quantity) : '—'} {moduleReady ? material.unit_of_measure : ''}</strong></span>
+                              <span>Stock actual: <strong className={moduleReady && material.stock_verified && Number(material.stock_quantity) <= Number(material.minimum_stock) ? 'text-rose-700' : 'text-slate-700'}>{moduleReady ? (material.stock_verified ? formatQuantity(material.stock_quantity) : 'Pendiente de inventario') : '—'} {moduleReady && material.stock_verified ? material.unit_of_measure : ''}</strong></span>
                               {material.purchase_url && <button type="button" onClick={() => openLinePurchaseLink(material.purchase_url)} className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"><ExternalLink size={11}/> Enlace de compra</button>}
                             </div>
                           )}
@@ -977,6 +1015,9 @@ export default function MaterialsInventoryPage() {
             {lowStockMaterials.length > 0 && (
               <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"><AlertTriangle size={16} className="mt-0.5 shrink-0"/><span><strong>{lowStockMaterials.length} artículo(s)</strong> están en su mínimo o por debajo. El indicador no crea una petición automática.</span></div>
             )}
+            {uncountedMaterials.length > 0 && (
+              <div className="flex items-start gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600"><ClipboardList size={16} className="mt-0.5 shrink-0"/><span><strong>{uncountedMaterials.length} artículo(s)</strong> están pendientes de inventario físico. No se contabilizan como stock cero ni generan falsas alertas de mínimo.</span></div>
+            )}
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] border-collapse text-xs">
                 <thead><tr className="border-b bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
@@ -985,18 +1026,19 @@ export default function MaterialsInventoryPage() {
                 <tbody>
                   {inventoryFiltered.map((material) => {
                     const provider = providerById.get(material.provider_id)
-                    const low = moduleReady && Number(material.stock_quantity) <= Number(material.minimum_stock)
+                    const low = moduleReady && material.stock_verified && Number(material.stock_quantity) <= Number(material.minimum_stock)
                     return <tr key={material.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-3 py-3"><div className="font-semibold text-slate-800">{material.description}</div><div className="mt-0.5 text-[10px] text-slate-500">{material.order_code}{material.reference_code ? ' · ' + material.reference_code : ''}</div></td>
                       <td className="px-3 py-3 text-slate-600">{provider?.label ?? '—'}</td>
                       <td className="px-3 py-3 text-slate-500">{material.storage_location || '—'}</td>
-                      <td className="px-3 py-3"><span className={'font-bold tabular-nums ' + (low ? 'text-rose-700' : 'text-slate-800')}>{moduleReady ? formatQuantity(material.stock_quantity) : '—'} {moduleReady ? material.unit_of_measure : ''}</span></td>
+                      <td className="px-3 py-3"><span className={'font-bold tabular-nums ' + (low ? 'text-rose-700' : 'text-slate-800')}>{moduleReady ? (material.stock_verified ? formatQuantity(material.stock_quantity) : 'Pendiente de inventario') : '—'} {moduleReady && material.stock_verified ? material.unit_of_measure : ''}</span></td>
                       <td className="px-3 py-3 text-slate-600">{moduleReady ? formatQuantity(material.minimum_stock) : '—'} {moduleReady ? material.unit_of_measure : ''}</td>
                       <td className="px-3 py-3">{material.purchase_url ? <button type="button" onClick={() => openLinePurchaseLink(material.purchase_url)} className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"><ExternalLink size={13}/>Abrir</button> : '—'}</td>
                       <td className="px-3 py-3"><div className="flex gap-1.5">
-                        <button type="button" title="Registrar entrada" onClick={() => openMovement(material, 'RECEIVE')} disabled={!moduleReady} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50"><ArrowDownToLine size={14}/></button>
-                        <button type="button" title="Registrar salida" onClick={() => openMovement(material, 'ISSUE')} disabled={!moduleReady} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50"><ArrowUpFromLine size={14}/></button>
-                        <button type="button" title="Ajustar stock" onClick={() => openMovement(material, 'ADJUSTMENT')} disabled={!moduleReady} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"><SlidersHorizontal size={14}/></button>
+                        <button type="button" title="Registrar conteo físico" onClick={() => openStockCount(material)} disabled={!moduleReady} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-40"><ClipboardList size={14}/></button>
+                        <button type="button" title="Registrar entrada" onClick={() => openMovement(material, 'RECEIVE')} disabled={!moduleReady || !material.stock_verified} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"><ArrowDownToLine size={14}/></button>
+                        <button type="button" title="Registrar salida" onClick={() => openMovement(material, 'ISSUE')} disabled={!moduleReady || !material.stock_verified} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 disabled:opacity-40"><ArrowUpFromLine size={14}/></button>
+                        <button type="button" title="Ajustar diferencia" onClick={() => openMovement(material, 'ADJUSTMENT')} disabled={!moduleReady || !material.stock_verified} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40"><SlidersHorizontal size={14}/></button>
                       </div></td>
                     </tr>
                   })}
@@ -1006,14 +1048,15 @@ export default function MaterialsInventoryPage() {
             <div className="space-y-2 p-3 md:hidden">
               {inventoryFiltered.map((material) => {
                 const provider = providerById.get(material.provider_id)
-                const low = moduleReady && Number(material.stock_quantity) <= Number(material.minimum_stock)
+                const low = moduleReady && material.stock_verified && Number(material.stock_quantity) <= Number(material.minimum_stock)
                 return <div key={material.id} className="rounded-xl border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-slate-800">{material.description}</div><div className="mt-1 text-[10px] text-slate-500">{material.order_code} · {provider?.label ?? 'Sin proveedor'}</div></div><div className={'shrink-0 text-right text-sm font-bold ' + (low ? 'text-rose-700' : 'text-slate-800')}>{moduleReady ? formatQuantity(material.stock_quantity) : '—'}<div className="text-[9px] font-medium text-slate-400">{moduleReady ? material.unit_of_measure : ''}</div></div></div>
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-slate-800">{material.description}</div><div className="mt-1 text-[10px] text-slate-500">{material.order_code} · {provider?.label ?? 'Sin proveedor'}</div></div><div className={'shrink-0 text-right text-sm font-bold ' + (low ? 'text-rose-700' : 'text-slate-800')}>{moduleReady ? (material.stock_verified ? formatQuantity(material.stock_quantity) : 'Pendiente de inventario') : '—'}<div className="text-[9px] font-medium text-slate-400">{moduleReady && material.stock_verified ? material.unit_of_measure : ''}</div></div></div>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
-                    <div className="flex gap-1.5">
-                      <button type="button" onClick={() => openMovement(material, 'RECEIVE')} disabled={!moduleReady} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-emerald-200 px-2.5 text-[10px] font-semibold text-emerald-700"><ArrowDownToLine size={13}/>Entrada</button>
-                      <button type="button" onClick={() => openMovement(material, 'ISSUE')} disabled={!moduleReady} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-amber-200 px-2.5 text-[10px] font-semibold text-amber-700"><ArrowUpFromLine size={13}/>Salida</button>
-                      <button type="button" onClick={() => openMovement(material, 'ADJUSTMENT')} disabled={!moduleReady} className="inline-flex min-h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600" aria-label="Ajustar"><SlidersHorizontal size={13}/></button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => openStockCount(material)} disabled={!moduleReady} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-blue-200 px-2.5 text-[10px] font-semibold text-blue-700 disabled:opacity-40"><ClipboardList size={13}/>Conteo</button>
+                      <button type="button" onClick={() => openMovement(material, 'RECEIVE')} disabled={!moduleReady || !material.stock_verified} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-emerald-200 px-2.5 text-[10px] font-semibold text-emerald-700 disabled:opacity-40"><ArrowDownToLine size={13}/>Entrada</button>
+                      <button type="button" onClick={() => openMovement(material, 'ISSUE')} disabled={!moduleReady || !material.stock_verified} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-amber-200 px-2.5 text-[10px] font-semibold text-amber-700 disabled:opacity-40"><ArrowUpFromLine size={13}/>Salida</button>
+                      <button type="button" onClick={() => openMovement(material, 'ADJUSTMENT')} disabled={!moduleReady || !material.stock_verified} className="inline-flex min-h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40" aria-label="Ajustar diferencia"><SlidersHorizontal size={13}/></button>
                     </div>
                     {material.purchase_url && <button type="button" onClick={() => openLinePurchaseLink(material.purchase_url)} className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700"><ExternalLink size={12}/>Comprar</button>}
                   </div>
@@ -1036,7 +1079,7 @@ export default function MaterialsInventoryPage() {
             <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
               {catalogFiltered.map((material) => {
                 const provider = providerById.get(material.provider_id)
-                const low = moduleReady && Number(material.stock_quantity) <= Number(material.minimum_stock)
+                const low = moduleReady && material.stock_verified && Number(material.stock_quantity) <= Number(material.minimum_stock)
                 return <article key={material.id} className={'rounded-xl border p-3 ' + (material.active ? 'border-slate-200' : 'border-dashed border-slate-300 bg-slate-50 opacity-70')}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0"><h3 className="text-sm font-semibold text-slate-800">{material.description}</h3><p className="mt-1 text-[10px] text-slate-500">{material.order_code}{material.reference_code ? ' · Ref. ' + material.reference_code : ''}</p></div>
@@ -1044,7 +1087,7 @@ export default function MaterialsInventoryPage() {
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
                     <div className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-400">Proveedor</span><strong className="mt-0.5 block text-slate-700">{provider?.label ?? '—'}</strong></div>
-                    <div className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-400">Stock actual</span><strong className={'mt-0.5 block ' + (low ? 'text-rose-700' : 'text-slate-700')}>{moduleReady ? formatQuantity(material.stock_quantity) : '—'} {moduleReady ? material.unit_of_measure : ''}</strong></div>
+                    <div className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-400">Stock actual</span><strong className={'mt-0.5 block ' + (low ? 'text-rose-700' : 'text-slate-700')}>{moduleReady ? (material.stock_verified ? formatQuantity(material.stock_quantity) : 'Pendiente de inventario') : '—'} {moduleReady && material.stock_verified ? material.unit_of_measure : ''}</strong></div>
                   </div>
                   {material.purchase_url && <button type="button" onClick={() => openLinePurchaseLink(material.purchase_url)} className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 hover:underline"><ExternalLink size={13}/>Enlace / portal de compra</button>}
                   <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
@@ -1108,9 +1151,21 @@ export default function MaterialsInventoryPage() {
                 {movements.slice(0, 12).map((movement, index) => {
                   const material = materials.find((item) => item.id === movement.material_id)
                   const delta = Number(movement.quantity_delta ?? 0)
+                  const movementType = String(movement.movement_type ?? '')
+                  const movementLabel = movementType === 'COUNT' ? 'Conteo físico'
+                    : movementType === 'RECEIVE' ? 'Entrada'
+                    : movementType === 'ISSUE' ? 'Salida / consumo'
+                    : movementType === 'ADJUSTMENT' ? 'Ajuste'
+                    : 'Movimiento'
+                  const previousStock = movement.stock_before == null ? null : Number(movement.stock_before)
+                  const currentStock = movement.stock_after == null ? null : Number(movement.stock_after)
+                  const stockSummary = movementType === 'COUNT' && previousStock === null
+                    ? 'Saldo establecido: ' + formatQuantity(currentStock ?? 0) + ' ' + (material?.unit_of_measure ?? '')
+                    : (delta > 0 ? '+' : '') + formatQuantity(delta) + ' ' + (material?.unit_of_measure ?? '')
+                  const quantityTone = delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-rose-700' : 'text-slate-600'
                   return <div key={String(movement.id ?? index)} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-[10px]">
-                    <div className="min-w-0"><span className="font-semibold text-slate-700">{material?.description ?? 'Artículo'}</span><span className="ml-2 text-slate-400">{String(movement.reason ?? '')}</span><div className="mt-0.5 text-slate-400">{new Date(String(movement.created_at)).toLocaleString('es-ES')}</div></div>
-                    <div className={'shrink-0 font-bold tabular-nums ' + (delta > 0 ? 'text-emerald-700' : 'text-rose-700')}>{delta > 0 ? '+' : ''}{formatQuantity(delta)} {material?.unit_of_measure ?? ''}</div>
+                    <div className="min-w-0"><span className="font-semibold text-slate-700">{material?.description ?? 'Artículo'}</span><span className="ml-2 text-slate-500">{movementLabel} · {String(movement.reason ?? '')}</span><div className="mt-0.5 text-slate-400">{new Date(String(movement.created_at)).toLocaleString('es-ES')}</div></div>
+                    <div className={'shrink-0 font-bold tabular-nums ' + quantityTone}>{stockSummary}</div>
                   </div>
                 })}
                 {movements.length === 0 && <p className="px-1 py-3 text-xs text-slate-400">Todavía no hay movimientos registrados.</p>}
@@ -1177,12 +1232,27 @@ export default function MaterialsInventoryPage() {
               <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Proveedor *</span><select required value={materialForm.provider_id} onChange={(event) => setMaterialForm((value) => ({ ...value, provider_id: event.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="">Selecciona proveedor…</option>{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
               <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Unidad de medida</span><select value={materialForm.unit_of_measure} onChange={(event) => setMaterialForm((value) => ({ ...value, unit_of_measure: event.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="ud">Unidad (ud)</option><option value="paquete">Paquete</option><option value="caja">Caja</option><option value="m">Metro (m)</option><option value="m²">Metro cuadrado (m²)</option><option value="l">Litro (l)</option><option value="kg">Kilogramo (kg)</option><option value="rollo">Rollo</option><option value="par">Par</option></select></label>
               <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Stock mínimo</span><input type="number" min="0" step="0.01" value={materialForm.minimum_stock} onChange={(event) => setMaterialForm((value) => ({ ...value, minimum_stock: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/></label>
-              {!editingMaterialId && <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Stock inicial</span><input type="number" min="0" step="0.01" value={materialForm.initial_stock} onChange={(event) => setMaterialForm((value) => ({ ...value, initial_stock: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/><span className="mt-1 block text-[10px] text-slate-400">Se registra como movimiento de entrada.</span></label>}
+              {!editingMaterialId && <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Conteo físico inicial (opcional)</span><input type="number" min="0" step="0.01" value={materialForm.initial_stock} onChange={(event) => setMaterialForm((value) => ({ ...value, initial_stock: event.target.value }))} placeholder="Déjalo vacío si no está contado" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/><span className="mt-1 block text-[10px] text-slate-400">Si introduces 0, queda confirmado como cero real. En blanco, el stock se marcará pendiente de inventario.</span></label>}
               <label className="block sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Enlace de compra / portal</span><input type="url" value={materialForm.purchase_url} onChange={(event) => setMaterialForm((value) => ({ ...value, purchase_url: event.target.value }))} placeholder="https://…" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/><span className="mt-1 block text-[10px] text-slate-400">Puedes guardar el enlace directo al producto o al portal del proveedor.</span></label>
               <label className="block sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Ubicación del almacén</span><input value={materialForm.storage_location} onChange={(event) => setMaterialForm((value) => ({ ...value, storage_location: event.target.value }))} placeholder="Ej. Almacén SSTT · Estantería B2" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/></label>
               <label className="block sm:col-span-2"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Notas</span><textarea rows={2} value={materialForm.notes} onChange={(event) => setMaterialForm((value) => ({ ...value, notes: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/></label>
             </div>
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 p-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setMaterialEditorOpen(false)} disabled={savingMaterial} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancelar</button><button type="submit" disabled={!moduleReady || savingMaterial || providers.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white disabled:opacity-50"><CheckCircle2 size={14}/>{savingMaterial ? 'Guardando…' : 'Guardar artículo'}</button></footer>
+          </form>
+        </div>
+      )}
+
+      {countingMaterial && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/40 p-3 backdrop-blur-[2px]">
+          <form onSubmit={(event) => void saveStockCount(event)} className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b border-slate-200 px-4 py-4"><div><h2 className="text-base font-bold">Conteo físico de stock</h2><p className="mt-1 text-xs text-slate-500">{countingMaterial.description}</p></div><button type="button" onClick={() => setCountingMaterial(null)} disabled={savingStockCount} className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100" aria-label="Cerrar"><X size={16}/></button></header>
+            <div className="space-y-3 p-4">
+              <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{countingMaterial.stock_verified ? 'El conteo reemplazará el saldo contable actual de ' + formatQuantity(countingMaterial.stock_quantity) + ' ' + countingMaterial.unit_of_measure + '.' : 'El saldo anterior es desconocido. Este conteo establecerá el primer stock fiable; no se asumirá que el cero por defecto era real.'}</div>
+              <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Cantidad contada *</span><input required type="number" min="0" step="0.01" value={stockCountForm.quantity} onChange={(event) => setStockCountForm((value) => ({ ...value, quantity: event.target.value }))} placeholder="Incluye 0 si no hay existencias" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/><span className="mt-1 block text-[10px] text-slate-400">Cantidad real encontrada en almacén, no una previsión.</span></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Motivo *</span><input required minLength={2} value={stockCountForm.reason} onChange={(event) => setStockCountForm((value) => ({ ...value, reason: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">Referencia / hoja de inventario</span><input value={stockCountForm.reference} onChange={(event) => setStockCountForm((value) => ({ ...value, reference: event.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"/></label>
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-slate-200 p-4"><button type="button" onClick={() => setCountingMaterial(null)} disabled={savingStockCount} className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold">Cancelar</button><button type="submit" disabled={!moduleReady || savingStockCount} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white disabled:opacity-50"><CheckCircle2 size={14}/>{savingStockCount ? 'Guardando conteo…' : 'Confirmar conteo'}</button></footer>
           </form>
         </div>
       )}
