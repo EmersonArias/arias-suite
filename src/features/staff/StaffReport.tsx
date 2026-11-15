@@ -416,42 +416,75 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
 
     const heading=esc(hotelName)+' · '+esc(periodLabel)
-    // El botón Imprimir utiliza también el formato mensual compacto de una sola hoja.
+    // Impresión del mes: mismo diseño semanal apilado, en A4 vertical.
     if(period==='MONTH'){
-      const monthDays=rawDates
+      const monthWeeks=[...new Set(rawDates.map(value=>mondayOf(value)))].map(start=>({
+        start,week:Array.from({length:7},(_,i)=>addDays(start,i)),
+      }))
+      const groupCount=Math.max(1,monthWeeks.length)
       const peopleCount=Math.max(1,displayedOperators.length)
-      const rowHeight=Math.min(11,160/peopleCount)
-      const fontSize=Math.min(6,Math.max(2,rowHeight*0.72))
-      const dayHeaders=monthDays.map(date=>{
-        const d=fromISO(date)
-        const holiday=holidaySet.has(date)
-        const headingStyle=holiday?' style="background:#1d4ed8;color:#fff"':''
-        return '<th'+headingStyle+'>'+esc(weekdays[(d.getDay()+6)%7])+'<br>'+d.getDate()+'</th>'
-      }).join('')
-      const workers=displayedOperators.map(person=>{
-        const cells=monthDays.map(date=>{
-          const inRange=dateSet.has(date)
-          const entry=selectedEntry(person.id,date)
-          const color=colorForEntry(entry)
-          const content=inRange?esc(stateCode(entry)).replace(/\n/g,'<br>'):''
-          return '<td style="background:'+(inRange?color.bg:'#f8fafc')+';color:'+color.fg+'">'+content+'</td>'
+      const captionMm=6,dayHeadMm=7,gapMm=1.6
+      const rowMm=Math.min(17,Math.max(0.3,
+        (207-groupCount*(captionMm+dayHeadMm)-(groupCount-1)*gapMm)/(groupCount*peopleCount)))
+      const fontPt=Math.min(9,Math.max(2,rowMm*0.86))
+      const bodyHtml=monthWeeks.map(({start,week})=>{
+        const daysHeading=week.map((date,i)=>{
+          const inside=date>=snapshot.start&&date<=snapshot.end
+          const holiday=inside&&holidaySet.has(date)
+          const weekend=i>=5
+          const background=!inside?'#f2f5f9':holiday?'#1d4ed8':weekend?'#e2e8f0':'#f8fafc'
+          const color=holiday?'#fff':!inside?'#94a3b8':weekend?'#9f1239':'#1e293b'
+          return '<th style="background:'+background+';color:'+color+'">'+esc(dateHeading(date,i))+'</th>'
         }).join('')
-        return '<tr><th class="person">'+esc(person.display_name)+'</th>'+cells+'</tr>'
+        const people=displayedOperators.map(person=>{
+          const cells=week.map(date=>{
+            const inside=date>=snapshot.start&&date<=snapshot.end
+            const active=inside&&dateSet.has(date)
+            const entry=active?selectedEntry(person.id,date):undefined
+            const colors=colorForEntry(entry)
+            const bg=!inside?'#f5f7fa':active?colors.bg:'#f8fafc'
+            const value=active?esc(stateCode(entry)).replace(/\n/g,'<br>'):''
+            return '<td style="background:'+bg+';color:'+colors.fg+'">'+value+'</td>'
+          }).join('')
+          return '<tr><th class="person">'+esc(person.display_name)+'</th>'+cells+'</tr>'
+        }).join('')
+        return '<section class="week"><h2>'+esc(weekCaption(start))+'</h2>'+
+          '<table><thead><tr><th class="person">Trabajador</th>'+daysHeading+
+          '</tr></thead><tbody>'+people+'</tbody></table></section>'
       }).join('')
-      const compactHtml='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte mensual · 1 hoja</title><style>'+
-        '@page{size:A4 landscape;margin:6mm}body{font-family:Arial,sans-serif;color:#1e293b;margin:0;font-size:8pt}'+
-        'h1{font-size:12pt;margin:0 0 2mm}p{font-size:7pt;margin:0 0 2mm}'+
-        'table{border-collapse:collapse;table-layout:fixed;width:100%}'+
-        'th,td{border:1px solid #cbd5e1;text-align:center;vertical-align:middle;'+
-        'padding:0;line-height:1.02;overflow:hidden;font-size:'+fontSize+'pt;height:'+rowHeight+'mm}'+
-        'thead th{height:8mm;background:#f1f5f9}.person{width:35mm;text-align:left;padding-left:1mm}'+
-        'tr{break-inside:avoid}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-        '</style></head><body><h1>PLANIFICADOR HORARIO · MENSUAL</h1><p>'+
-        heading+' · '+esc(stateLabel)+'</p><table><thead><tr><th class="person">Trabajador</th>'+
-        dayHeaders+'</tr></thead><tbody>'+workers+'</tbody></table>'+
-        '<p style="margin-top:3mm">9-13 / 15-19: turno partido (8 h). '+esc(summaryNote)+'</p>'+
+      const legendValues=[
+        ['T','Turno / horario','#ffffff','#334155'],['D','Descanso','#fecaca','#7f1d1d'],
+        ['V','Vacaciones disfrutadas','#047857','#ffffff'],['A25','Vacaciones anteriores','#a7f3d0','#064e3b'],
+        ['F','Festivo disfrutado','#fcd34d','#78350f'],['R','Recuperable','#bae6fd','#0c4a6e'],
+        ['B','Baja médica','#f5d0fe','#701a75'],['P','Permiso','#fef3c7','#92400e'],
+        ['L','Asuntos propios','#fef3c7','#92400e'],['E','Formación','#ccfbf1','#115e59'],
+        ['I','Ausencia','#fecaca','#991b1b'],['O','Otros','#ffedd5','#9a3412'],
+        ['V?','Sin confirmar','#ecfdf5','#065f46'],['AZ','Festivo en cabecera','#1d4ed8','#ffffff'],
+      ]
+      const legendHtml=legendValues.map(([code,label,bg,fg])=>
+        '<span class="legend-cell"><b style="background:'+bg+';color:'+fg+'">'+esc(code)+'</b>'+
+        '<span>'+esc(label)+'</span></span>').join('')
+      const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Planificador mensual · A4 vertical</title><style>'+
+        '@page{size:A4 portrait;margin:7mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+        'html,body{margin:0;padding:0;color:#1e293b;font-family:Arial,sans-serif}'+
+        'h1{font-size:13pt;margin:0 0 1.5mm}p{font-size:7.5pt;margin:0 0 1mm}'+
+        '.weeks{margin-top:3mm}.week{break-inside:avoid;page-break-inside:avoid;margin-bottom:'+gapMm+'mm}'+
+        '.week h2{height:'+captionMm+'mm;line-height:'+captionMm+'mm;padding:0 2mm;margin:0;background:#e2e8f0;font-size:8pt}'+
+        'table{width:100%;table-layout:fixed;border-collapse:collapse}'+
+        'th,td{border:1px solid #cbd5e1;text-align:center;vertical-align:middle;padding:0;overflow:hidden;'+
+        'line-height:1.05;font-size:'+fontPt+'pt;height:'+rowMm+'mm}'+
+        'thead th{height:'+dayHeadMm+'mm;background:#f8fafc;font-size:8pt}'+
+        'th.person{width:39mm;text-align:left;padding-left:1mm;background:#f8fafc;font-weight:700}'+
+        '.legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1mm 1.4mm;margin-top:2mm}'+
+        '.legend-cell{display:flex;align-items:center;gap:1mm;font-size:6.5pt;white-space:nowrap}'+
+        '.legend-cell b{display:inline-flex;align-items:center;justify-content:center;min-width:7mm;height:4mm;border:1px solid #cbd5e1}'+
+        '.foot{font-size:6.5pt;margin-top:2mm;color:#475569}'+
+        '</style></head><body><h1>PLANIFICADOR HORARIO</h1><p>'+
+        heading+' · '+esc(stateLabel)+' · '+(snapshot.operatorId==='ALL'?'Todos los operarios':esc(displayedOperators[0]?.display_name??''))+
+        '</p><div class="weeks">'+bodyHtml+'</div><div class="legend">'+legendHtml+'</div>'+
+        '<p class="foot">9–13 / 15–19: turno partido de 8 horas. '+esc(summaryNote)+'</p>'+
         '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
-      page.document.open();page.document.write(compactHtml);page.document.close()
+      page.document.open();page.document.write(html);page.document.close()
       return
     }
     const weeklyTables=weekGroups.map(({start,week})=>{
@@ -556,7 +589,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div><h3 className="text-sm font-bold">Vista previa · {periodLabel}</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">{stateLabel} · {displayedOperators.length} operario(s) · {dates.length} día(s)</p></div>
-        <span className="text-[10px] text-slate-500">{period==='MONTH'?'A4 horizontal · una sola página':'A4 horizontal · páginas automáticas'}</span>
+        <span className="text-[10px] text-slate-500">{period==='MONTH'?'A4 vertical · semanas · una sola página':'A4 horizontal · páginas automáticas'}</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {totals.map(t=><div key={t.person.id} className="rounded-md bg-slate-50 p-2">
