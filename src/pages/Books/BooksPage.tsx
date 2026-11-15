@@ -4,6 +4,7 @@ import {
   Bell,
   CircleHelp,
   CalendarClock,
+  Clock3,
   Maximize2,
   X,
   Minimize2,
@@ -18,7 +19,7 @@ import { supabase } from '../../lib/supabase'
 import { useHotelScope } from '../../shared/context/HotelScopeContext'
 
 type HomeRegister = {
-  iconIndex: number
+  iconIndex: number | null
   name: string
   path: string | null
   comingSoon?: boolean
@@ -90,6 +91,7 @@ const registers: HomeRegister[] = [
   { iconIndex: 2, name: 'Materiales y stock', path: '/materials' },
   { iconIndex: 3, name: 'Planificador horario', path: '/planificador-horario' },
   { iconIndex: 4, name: 'Proveedores', path: '/providers' },
+  { iconIndex: null, name: 'Registro de jornada', path: '/registro-jornada' },
 ]
 
 export default function BooksPage() {
@@ -493,7 +495,7 @@ export default function BooksPage() {
         </div>
 
         <main className="flex min-h-0 flex-1 flex-col">
-          <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-5 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
+          <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-6 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
             {filteredRegisters.map((register) => (
               <button
                 key={register.name}
@@ -506,15 +508,16 @@ export default function BooksPage() {
                 className="group flex min-h-[145px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:scale-[1.025] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex min-h-[112px] flex-1 flex-col items-center justify-center px-3 py-3">
-                  <span
-                    aria-hidden="true"
-                    className="block h-14 w-14 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110"
-                    style={{
-                      backgroundImage: 'url(/assets/home-icons-3d.webp)',
-                      backgroundSize: '500% 100%',
-                      backgroundPosition: `${register.iconIndex * 25}% 50%`,
-                    }}
-                  />
+                  {register.iconIndex===null
+                    ? <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 transition-transform duration-200 group-hover:scale-110"><Clock3 size={36}/></span>
+                    : <span aria-hidden="true"
+                        className="block h-14 w-14 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110"
+                        style={{
+                          backgroundImage: 'url(/assets/home-icons-3d.webp)',
+                          backgroundSize: '500% 100%',
+                          backgroundPosition: `${register.iconIndex * 25}% 50%`,
+                        }}
+                      />}
                   <span className="mt-2 text-center text-xs font-medium leading-tight text-slate-700">
                     {register.name}
                   </span>
