@@ -97,7 +97,6 @@ begin
   returning * into v_saved;
   return v_saved;
 end;
-$function$
-
+$function$;
 revoke all on function public.staff_clock_punch(uuid,text,double precision,double precision,double precision,text) from public,anon,authenticated;
 grant execute on function public.staff_clock_punch(uuid,text,double precision,double precision,double precision,text) to authenticated;
