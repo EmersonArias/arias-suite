@@ -20,6 +20,7 @@ import { useHotelScope } from '../../shared/context/HotelScopeContext'
 
 type HomeRegister = {
   iconIndex: number | null
+  iconSrc?: string
   name: string
   path: string | null
   comingSoon?: boolean
@@ -87,6 +88,7 @@ function alertStatusView(alert: MaintenanceAlert) {
 
 const registers: HomeRegister[] = [
   { iconIndex: 0, name: 'Mantenimiento', path: '/maintenance' },
+  { iconIndex: null, iconSrc: '/assets/record-icons-3d/daily.webp', name: 'Registros técnicos', path: '/registros-tecnicos' },
   { iconIndex: 1, name: 'Pendientes', path: '/maintenance/pending' },
   { iconIndex: 2, name: 'Materiales y stock', path: '/materials' },
   { iconIndex: 3, name: 'Planificador horario', path: '/planificador-horario' },
@@ -495,7 +497,7 @@ export default function BooksPage() {
         </div>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-6 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
+          <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-4 xl:grid-cols-7 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
             {filteredRegisters.map((register) => (
               <button
                 key={register.name}
@@ -508,7 +510,9 @@ export default function BooksPage() {
                 className="group flex min-h-[145px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:scale-[1.025] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex min-h-[112px] flex-1 flex-col items-center justify-center px-3 py-3">
-                  {register.iconIndex===null
+                  {register.iconSrc
+                    ? <img src={register.iconSrc} alt="" aria-hidden="true" width={512} height={512} className="h-14 w-14 object-contain transition-transform duration-200 group-hover:scale-110" />
+                    : register.iconIndex===null
                     ? <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 transition-transform duration-200 group-hover:scale-110"><Clock3 size={36}/></span>
                     : <span aria-hidden="true"
                         className="block h-14 w-14 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110"

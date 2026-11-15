@@ -15,7 +15,7 @@ export default function MaintenanceRecordPage() {
               <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-11" />
               <div><h1 className="text-xl font-bold sm:text-2xl">Registro</h1><p className="text-xs text-slate-500 sm:text-sm">Registro oficial digital</p></div>
             </div>
-            <div className="flex gap-2"><BackButton onBack={() => navigate('/maintenance/records')} /><HomeButton onHome={() => navigate('/')} /></div>
+            <div className="flex gap-2"><BackButton onBack={() => navigate('/registros-tecnicos')} /><HomeButton onHome={() => navigate('/')} /></div>
           </div>
         </header>
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">

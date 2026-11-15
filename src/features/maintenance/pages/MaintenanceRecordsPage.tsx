@@ -28,9 +28,9 @@ export default function MaintenanceRecordsPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-11" />
-              <div><h1 className="text-xl font-bold sm:text-2xl">Registros</h1><p className="text-xs text-slate-500 sm:text-sm">Libros y registros oficiales</p></div>
+              <div><h1 className="text-xl font-bold sm:text-2xl">Registros técnicos</h1><p className="text-xs text-slate-500 sm:text-sm">Controles y revisiones del hotel</p></div>
             </div>
-            <div className="flex gap-2"><BackButton onBack={() => navigate('/maintenance/audit')} /><HomeButton onHome={() => navigate('/')} /></div>
+            <div className="flex gap-2"><BackButton onBack={() => navigate('/')} /><HomeButton onHome={() => navigate('/')} /></div>
           </div>
         </header>
 

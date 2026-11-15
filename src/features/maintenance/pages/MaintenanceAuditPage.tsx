@@ -1,11 +1,10 @@
 
-import { Archive, ClipboardList, FileCheck2, FileText, Image as ImageIcon } from 'lucide-react'
+import { Archive, FileCheck2, FileText, Image as ImageIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 
 const items = [
-  ['Registros', 'Consulta de registros oficiales y sus historiales.', ClipboardList, '/maintenance/audit/records'],
   ['Certificados e informes', 'Documentación emitida por empresas y mantenedores.', FileCheck2, '/reports'],
   ['Evidencias', 'Fotografías y documentos asociados a ejecuciones.', ImageIcon, '/maintenance/records'],
   ['Histórico', 'Consulta de tickets y trabajos ya finalizados.', Archive, '/maintenance/tickets/history'],

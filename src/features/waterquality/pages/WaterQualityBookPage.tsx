@@ -282,7 +282,7 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
               </div>
             </div>
             <div className='flex flex-wrap items-center gap-2'>
-              <BackButton onBack={() => navigate('/maintenance/audit/records')} />
+              <BackButton onBack={() => navigate('/registros-tecnicos')} />
               <HomeButton onHome={() => navigate('/')} />
               <div className='hidden sm:flex gap-2'>
                 <ActionButton icon={Plus} label='Nueva muestra' onClick={handleNew} />
