@@ -256,7 +256,7 @@ export default function RoomFancoilPreventivesPage() {
     }, { onConflict: 'hotel_id,room_code' })
 
     if (error) {
-      setNotice(`No se ha podido guardar el preventivo de el preventivo de la habitación ${code} en la base de datos. Comprueba tus permisos e inténtalo de nuevo.`)
+      setNotice(`No se ha podido guardar el preventivo de la habitación ${code} en la base de datos. Comprueba tus permisos e inténtalo de nuevo.`)
       return
     }
     setRecords((current) => ({ ...current, [code]: { ...updated, technician: loggedInTechnician || updated.technician } }))
@@ -293,7 +293,7 @@ export default function RoomFancoilPreventivesPage() {
     }, { onConflict: 'hotel_id,room_code' })
 
     if (error) {
-      setNotice(`No se ha podido guardar la habitación ${roomCodeToSave}. Comprueba tus permisos e inténtalo de nuevo.`)
+      setNotice(`No se ha podido guardar el preventivo de la habitación ${roomCodeToSave}. Comprueba tus permisos e inténtalo de nuevo.`)
       return
     }
 
@@ -548,7 +548,7 @@ export default function RoomFancoilPreventivesPage() {
             <p className="mt-2 text-sm leading-5 text-slate-600">
               {pendingConfirmation.kind === 'status'
                 ? `¿Cambiar la habitación ${pendingConfirmation.code} a «${STATUS_LABELS[pendingConfirmation.status]}»?`
-                : `¿Guardar los cambios de la habitación ${selectedRoom ?? ''}?`}
+                : `¿Guardar el preventivo de la habitación ${selectedRoom ?? ''}?`}
             </p>
             <div className="mt-4 flex gap-2">
               <button type="button" onClick={() => setPendingConfirmation(null)} className="min-h-10 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
