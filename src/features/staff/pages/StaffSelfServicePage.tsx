@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, LogOut } from 'lucide-react'
+import { CalendarDays, LogOut, Clock3 } from 'lucide-react'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
@@ -88,7 +88,7 @@ export default function StaffSelfServicePage(){
     <div className="mx-auto max-w-5xl space-y-2 sm:space-y-4">
       <header className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 shadow-sm sm:rounded-2xl sm:p-4">
         <h1 className="flex items-center gap-2 text-base font-bold sm:text-xl"><CalendarDays size={20}/> Mi horario</h1>
-        <button className="flex min-h-9 items-center gap-1.5 rounded-lg border px-2 text-xs sm:px-3 sm:text-sm" onClick={()=>void signOut()}><LogOut size={15}/> Salir</button>
+        <div className="flex items-center gap-1.5"><button type="button" onClick={()=>navigate('/fichaje')} className="flex min-h-9 items-center gap-1 rounded-lg bg-slate-900 px-2 text-xs font-bold text-white sm:px-3 sm:text-sm"><Clock3 size={15}/> Fichar</button><button className="flex min-h-9 items-center gap-1.5 rounded-lg border px-2 text-xs sm:px-3 sm:text-sm" onClick={()=>void signOut()}><LogOut size={15}/> Salir</button></div>
       </header>
       {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {!operator?<section className="rounded-2xl bg-white p-6"><h2 className="font-bold">No hay operario vinculado a esta cuenta</h2><p className="mt-2 text-sm text-slate-500">Pide al responsable que vincule tu cuenta de Arias Suite con tu ficha de operario. No podrás consultar datos de otros compañeros.</p></section>:
