@@ -254,6 +254,77 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       doc.setFont('helvetica','normal');doc.setFontSize(8)
       doc.text(hotelName.slice(0,64)+'  ·  '+periodLabel,9,17)
       doc.text('Filtro: '+stateLabel+'  ·  '+(snapshot.operatorId==='ALL'?'Todos los operarios':displayedOperators[0]?.display_name??''),9,22)
+
+      // El mes completo se dibuja en una sola página A4 horizontal, sin paginación automática.
+      if(period==='MONTH'){
+        const monthDays=rawDates
+        const left=9, top=32, totalWidth=279, personWidth=35
+        const dayWidth=(totalWidth-personWidth)/Math.max(1,monthDays.length)
+        const headerHeight=10
+        const rowHeight=Math.min(12,145/Math.max(1,displayedOperators.length))
+        doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);doc.setDrawColor(203,213,225)
+        doc.setFillColor(241,245,249)
+        doc.rect(left,top,personWidth,headerHeight,'FD')
+        doc.setFontSize(7);doc.text('TRABAJADOR',left+2,top+6)
+        monthDays.forEach((date,index)=>{
+          const x=left+personWidth+index*dayWidth
+          const day=fromISO(date)
+          const holiday=holidaySet.has(date)
+          const weekend=day.getDay()===0||day.getDay()===6
+          const fill: [number,number,number]=holiday?[29,78,216]:weekend?[226,232,240]:[248,250,252]
+          doc.setFillColor(...fill);doc.setDrawColor(203,213,225)
+          doc.rect(x,top,dayWidth,headerHeight,'FD')
+          doc.setTextColor(...(holiday?[255,255,255]:[30,41,59]) as [number,number,number])
+          doc.setFontSize(6.1)
+          doc.text(weekdays[(day.getDay()+6)%7],x+dayWidth/2,top+3.7,{align:'center'})
+          doc.text(String(day.getDate()),x+dayWidth/2,top+8,{align:'center'})
+        })
+        displayedOperators.forEach((person,index)=>{
+          const y=top+headerHeight+index*rowHeight
+          doc.setFillColor(248,250,252);doc.setDrawColor(203,213,225)
+          doc.rect(left,y,personWidth,rowHeight,'FD')
+          doc.setTextColor(30,41,59);doc.setFont('helvetica','bold')
+          doc.setFontSize(Math.min(7,Math.max(2.1,rowHeight*0.72)))
+          const textWidth=doc.getTextWidth(person.display_name)
+          if(textWidth>personWidth-3)doc.setFontSize(Math.max(1.5,doc.getFontSize()*(personWidth-3)/textWidth))
+          doc.text(person.display_name,left+1.5,y+rowHeight/2+Math.min(1.2,rowHeight/5))
+          monthDays.forEach((date,i)=>{
+            const x=left+personWidth+i*dayWidth
+            const active=dateSet.has(date)
+            const entry=selectedEntry(person.id,date)
+            const color=colorForEntry(entry)
+            const fill: [number,number,number]=active?color.pdfBg:[248,250,252]
+            doc.setFillColor(...fill);doc.setDrawColor(203,213,225)
+            doc.rect(x,y,dayWidth,rowHeight,'FD')
+            if(!active)return
+            const original=stateCode(entry)
+            const parts=rowHeight>=5?original.split('\n'):[original.replace(/\n/g,'/')]
+            doc.setTextColor(...color.pdfFg);doc.setFont('helvetica','bold')
+            const size=Math.min(6,Math.max(1.8,rowHeight/(parts.length===2?2.1:1.3)))
+            doc.setFontSize(size)
+            const longest=Math.max(0,...parts.map(part=>doc.getTextWidth(part)))
+            if(longest>dayWidth-0.7)doc.setFontSize(Math.max(1.4,size*(dayWidth-0.7)/longest))
+            const step=Math.min(3.1,rowHeight/Math.max(parts.length,1))
+            const first=y+rowHeight/2-(parts.length-1)*step/2+Math.min(0.7,rowHeight/8)
+            parts.forEach((part,j)=>doc.text(part,x+dayWidth/2,first+j*step,{align:'center'}))
+          })
+        })
+        const gridEnd=top+headerHeight+displayedOperators.length*rowHeight
+        if(gridEnd<183){
+          const totalsLine=totals.map(t=>t.person.display_name+': '+t.shifts+' turnos, '+(t.minutes/60).toLocaleString('es-ES')+' h previstas').join('   |   ')
+          doc.setTextColor(51,65,85);doc.setFont('helvetica','normal');doc.setFontSize(6.5)
+          const maxLines=Math.max(0,Math.floor((183-gridEnd-4)/3.1))
+          const lines=doc.splitTextToSize(totalsLine,276).slice(0,maxLines)
+          if(lines.length)doc.text(lines,9,gridEnd+4)
+        }
+        doc.setTextColor(75,85,99);doc.setFont('helvetica','normal');doc.setFontSize(6.2)
+        doc.text('9-13 / 15-19: turno partido (8 h) | D: descanso | V: vacaciones | B: baja | Azul: festivo',9,193)
+        doc.text(summaryNote,9,198)
+        doc.text('Reporte mensual completo · una sola hoja A4 horizontal',9,203)
+        doc.text('Pág. 1/1',277,203,{align:'right'})
+        doc.save(filename)
+        return
+      }
       const body=weekGroups.flatMap(({start,week})=>[
         [{content:weekCaption(start),colSpan:8,styles:{fillColor:[226,232,240] as [number,number,number],
           textColor:[30,41,59] as [number,number,number],fontStyle:'bold' as const,halign:'left' as const}}],
