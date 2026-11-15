@@ -119,6 +119,15 @@ export function minutesInShift(start: string, end: string) {
   const elapsed=(b-a+1440)%1440
   return Math.max(0,elapsed-(isSplitShift(start,end)?120:0))
 }
+/** El cuadrante calcula automáticamente las horas previstas; nunca son horas de fichaje. */
+export function plannedMinutes(day: StaffDay): number {
+  if(day.state!=='SHIFT')return 0
+  if(day.start_time && day.end_time) {
+    const calculated=minutesInShift(day.start_time,day.end_time)
+    if(Number.isFinite(calculated) && calculated>0)return calculated
+  }
+  return day.planned_minutes??0
+}
 export function hours(minutes: number | null | undefined) {
   return ((minutes ?? 0)/60).toLocaleString('es-ES',{maximumFractionDigits:2})+' h';
 }
