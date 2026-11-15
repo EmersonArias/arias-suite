@@ -470,7 +470,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          <button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
+          <button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button><button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
