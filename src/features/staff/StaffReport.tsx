@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
-  vacationStage, vacationCode, isSplitShift, type StaffDay, type StaffOperator } from './staffModel'
+  vacationStage, vacationCode, isSplitShift, plannedMinutes, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
 import { supabase } from '../../lib/supabase'
 
@@ -223,7 +223,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     return {
       person:o,
       shifts:own.filter(d=>d.state==='SHIFT').length,
-      minutes:own.filter(d=>d.state==='SHIFT').reduce((n,d)=>n+(d.planned_minutes??0),0),
+      minutes:own.filter(d=>d.state==='SHIFT').reduce((n,d)=>n+plannedMinutes(d),0),
       vacations:own.filter(d=>['VACATION','VACATION_PREVIOUS'].includes(d.state)).length,
       rests:own.filter(d=>d.state==='REST').length,
       medical:own.filter(d=>d.state==='MEDICAL_LEAVE').length,
