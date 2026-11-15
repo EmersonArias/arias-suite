@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, FileCheck2, ListChecks, Settings2, Wrench, Building2, Lightbulb, Wind, Plus, Clock3, Package } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
@@ -9,7 +9,7 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 type Card = {
   title: string
   description: string
-  icon: typeof Building2
+  icon: string
   href: string
   metric?: string
 }
@@ -40,6 +40,24 @@ const EMPTY_COUNTS: Counts = {
   scheduledJobs: null,
   interventions: null,
   pam: null,
+}
+
+const MAINTENANCE_ICONS = {
+  equipment: '/assets/maintenance-icons-3d/equipment.webp',
+  tickets: '/assets/record-icons-3d/daily.webp',
+  warning: '/assets/maintenance-icons-3d/warning.webp',
+  materials: '/assets/maintenance-icons-3d/materials.webp',
+  led: '/assets/maintenance-icons-3d/led.webp',
+  fancoil: '/assets/record-icons-3d/fancoil.webp',
+  pam: '/assets/maintenance-icons-3d/pam.webp',
+  interventions: '/assets/maintenance-icons-3d/interventions.webp',
+  audit: '/assets/record-icons-3d/daily.webp',
+  settings: '/assets/maintenance-icons-3d/settings.webp',
+  pending: '/assets/maintenance-icons-3d/pending.webp',
+}
+
+function MaintenanceIcon({ src, className = 'h-14 w-14' }: { src: string; className?: string }) {
+  return <img src={src} alt="" aria-hidden="true" width={512} height={512} loading="lazy" decoding="async" draggable={false} className={'shrink-0 object-contain ' + className} />
 }
 
 function localTodayISO() {
@@ -159,14 +177,14 @@ export default function MaintenanceLandingPage() {
     {
       title: 'Equipos e instalaciones',
       description: 'Catálogo maestro de equipos e instalaciones.',
-      icon: Building2,
+      icon: MAINTENANCE_ICONS.equipment,
       href: '/apparatusregistry',
       metric: counts.assets == null ? undefined : `${counts.assets} activos`,
     },
     {
       title: 'Tickets',
       description: 'Incidencias correctivas y actuaciones, separadas del mantenimiento preventivo.',
-      icon: ClipboardList,
+      icon: MAINTENANCE_ICONS.tickets,
       href: '/maintenance/tickets',
       metric:
         counts.pendingTickets == null || counts.inManagementTickets == null || counts.inProgressTickets == null
@@ -176,32 +194,32 @@ export default function MaintenanceLandingPage() {
     {
       title: 'Alertas correctivas',
       description: 'Tickets abiertos con criticidad alta o crítica. Sin tareas preventivas.',
-      icon: AlertTriangle,
+      icon: MAINTENANCE_ICONS.warning,
       href: '/maintenance/tickets?summary=URGENT',
       metric: counts.urgentTickets == null ? undefined : `${counts.urgentTickets} graves`,
     },
     {
       title: 'Materiales y stock',
       description: 'Catálogo de materiales, existencias, proveedores, enlaces de compra y peticiones.',
-      icon: Package,
+      icon: MAINTENANCE_ICONS.materials,
       href: '/materials',
     },
     {
       title: 'LED de armario',
       description: 'Control de luces LED de armario por habitación, con seguimiento y plano visual para recepción.',
-      icon: Lightbulb,
+      icon: MAINTENANCE_ICONS.led,
       href: '/maintenance/room-projects',
     },
     {
       title: 'Preventivos de Fancoils',
       description: 'Control por habitación y planta con los mismos colores, estados, filtros y PDF de LED de armario.',
-      icon: Wind,
+      icon: MAINTENANCE_ICONS.fancoil,
       href: '/maintenance/fancoil-preventives',
     },
     {
       title: 'Preventivos',
       description: 'Seguimiento del PAM por separado de los tickets correctivos.',
-      icon: CalendarClock,
+      icon: MAINTENANCE_ICONS.pam,
       href: '/maintenance/planning',
       metric: counts.pendingPreventives == null || counts.overduePreventives == null
         ? undefined
@@ -210,27 +228,27 @@ export default function MaintenanceLandingPage() {
     {
       title: 'Intervenciones',
       description: 'Registro de trabajos relevantes realizados en el hotel.',
-      icon: Wrench,
+      icon: MAINTENANCE_ICONS.interventions,
       href: '/maintenance/interventions',
       metric: counts.interventions == null ? undefined : `${counts.interventions} registradas`,
     },
     {
       title: 'PAM',
       description: 'Plan Anual de Mantenimiento preventivo del hotel.',
-      icon: ListChecks,
+      icon: MAINTENANCE_ICONS.pam,
       href: '/maintenance/pam',
       metric: counts.pam == null ? undefined : `${counts.pam} planes activos`,
     },
     {
       title: 'Auditoría',
       description: 'Evidencias, certificados, históricos y documentos.',
-      icon: FileCheck2,
+      icon: MAINTENANCE_ICONS.audit,
       href: '/maintenance/audit',
     },
     {
       title: 'Configuración',
       description: 'Automatización, asignación, avisos y reglas por hotel.',
-      icon: Settings2,
+      icon: MAINTENANCE_ICONS.settings,
       href: '/maintenance/configuration',
     },
   ]
@@ -266,7 +284,7 @@ export default function MaintenanceLandingPage() {
             <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"><ClipboardList size={22}/></span>
+                  <MaintenanceIcon src={MAINTENANCE_ICONS.tickets} />
                   <div className="min-w-0">
                     <h2 className="text-base font-bold text-slate-900 sm:text-lg">Correctivos · Tickets</h2>
                     <p className="mt-1 text-xs leading-5 text-slate-500">Incidencias y averías. Las tareas preventivas no se incluyen en estos contadores.</p>
@@ -276,16 +294,15 @@ export default function MaintenanceLandingPage() {
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
                 {[
-                  { key: 'PENDING', label: 'Pendientes', count: counts.pendingTickets, icon: Clock3, tone: 'bg-amber-50 text-amber-700' },
-                  { key: 'OVERDUE', label: 'Atrasados', count: counts.overdueTickets, icon: AlertTriangle, tone: 'bg-rose-50 text-rose-700' },
-                  { key: 'URGENT', label: 'Alta / crítica', count: counts.urgentTickets, icon: AlertTriangle, tone: 'bg-rose-50 text-rose-700' },
-                  { key: 'IN_MANAGEMENT', label: 'En gestión', count: counts.inManagementTickets, icon: ClipboardList, tone: 'bg-violet-50 text-violet-700' },
-                  { key: 'IN_PROGRESS', label: 'En curso', count: counts.inProgressTickets, icon: CheckCircle2, tone: 'bg-blue-50 text-blue-700' },
+                  { key: 'PENDING', label: 'Pendientes', count: counts.pendingTickets, icon: MAINTENANCE_ICONS.pending, tone: 'bg-amber-50 text-amber-700' },
+                  { key: 'OVERDUE', label: 'Atrasados', count: counts.overdueTickets, icon: MAINTENANCE_ICONS.warning, tone: 'bg-rose-50 text-rose-700' },
+                  { key: 'URGENT', label: 'Alta / crítica', count: counts.urgentTickets, icon: MAINTENANCE_ICONS.warning, tone: 'bg-rose-50 text-rose-700' },
+                  { key: 'IN_MANAGEMENT', label: 'En gestión', count: counts.inManagementTickets, icon: MAINTENANCE_ICONS.tickets, tone: 'bg-violet-50 text-violet-700' },
+                  { key: 'IN_PROGRESS', label: 'En curso', count: counts.inProgressTickets, icon: MAINTENANCE_ICONS.interventions, tone: 'bg-blue-50 text-blue-700' },
                 ].map((metric) => {
-                  const MetricIcon = metric.icon
                   return (
                     <button key={metric.key} type="button" onClick={() => navigate('/maintenance/tickets?summary=' + metric.key)} className="min-w-0 rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:shadow-sm active:scale-[0.99]">
-                      <span className={'flex h-8 w-8 items-center justify-center rounded-lg ' + metric.tone}><MetricIcon size={16}/></span>
+                      <span className={'inline-flex rounded-xl p-1 ' + metric.tone}><MaintenanceIcon src={metric.icon} className="h-10 w-10" /></span>
                       <div className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{metric.count == null ? '—' : metric.count}</div>
                       <div className="mt-0.5 text-[11px] font-semibold leading-4 text-slate-600 sm:text-xs">{metric.label}</div>
                     </button>
@@ -298,7 +315,7 @@ export default function MaintenanceLandingPage() {
             <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"><CalendarClock size={22}/></span>
+                  <MaintenanceIcon src={MAINTENANCE_ICONS.pam} />
                   <div className="min-w-0">
                     <h2 className="text-base font-bold text-slate-900 sm:text-lg">Preventivos · PAM</h2>
                     <p className="mt-1 text-xs leading-5 text-slate-500">Seguimiento de trabajos programados, separado del flujo de incidencias correctivas.</p>
@@ -308,14 +325,13 @@ export default function MaintenanceLandingPage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { key: 'PENDING', label: 'Pendientes', count: counts.pendingPreventives, icon: Clock3, tone: 'bg-amber-50 text-amber-700', detail: 'OT preventivas por atender' },
-                  { key: 'OVERDUE', label: 'Atrasados', count: counts.overduePreventives, icon: AlertTriangle, tone: 'bg-rose-50 text-rose-700', detail: 'Fuera de fecha y sin finalizar' },
+                  { key: 'PENDING', label: 'Pendientes', count: counts.pendingPreventives, icon: MAINTENANCE_ICONS.pending, tone: 'bg-amber-50 text-amber-700', detail: 'OT preventivas por atender' },
+                  { key: 'OVERDUE', label: 'Atrasados', count: counts.overduePreventives, icon: MAINTENANCE_ICONS.warning, tone: 'bg-rose-50 text-rose-700', detail: 'Fuera de fecha y sin finalizar' },
                 ].map((metric) => {
-                  const MetricIcon = metric.icon
                   return (
                     <button key={metric.key} type="button" onClick={() => navigate('/maintenance/planning?summary=' + metric.key)} className="min-w-0 rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:shadow-sm active:scale-[0.99] sm:p-4">
                       <div className="flex items-center gap-2">
-                        <span className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ' + metric.tone}><MetricIcon size={16}/></span>
+                        <span className={'inline-flex shrink-0 rounded-xl p-1 ' + metric.tone}><MaintenanceIcon src={metric.icon} className="h-10 w-10" /></span>
                         <span className="truncate text-xs font-semibold text-slate-600">{metric.label}</span>
                       </div>
                       <div className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{metric.count == null ? '—' : metric.count}</div>
@@ -329,7 +345,6 @@ export default function MaintenanceLandingPage() {
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {cards.filter((card) => !['Tickets', 'Alertas correctivas', 'Preventivos'].includes(card.title)).map((card) => {
-              const Icon = card.icon
               return (
                 <button
                   key={card.title}
@@ -338,9 +353,7 @@ export default function MaintenanceLandingPage() {
                   className="group min-h-[175px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg active:translate-y-0 sm:p-5"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
-                      <Icon size={22} />
-                    </div>
+                    <MaintenanceIcon src={card.icon} className="h-20 w-20 transition-transform duration-200 motion-safe:group-hover:scale-105 motion-reduce:transition-none sm:h-24 sm:w-24" />
                     <span className="text-slate-300 transition group-hover:translate-x-0.5">→</span>
                   </div>
                   <div className="mt-4 text-base font-bold text-slate-900">{card.title}</div>

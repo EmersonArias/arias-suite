@@ -57,7 +57,7 @@ export default function UpdatePasswordPage() {
       <main className="min-h-screen bg-slate-50 px-4 py-10">
         <div className="mx-auto flex min-h-[80vh] max-w-md items-center justify-center">
           <section className="w-full rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-sm">
-            <img src="/assets/arias-suite-logo-v3.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
+            <img src="/assets/arias-suite-logo-v4.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
             <h1 className="mt-5 text-xl font-semibold text-slate-800">Enlace no válido</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               El enlace de recuperación ha caducado o ya no es válido.
@@ -79,7 +79,7 @@ export default function UpdatePasswordPage() {
       <div className="mx-auto flex min-h-[80vh] max-w-md items-center justify-center">
         <section className="w-full rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
           <div className="mb-8 text-center">
-            <img src="/assets/arias-suite-logo-v3.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
+            <img src="/assets/arias-suite-logo-v4.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
             <h1 className="mt-5 text-xl font-semibold text-slate-800">Nueva contraseña</h1>
             <p className="mt-1 text-sm text-slate-500">Establece una nueva contraseña para tu cuenta.</p>
           </div>
