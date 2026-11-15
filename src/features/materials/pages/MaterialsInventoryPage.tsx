@@ -5,8 +5,8 @@ import {
   Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { buildMaterialRequestPdf } from '../materialRequestPdf'
+import { validateMaterialDraft } from '../materialRequestValidation'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
@@ -355,16 +355,11 @@ export default function MaterialsInventoryPage() {
     ].join(' ')).includes(q))
   }, [materials, globalSearch, providerById])
 
-  const selectedDraftLines = useMemo(() => draftLines.map((line) => {
-    const material = activeMaterials.find((item) => item.id === line.material_id) ?? null
-    const quantity = Number(line.quantity)
-    return { ...line, material, validQuantity: Number.isFinite(quantity) && quantity > 0 && Math.abs(Math.round(quantity * 100) - quantity * 100) < 1e-8 }
-  }), [draftLines, activeMaterials])
-
-  const canReviewRequest = moduleReady && selectedDraftLines.length > 0
-    && selectedDraftLines.every((line) => line.material && line.validQuantity)
-    && requesterName.trim().length >= 2
-    && cause.trim().length >= 2
+  const draftValidation = useMemo(() => validateMaterialDraft(draftLines, activeMaterials), [draftLines, activeMaterials])
+  const selectedDraftLines = draftValidation.lines
+  const requestValidationError = draftValidation.error || (requesterName.trim().length < 2
+    ? 'Indica la persona solicitante.' : cause.trim().length < 2 ? 'Indica la causa de la petición.' : '')
+  const canReviewRequest = moduleReady && !requestValidationError
 
   function getSuggestions(query: string) {
     const q = normalize(query)
@@ -572,73 +567,7 @@ export default function MaterialsInventoryPage() {
   }
 
   function buildPdf(request: RequestRecord, lines: RequestLine[]) {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const pageWidth = doc.internal.pageSize.getWidth()
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text('sbhotels', 14, 15)
-    doc.setFontSize(16)
-    doc.setTextColor(25, 35, 45)
-    doc.text('FORMULARIO PETICIÓN MATERIAL', 14, 27)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(45, 55, 65)
-    doc.text('Número: ' + request.request_number, 14, 38)
-    doc.text('Establecimiento: ' + (hotel?.name ?? 'Hotel'), 14, 44)
-    doc.text('Departamento: ' + request.department, 14, 50)
-    doc.text('Causa de la petición: ' + request.cause, 14, 56)
-    doc.text('Persona solicitante: ' + request.requester_name, 14, 62)
-    doc.text('Fecha de solicitud: ' + formatDate(request.confirmed_at), 14, 68)
-
-    autoTable(doc, {
-      startY: 76,
-      head: [['UNIDADES', 'DESCRIPCIÓN', 'CÓDIGO', 'PROVEEDOR', 'ENLACE']],
-      body: lines.map((line) => [
-        formatQuantity(line.quantity) + ' ' + line.unit_of_measure,
-        line.description,
-        line.order_code || line.reference_code || '—',
-        line.provider_name || '—',
-        line.purchase_url ? ' ' : '—',
-      ]),
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.2, overflow: 'linebreak', textColor: [45, 55, 65] },
-      headStyles: { fillColor: [238, 241, 244], textColor: [35, 45, 55], fontStyle: 'bold', halign: 'center' },
-      columnStyles: { 0: { cellWidth: 20, halign: 'center' }, 1: { cellWidth: 78 }, 2: { cellWidth: 24 }, 3: { cellWidth: 38 }, 4: { cellWidth: 'auto' } },
-      didDrawCell: (data) => {
-        if (data.section === 'body' && data.column.index === 4) {
-          const url = lines[data.row.index]?.purchase_url
-          if (url) {
-            doc.setTextColor(30, 90, 170)
-            doc.text('Abrir enlace', data.cell.x + 2, data.cell.y + data.cell.height / 2 + 1)
-            doc.link(data.cell.x + 2, data.cell.y + 1, Math.max(12, data.cell.width - 4), Math.max(4, data.cell.height - 2), { url })
-          }
-        }
-      },
-      margin: { left: 14, right: 14 },
-    })
-
-    const finalY = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 90) + 8
-    if (request.notes) {
-      const notes = doc.splitTextToSize('Observaciones: ' + request.notes, pageWidth - 28)
-      let y = finalY
-      if (y + notes.length * 5 > 280) {
-        doc.addPage()
-        y = 20
-      }
-      doc.setFont('helvetica', 'bold')
-      doc.text('Observaciones:', 14, y)
-      doc.setFont('helvetica', 'normal')
-      doc.text(doc.splitTextToSize(request.notes, pageWidth - 28), 14, y + 5)
-    }
-
-    const footerY = Math.min(doc.internal.pageSize.getHeight() - 12, Math.max(finalY + 14, 275))
-    doc.setDrawColor(210, 215, 220)
-    doc.line(14, footerY - 5, pageWidth - 14, footerY - 5)
-    doc.setFontSize(8)
-    doc.setTextColor(120, 130, 140)
-    doc.text('Documento generado por Arias Suite · ' + request.request_number, 14, footerY)
-    return doc
+    return buildMaterialRequestPdf(request, lines, hotel?.name ?? 'Hotel')
   }
 
   function downloadPdf(request: RequestRecord, lines: RequestLine[]) {
@@ -993,7 +922,7 @@ export default function MaterialsInventoryPage() {
 
               <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center">
                 <p className="text-[11px] leading-5 text-slate-500">Guarda la petición y descarga el PDF para adjuntarlo a tu correo de empresa. La petición no modifica las existencias.</p>
-                <button type="button" disabled={!moduleReady || !canReviewRequest || saving} onClick={() => { setError(''); setReviewOpen(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"><ClipboardList size={16}/>Revisar y confirmar</button>
+                <button type="button" disabled={!moduleReady || saving} onClick={() => { if (!canReviewRequest) { setError(requestValidationError); return }; setError(''); setReviewOpen(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"><ClipboardList size={16}/>Revisar y confirmar</button>
               </div>
             </div>
           </section>

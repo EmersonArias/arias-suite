@@ -145,3 +145,11 @@ export function weekendHistory(days: StaffDay[], year: number) {
   }
   return byPerson;
 }
+
+/** Mismo filtro para las celdas y los contadores del informe. */
+export function matchesStaffState(state: string, filter: string) {
+  return filter === 'ALL' || (filter === 'VACATION' ? isVacationState(state) : state === filter)
+}
+export function staffReportDaysForOperator(days: StaffDay[], operatorId: string, filter: string) {
+  return days.filter(day => day.operator_id === operatorId && matchesStaffState(day.state, filter))
+}

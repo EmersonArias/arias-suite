@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
-  vacationStage, vacationCode, isSplitShift, plannedMinutes, type StaffDay, type StaffOperator } from './staffModel'
+  vacationStage, vacationCode, isSplitShift, plannedMinutes, matchesStaffState, staffReportDaysForOperator, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
 import { supabase } from '../../lib/supabase'
 
@@ -190,17 +190,14 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     if(!snapshot||snapshot.status==='ALL')return true
     return displayedOperators.some(o=>{
       const entry=entries.get(o.id+'|'+d)
-      return snapshot.status==='VACATION' ? ['VACATION','VACATION_PREVIOUS'].includes(entry?.state??'')
-        : entry?.state===snapshot.status
+      return matchesStaffState(entry?.state??'UNASSIGNED',snapshot.status)
     })
   }),[rawDates,snapshot?.status,displayedOperators,entries])
   const selectedEntry = (operatorId:string, date:string):StaffDay|undefined => {
     if(!dateSet.has(date))return undefined
     const entry=entries.get(operatorId+'|'+date)
     if(!entry)return undefined
-    if(snapshot?.status==='ALL')return entry
-    if(snapshot?.status==='VACATION')return ['VACATION','VACATION_PREVIOUS'].includes(entry.state)?entry:undefined
-    return snapshot?.status===entry.state?entry:undefined
+    return matchesStaffState(entry.state,snapshot?.status??'ALL')?entry:undefined
   }
   const dateSet=new Set(dates)
   const weekGroups=useMemo(()=>{
@@ -219,7 +216,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const dateHeading=(value:string,index:number)=>weekdays[index]+' '+fromISO(value).getDate()
   const previewWeeks=weekGroups.slice(0,7)
   const totals=useMemo(()=>displayedOperators.map(o=>{
-    const own=(snapshot?.days??[]).filter(d=>d.operator_id===o.id && (snapshot?.status==='ALL' || dates.includes(d.work_date)))
+    const own=staffReportDaysForOperator(snapshot?.days??[],o.id,snapshot?.status??'ALL')
     return {
       person:o,
       shifts:own.filter(d=>d.state==='SHIFT').length,
@@ -228,7 +225,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       rests:own.filter(d=>d.state==='REST').length,
       medical:own.filter(d=>d.state==='MEDICAL_LEAVE').length,
     }
-  }),[displayedOperators,snapshot?.days,snapshot?.status,dates])
+  }),[displayedOperators,snapshot?.days,snapshot?.status])
   const stateLabel=statusOptions.find(o=>o.value===snapshot?.status)?.label??'Todos los estados'
   const periodLabel=snapshot ? shortDate(snapshot.start)+(snapshot.start===snapshot.end?'':' – '+shortDate(snapshot.end)):''
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
