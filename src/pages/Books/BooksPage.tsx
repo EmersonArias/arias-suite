@@ -494,7 +494,7 @@ export default function BooksPage() {
           </header>
         </div>
 
-        <main className="flex min-h-0 flex-1 flex-col">
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
           <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-6 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
             {filteredRegisters.map((register) => (
               <button
