@@ -22,19 +22,31 @@ alter table public.maintenance_room_fancoil_tracking enable row level security;
 revoke all on public.maintenance_room_fancoil_tracking from anon, authenticated;
 grant select,insert,update on public.maintenance_room_fancoil_tracking to authenticated;
 
-create policy maintenance_room_fancoil_tracking_select
+do $fancoil_policy$ begin
+  if not exists (select 1 from pg_catalog.pg_policies where schemaname='public' and tablename='maintenance_room_fancoil_tracking' and policyname='maintenance_room_fancoil_tracking_select') then
+    create policy maintenance_room_fancoil_tracking_select
  on public.maintenance_room_fancoil_tracking for select to authenticated
  using (public.has_hotel_permission(hotel_id,'maintenance.view'));
-create policy maintenance_room_fancoil_tracking_insert
+  end if;
+end $fancoil_policy$;
+do $fancoil_policy$ begin
+  if not exists (select 1 from pg_catalog.pg_policies where schemaname='public' and tablename='maintenance_room_fancoil_tracking' and policyname='maintenance_room_fancoil_tracking_insert') then
+    create policy maintenance_room_fancoil_tracking_insert
  on public.maintenance_room_fancoil_tracking for insert to authenticated
  with check (
    public.has_hotel_permission(hotel_id,'maintenance.create')
    or public.has_hotel_permission(hotel_id,'maintenance.update')
  );
-create policy maintenance_room_fancoil_tracking_update
+  end if;
+end $fancoil_policy$;
+do $fancoil_policy$ begin
+  if not exists (select 1 from pg_catalog.pg_policies where schemaname='public' and tablename='maintenance_room_fancoil_tracking' and policyname='maintenance_room_fancoil_tracking_update') then
+    create policy maintenance_room_fancoil_tracking_update
  on public.maintenance_room_fancoil_tracking for update to authenticated
  using (public.has_hotel_permission(hotel_id,'maintenance.update'))
  with check (public.has_hotel_permission(hotel_id,'maintenance.update'));
+  end if;
+end $fancoil_policy$;
 
 comment on table public.maintenance_room_fancoil_tracking is
  'Seguimiento independiente de preventivos de fancoils por habitación y centro, con los mismos estados del módulo LED de armario.';
