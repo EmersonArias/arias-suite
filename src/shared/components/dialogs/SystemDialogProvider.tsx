@@ -131,7 +131,7 @@ export function SystemDialogProvider({ children }: { children: ReactNode }) {
               aria-describedby="arias-system-dialog-message"
             >
               <img
-                src="/logo.png"
+                src="/assets/arias-suite-logo-v2.webp"
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute -bottom-8 -right-8 w-56 opacity-[0.055]"

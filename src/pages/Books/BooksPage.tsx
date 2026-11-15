@@ -293,7 +293,7 @@ export default function BooksPage() {
           <BrandLogo
             onActivate={() => window.location.reload()}
             label="Actualizar Arias Suite"
-            className="h-14 w-auto object-contain sm:h-16"
+            className="h-16 w-auto max-w-[88vw] object-contain sm:h-20"
           />
         </div>
 

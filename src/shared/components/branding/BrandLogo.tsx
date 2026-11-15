@@ -41,7 +41,7 @@ export default function BrandLogo({
       title={accessibleLabel}
       className="shrink-0 rounded-lg outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-slate-400 active:translate-y-0"
     >
-      <img src="/logo.png" alt={alt} className={className} />
+      <img src="/assets/arias-suite-logo-v2.webp" alt={alt} className={className} />
     </button>
   )
 }

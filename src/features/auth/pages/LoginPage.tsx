@@ -57,7 +57,7 @@ export default function LoginPage() {
         <section className="w-full rounded-3xl border border-slate-200 bg-white p-7 shadow-[0_18px_45px_rgba(15,23,42,0.10)]">
           <div className="mb-8 text-center">
             <img
-              src="/logo.png"
+              src="/assets/arias-suite-logo-v2.webp"
               alt="Arias Suite"
               className="mx-auto h-16 w-auto object-contain"
             />

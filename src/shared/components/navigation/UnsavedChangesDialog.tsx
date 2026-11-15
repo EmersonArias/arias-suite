@@ -35,7 +35,7 @@ export default function UnsavedChangesDialog({
     >
       <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-blue-100 bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
         <img
-          src="/logo.png"
+          src="/assets/arias-suite-logo-v2.webp"
           alt=""
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-7 -right-7 w-44 opacity-[0.055]"
