@@ -250,7 +250,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       doc.setProperties({title:'Planificador horario · '+periodLabel,subject:'Reporte de turnos'})
       const pageWidth=period==='MONTH'?210:297
       doc.setFont('helvetica','bold');doc.setFontSize(12)
-      doc.text('PLANIFICADOR HORARIO',9,11)
+      doc.text('PLANIFICADOR HORARIO · DEPARTAMENTO DE MANTENIMIENTO',9,11)
       doc.setFont('helvetica','normal');doc.setFontSize(8)
       doc.text(doc.splitTextToSize(hotelName.slice(0,64)+'  ·  '+periodLabel,pageWidth-18)[0],9,17)
       doc.text(doc.splitTextToSize('Filtro: '+stateLabel+'  ·  '+(snapshot.operatorId==='ALL'?'Todos los operarios':displayedOperators[0]?.display_name??''),pageWidth-18)[0],9,22)
@@ -479,7 +479,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         '.legend-cell{display:flex;align-items:center;gap:1mm;font-size:6.5pt;white-space:nowrap}'+
         '.legend-cell b{display:inline-flex;align-items:center;justify-content:center;min-width:7mm;height:4mm;border:1px solid #cbd5e1}'+
         '.foot{font-size:6.5pt;margin-top:2mm;color:#475569}'+
-        '</style></head><body><h1>PLANIFICADOR HORARIO</h1><p>'+
+        '</style></head><body><h1>PLANIFICADOR HORARIO · DEPARTAMENTO DE MANTENIMIENTO</h1><p>'+
         heading+' · '+esc(stateLabel)+' · '+(snapshot.operatorId==='ALL'?'Todos los operarios':esc(displayedOperators[0]?.display_name??''))+
         '</p><div class="weeks">'+bodyHtml+'</div><div class="legend">'+legendHtml+'</div>'+
         '<p class="foot">9–13 / 15–19: turno partido de 8 horas. '+esc(summaryNote)+'</p>'+
@@ -514,7 +514,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       '.week{break-inside:avoid;page-break-inside:avoid;margin-bottom:5px}.week h2{font-size:9px;margin:3px 0 2px}'+
       '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.footer{margin-top:7px;font-size:8px;line-height:1.6}.notes{font-size:8px;color:#475569}'+
-      '</style></head><body><h1>PLANIFICADOR HORARIO</h1><p>'+heading+' · '+esc(stateLabel)+'</p>'+
+      '</style></head><body><h1>PLANIFICADOR HORARIO · DEPARTAMENTO DE MANTENIMIENTO</h1><p>'+heading+' · '+esc(stateLabel)+'</p>'+
       weeklyTables+
       '<div class="footer"><span style="display:inline-block;background:#1d4ed8;color:white;padding:1px 4px;margin-right:8px">Cabecera azul: festivo del calendario</span>'+legendHtml+'</div><p class="notes">'+esc(summary)+'</p><p class="notes">'+esc(summaryNote)+'</p>'+
       '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
