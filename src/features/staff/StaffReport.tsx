@@ -73,24 +73,24 @@ const stateCode = (entry?:StaffDay) => {
     case 'PUBLIC_HOLIDAY': {
       const source=entry.source_code??''
       const ref=source.match(/(\d{4})-(\d{2})-(\d{2})/)
-      if(ref)return ref[3]+'/'+ref[2]
+      if(ref)return 'F\n'+ref[3]+'/'+ref[2]
       const direct=source.match(/^(\d{2})-(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/i)
       if(direct){
         const months:Record<string,string>={ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',
           jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12'}
-        return direct[1]+'/'+months[direct[2].toLowerCase()]
+        return 'F\n'+direct[1]+'/'+months[direct[2].toLowerCase()]
       }
       return 'F'
     }
     case 'COMP_REST': {
       const ref=entry.source_code?.match(/^R\s*(\d{2}[-/]\d{2})/i)
-      return ref ? 'R'+ref[1].replace('-', '/') : 'R'
+      return ref ? 'R\n'+ref[1].replace('-', '/') : 'R'
     }
     case 'PERMISSION': return 'P'
     case 'PERSONAL_DAY': return 'L'
     case 'TRAINING': return 'E'
     case 'UNJUSTIFIED_ABSENCE': return 'I'
-    case 'OTHER': return 'R'
+    case 'OTHER': return 'O'
     default: return '—'
   }
 }
@@ -236,7 +236,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const statusLegend=[
     ['SHIFT','Horario (9–13/15–19: 8 h)'],['REST','D Descanso'],['VACATION','V Programadas'],
     ['VACATION_PREVIOUS','A25 Vac. de 2025 / A26 de 2026'],['MEDICAL_LEAVE','B Baja'],
-    ['PUBLIC_HOLIDAY','15/08 Festivo disfrutado'],['COMP_REST','R Recuperable'], 
+    ['PUBLIC_HOLIDAY','F Festivo disfrutado'],['COMP_REST','R Recuperable'], 
   ]
   const summaryNote='Horario previsto. Las vacaciones pasadas no se consideran disfrutadas hasta su confirmación.'
   const previewCapped=weekGroups.length>previewWeeks.length
