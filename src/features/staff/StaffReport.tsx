@@ -246,82 +246,117 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     setExporting(true);setError('')
     try {
       const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
-      const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true})
+      const doc=new jsPDF({orientation:period==='MONTH'?'portrait':'landscape',unit:'mm',format:'a4',compress:true})
       doc.setProperties({title:'Planificador horario · '+periodLabel,subject:'Reporte de turnos'})
-      const pageWidth=297
+      const pageWidth=period==='MONTH'?210:297
       doc.setFont('helvetica','bold');doc.setFontSize(12)
       doc.text('PLANIFICADOR HORARIO',9,11)
       doc.setFont('helvetica','normal');doc.setFontSize(8)
-      doc.text(hotelName.slice(0,64)+'  ·  '+periodLabel,9,17)
-      doc.text('Filtro: '+stateLabel+'  ·  '+(snapshot.operatorId==='ALL'?'Todos los operarios':displayedOperators[0]?.display_name??''),9,22)
+      doc.text(doc.splitTextToSize(hotelName.slice(0,64)+'  ·  '+periodLabel,pageWidth-18)[0],9,17)
+      doc.text(doc.splitTextToSize('Filtro: '+stateLabel+'  ·  '+(snapshot.operatorId==='ALL'?'Todos los operarios':displayedOperators[0]?.display_name??''),pageWidth-18)[0],9,22)
 
-      // El mes completo se dibuja en una sola página A4 horizontal, sin paginación automática.
+      // A4 vertical, una sola página. Cada bloque reproduce una semana de la vista de calendario.
       if(period==='MONTH'){
-        const monthDays=rawDates
-        const left=9, top=32, totalWidth=279, personWidth=35
-        const dayWidth=(totalWidth-personWidth)/Math.max(1,monthDays.length)
-        const headerHeight=10
-        const rowHeight=Math.min(12,145/Math.max(1,displayedOperators.length))
-        doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);doc.setDrawColor(203,213,225)
-        doc.setFillColor(241,245,249)
-        doc.rect(left,top,personWidth,headerHeight,'FD')
-        doc.setFontSize(7);doc.text('TRABAJADOR',left+2,top+6)
-        monthDays.forEach((date,index)=>{
-          const x=left+personWidth+index*dayWidth
-          const day=fromISO(date)
-          const holiday=holidaySet.has(date)
-          const weekend=day.getDay()===0||day.getDay()===6
-          const fill: [number,number,number]=holiday?[29,78,216]:weekend?[226,232,240]:[248,250,252]
-          doc.setFillColor(...fill);doc.setDrawColor(203,213,225)
-          doc.rect(x,top,dayWidth,headerHeight,'FD')
-          doc.setTextColor(...(holiday?[255,255,255]:[30,41,59]) as [number,number,number])
-          doc.setFontSize(6.1)
-          doc.text(weekdays[(day.getDay()+6)%7],x+dayWidth/2,top+3.7,{align:'center'})
-          doc.text(String(day.getDate()),x+dayWidth/2,top+8,{align:'center'})
-        })
-        displayedOperators.forEach((person,index)=>{
-          const y=top+headerHeight+index*rowHeight
-          doc.setFillColor(248,250,252);doc.setDrawColor(203,213,225)
-          doc.rect(left,y,personWidth,rowHeight,'FD')
-          doc.setTextColor(30,41,59);doc.setFont('helvetica','bold')
-          doc.setFontSize(Math.min(7,Math.max(2.1,rowHeight*0.72)))
-          const textWidth=doc.getTextWidth(person.display_name)
-          if(textWidth>personWidth-3)doc.setFontSize(Math.max(1.5,doc.getFontSize()*(personWidth-3)/textWidth))
-          doc.text(person.display_name,left+1.5,y+rowHeight/2+Math.min(1.2,rowHeight/5))
-          monthDays.forEach((date,i)=>{
-            const x=left+personWidth+i*dayWidth
-            const active=dateSet.has(date)
-            const entry=selectedEntry(person.id,date)
-            const color=colorForEntry(entry)
-            const fill: [number,number,number]=active?color.pdfBg:[248,250,252]
-            doc.setFillColor(...fill);doc.setDrawColor(203,213,225)
-            doc.rect(x,y,dayWidth,rowHeight,'FD')
-            if(!active)return
-            const original=stateCode(entry)
-            const parts=rowHeight>=5?original.split('\n'):[original.replace(/\n/g,'/')]
-            doc.setTextColor(...color.pdfFg);doc.setFont('helvetica','bold')
-            const size=Math.min(6,Math.max(1.8,rowHeight/(parts.length===2?2.1:1.3)))
-            doc.setFontSize(size)
-            const longest=Math.max(0,...parts.map(part=>doc.getTextWidth(part)))
-            if(longest>dayWidth-0.7)doc.setFontSize(Math.max(1.4,size*(dayWidth-0.7)/longest))
-            const step=Math.min(3.1,rowHeight/Math.max(parts.length,1))
-            const first=y+rowHeight/2-(parts.length-1)*step/2+Math.min(0.7,rowHeight/8)
-            parts.forEach((part,j)=>doc.text(part,x+dayWidth/2,first+j*step,{align:'center'}))
-          })
-        })
-        const gridEnd=top+headerHeight+displayedOperators.length*rowHeight
-        if(gridEnd<183){
-          const totalsLine=totals.map(t=>t.person.display_name+': '+t.shifts+' turnos, '+(t.minutes/60).toLocaleString('es-ES')+' h previstas').join('   |   ')
-          doc.setTextColor(51,65,85);doc.setFont('helvetica','normal');doc.setFontSize(6.5)
-          const maxLines=Math.max(0,Math.floor((183-gridEnd-4)/3.1))
-          const lines=doc.splitTextToSize(totalsLine,276).slice(0,maxLines)
-          if(lines.length)doc.text(lines,9,gridEnd+4)
+        const monthWeeks=[...new Set(rawDates.map(value=>mondayOf(value)))].map(start=>({
+          start,
+          week:Array.from({length:7},(_,i)=>addDays(start,i)),
+        }))
+        const left=8.5, right=201.5, contentWidth=right-left
+        const nameWidth=39, dayWidth=(contentWidth-nameWidth)/7
+        const gridTop=30, gridBottom=251
+        const captionHeight=6, dayHeadingHeight=7, gap=1.8
+        const groupCount=Math.max(1,monthWeeks.length)
+        const personCount=Math.max(1,displayedOperators.length)
+        const rowHeight=Math.min(17,Math.max(0.3,
+          (gridBottom-gridTop-groupCount*(captionHeight+dayHeadingHeight)-(groupCount-1)*gap)/
+          (groupCount*personCount)))
+        const drawText=(value:string,x:number,y:number,width:number,height:number,baseSize:number,color:[number,number,number],leftAlign=false)=>{
+          const lines=height>=4.5?value.split('\n'):[value.replace(/\n/g,' / ')]
+          const size=Math.min(baseSize,Math.max(1.5,height*0.91/Math.max(1,lines.length)))
+          doc.setFont('helvetica','bold');doc.setFontSize(size)
+          const widest=Math.max(0,...lines.map(line=>doc.getTextWidth(line)))
+          if(widest>width-1.5) doc.setFontSize(Math.max(1.3,size*(width-1.5)/widest))
+          doc.setTextColor(...color)
+          const step=Math.min(height/Math.max(1,lines.length),doc.getFontSize()*0.36)
+          const start=y+height/2-(lines.length-1)*step/2+doc.getFontSize()*0.14
+          lines.forEach((line,i)=>doc.text(line,leftAlign?x+1.5:x+width/2,start+i*step,leftAlign?undefined:{align:'center'}))
         }
-        doc.setTextColor(75,85,99);doc.setFont('helvetica','normal');doc.setFontSize(6.2)
-        doc.text('9-13 / 15-19: turno partido (8 h) | D: descanso | V: vacaciones | B: baja | Azul: festivo',9,193)
-        doc.text(summaryNote,9,198)
-        doc.text('Reporte mensual completo · una sola hoja A4 horizontal',9,203)
-        doc.text('Pág. 1/1',277,203,{align:'right'})
+        let y=gridTop
+        monthWeeks.forEach(({start,week},weekIndex)=>{
+          doc.setFillColor(226,232,240);doc.setDrawColor(203,213,225)
+          doc.rect(left,y,contentWidth,captionHeight,'FD')
+          doc.setTextColor(30,41,59);doc.setFont('helvetica','bold');doc.setFontSize(7.7)
+          doc.text(weekCaption(start),left+2,y+4.2)
+          y+=captionHeight
+          doc.setFillColor(248,250,252);doc.setDrawColor(203,213,225)
+          doc.rect(left,y,nameWidth,dayHeadingHeight,'FD')
+          drawText('TRABAJADOR',left,y,nameWidth,dayHeadingHeight,6.8,[30,41,59],true)
+          week.forEach((date,dayIndex)=>{
+            const x=left+nameWidth+dayIndex*dayWidth
+            const inside=date>=snapshot.start&&date<=snapshot.end
+            const officialHoliday=inside&&holidaySet.has(date)
+            const weekend=dayIndex>=5
+            const bg:[number,number,number]=!inside?[242,245,249]:
+              officialHoliday?[29,78,216]:weekend?[226,232,240]:[248,250,252]
+            const fg:[number,number,number]=officialHoliday?[255,255,255]:
+              !inside?[148,163,184]:weekend?[159,18,57]:[30,41,59]
+            doc.setFillColor(...bg);doc.setDrawColor(203,213,225)
+            doc.rect(x,y,dayWidth,dayHeadingHeight,'FD')
+            drawText(dateHeading(date,dayIndex),x,y,dayWidth,dayHeadingHeight,7,fg)
+          })
+          y+=dayHeadingHeight
+          displayedOperators.forEach(person=>{
+            doc.setFillColor(248,250,252);doc.setDrawColor(203,213,225)
+            doc.rect(left,y,nameWidth,rowHeight,'FD')
+            drawText(person.display_name,left,y,nameWidth,rowHeight,8,[30,41,59],true)
+            week.forEach((date,dayIndex)=>{
+              const x=left+nameWidth+dayIndex*dayWidth
+              const inside=date>=snapshot.start&&date<=snapshot.end
+              const selected=inside&&dateSet.has(date)
+              const entry=selected?selectedEntry(person.id,date):undefined
+              const color=colorForEntry(entry)
+              const bg:[number,number,number]=!inside?[245,247,250]:selected?color.pdfBg:[248,250,252]
+              doc.setFillColor(...bg);doc.setDrawColor(226,232,240)
+              doc.rect(x,y,dayWidth,rowHeight,'FD')
+              if(selected)drawText(stateCode(entry),x,y,dayWidth,rowHeight,8.1,color.pdfFg)
+            })
+            y+=rowHeight
+          })
+          if(weekIndex<monthWeeks.length-1)y+=gap
+        })
+        // Leyenda completa, en cuatro columnas, con los mismos colores que aparecen en pantalla.
+        doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);doc.setFontSize(8)
+        doc.text('LEYENDA · CÓDIGOS Y COLORES',left,258)
+        const legendItems=[
+          {code:'T',label:'Turno / horario',bg:[255,255,255],fg:[51,65,85]},
+          {code:'D',label:'Descanso',bg:[254,202,202],fg:[127,29,29]},
+          {code:'V',label:'Vacaciones disfrutadas',bg:[4,120,87],fg:[255,255,255]},
+          {code:'A25',label:'Vacaciones anteriores',bg:[167,243,208],fg:[6,78,59]},
+          {code:'F',label:'Festivo disfrutado',bg:[252,211,77],fg:[120,53,15]},
+          {code:'R',label:'Recuperable',bg:[186,230,253],fg:[12,74,110]},
+          {code:'B',label:'Baja médica',bg:[245,208,254],fg:[112,26,117]},
+          {code:'P',label:'Permiso',bg:[254,243,199],fg:[146,64,14]},
+          {code:'L',label:'Asuntos propios',bg:[254,243,199],fg:[146,64,14]},
+          {code:'E',label:'Formación',bg:[204,251,241],fg:[17,94,89]},
+          {code:'I',label:'Ausencia',bg:[254,202,202],fg:[153,27,27]},
+          {code:'O',label:'Otros',bg:[255,237,213],fg:[154,52,18]},
+          {code:'?',label:'V sin confirmar',bg:[236,253,245],fg:[6,95,70]},
+          {code:'AZ',label:'Día festivo (cabecera)',bg:[29,78,216],fg:[255,255,255]},
+        ] as Array<{code:string;label:string;bg:[number,number,number];fg:[number,number,number]}>
+        const legendColumnWidth=contentWidth/4
+        legendItems.forEach((item,i)=>{
+          const lx=left+(i%4)*legendColumnWidth,ly=261+Math.floor(i/4)*6.2
+          doc.setFillColor(...item.bg);doc.setDrawColor(203,213,225)
+          doc.rect(lx,ly,7,4.6,'FD')
+          drawText(item.code,lx,ly,7,4.6,5.4,item.fg)
+          doc.setFont('helvetica','normal');doc.setFontSize(6.3);doc.setTextColor(51,65,85)
+          doc.text(item.label,lx+8.2,ly+3.15)
+        })
+        doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(75,85,99)
+        doc.text('Turno partido: 09–13 / 15–19 = 8 horas. F: festivo. R: recuperable.',left,289)
+        doc.setFontSize(6)
+        doc.text(summaryNote,left,293)
+        doc.text('Pág. 1/1',right,293,{align:'right'})
         doc.save(filename)
         return
       }
