@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Clock3, LogOut, MapPin, PenLine, RefreshCw, RotateCcw } from 'lucide-react'
 import { useAuth } from '../../auth/context/AuthProvider'
+import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { ariasAuth } from '../../../core/auth/authService'
 import { supabase } from '../../../lib/supabase'
 import { splitShiftLabel, plannedMinutes, type StaffDay, type StaffOperator } from '../staffModel'
@@ -69,6 +70,7 @@ const fallbackSettings:Omit<ClockSettings,'hotel_id'>={
 export default function StaffClockPage(){
   const navigate=useNavigate()
   const {session,loading:authLoading}=useAuth()
+  const {hotel,isPlatformAdmin}=useHotelScope()
   const [workers,setWorkers]=useState<StaffOperator[]>([])
   const [operatorId,setOperatorId]=useState('')
   const [settings,setSettings]=useState<ClockSettings|null>(null)
@@ -79,6 +81,10 @@ export default function StaffClockPage(){
   const [error,setError]=useState('')
   const [message,setMessage]=useState('')
   const [signature,setSignature]=useState<string|null>(null)
+  const [canLinkOwnAccount,setCanLinkOwnAccount]=useState(false)
+  const [linkableWorkers,setLinkableWorkers]=useState<StaffOperator[]>([])
+  const [linkOperatorId,setLinkOperatorId]=useState('')
+  const [linkLoading,setLinkLoading]=useState(false)
 
   useEffect(()=>{
     if(authLoading)return
@@ -95,6 +101,58 @@ export default function StaffClockPage(){
       })
     return()=>{alive=false}
   },[authLoading,session?.user.id,navigate])
+
+  // Only center managers can associate their own authenticated account with an unlinked worker.
+  // Ordinary workers never get access to the list of unlinked personnel.
+  useEffect(()=>{
+    if(authLoading||loading||workers.length>0||!session?.user.id||!hotel?.id)return
+    let active=true
+    async function prepareLink(){
+      setLinkLoading(true)
+      const permission=isPlatformAdmin ? true :
+        (await supabase.rpc('has_hotel_permission',{
+          target_hotel_id:hotel!.id,permission_code:'maintenance.configure',
+        })).data===true
+      if(!active)return
+      setCanLinkOwnAccount(permission)
+      if(permission){
+        const {data,error:staffError}=await supabase.from('staff_operators').select('*')
+          .eq('hotel_id',hotel!.id).eq('active',true)
+          .is('linked_user_id',null).order('display_name')
+        if(!active)return
+        if(staffError)setError(staffError.message)
+        else{
+          const available=(data??[]) as StaffOperator[]
+          setLinkableWorkers(available)
+          setLinkOperatorId(current=>available.some(w=>w.id===current)?current:(available[0]?.id??''))
+        }
+      }
+      setLinkLoading(false)
+    }
+    void prepareLink()
+    return()=>{active=false}
+  },[authLoading,loading,workers.length,hotel?.id,isPlatformAdmin,session?.user.id])
+
+  async function linkMyWorker(){
+    if(!canLinkOwnAccount||!hotel?.id||!session?.user.id||!linkOperatorId||busy)return
+    const chosen=linkableWorkers.find(w=>w.id===linkOperatorId)
+    if(!chosen)return
+    if(!window.confirm('¿Vincular tu cuenta actual a la ficha de '+chosen.display_name+'? Comprueba que es tu ficha.'))return
+    setBusy(true);setError('');setMessage('')
+    const result=await supabase.from('staff_operators')
+      .update({linked_user_id:session.user.id,updated_at:new Date().toISOString()})
+      .eq('id',chosen.id).eq('hotel_id',hotel.id).eq('active',true)
+      .is('linked_user_id',null).select('*').maybeSingle()
+    if(result.error)setError('No se pudo vincular la cuenta: '+result.error.message)
+    else if(!result.data)setError('La ficha ya no está disponible. Actualiza y vuelve a comprobar.')
+    else{
+      const linked=result.data as StaffOperator
+      setWorkers([linked]);setOperatorId(linked.id)
+      setCanLinkOwnAccount(false)
+      setMessage('Cuenta vinculada a '+linked.display_name+'. Ya puedes consultar el fichaje.')
+    }
+    setBusy(false)
+  }
 
   const selected=workers.find(w=>w.id===operatorId)??null
   async function refresh(operator:StaffOperator){
@@ -181,7 +239,36 @@ export default function StaffClockPage(){
       </header>
       {error&&<p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {message&&<p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><CheckCircle2 className="shrink-0" size={18}/>{message}</p>}
-      {!workers.length&&!loading?<section className="rounded-2xl bg-white p-5"><h1 className="font-bold">Cuenta sin trabajador vinculado</h1><p className="mt-2 text-sm text-slate-600">Un responsable debe asociar tu usuario con tu ficha de operario antes de fichar.</p></section>:
+      {!workers.length&&!loading?<section className="rounded-2xl bg-white p-5">
+        <h1 className="font-bold">Cuenta sin trabajador vinculado</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Para fichar, tu cuenta debe estar vinculada a tu ficha de trabajador. Esto solo se hace una vez.
+        </p>
+        {linkLoading&&<p className="mt-3 text-xs text-slate-500">Comprobando permisos de vinculación…</p>}
+        {canLinkOwnAccount&&linkableWorkers.length>0&&
+          <div className="mt-4 space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
+            <h2 className="text-sm font-bold text-sky-900">Vincular mi cuenta</h2>
+            <p className="text-xs leading-relaxed text-sky-800">
+              Como responsable autorizado, selecciona tu propia ficha. No se vinculará ninguna otra cuenta.
+            </p>
+            <label className="block text-xs font-semibold text-slate-700">Mi ficha de trabajador
+              <select value={linkOperatorId} onChange={e=>setLinkOperatorId(e.target.value)}
+                className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm">
+                {linkableWorkers.map(w=><option key={w.id} value={w.id}>{w.display_name}</option>)}
+              </select>
+            </label>
+            <button type="button" disabled={busy||!linkOperatorId} onClick={()=>void linkMyWorker()}
+              className="min-h-11 w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {busy?'Vinculando…':'Vincular mi cuenta y continuar'}
+            </button>
+          </div>}
+        {canLinkOwnAccount&&!linkLoading&&linkableWorkers.length===0&&
+          <p className="mt-3 text-xs text-slate-600">No hay fichas de trabajador libres en este centro.</p>}
+        {!canLinkOwnAccount&&!linkLoading&&
+          <p className="mt-3 text-xs text-slate-500">
+            Si no eres responsable autorizado, solicita que vinculen tu cuenta desde la gestión de personal.
+          </p>}
+      </section>:
       selected&&<section className="space-y-3">
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
