@@ -133,11 +133,16 @@ export default function StaffClockAdminPage(){
     }
     return result.sort((a,b)=>b.day.localeCompare(a.day)||a.name.localeCompare(b.name))
   },[entries,events,operators,clockToday,activationDate])
+  const anomalous=(row:ClockDayReview)=>{
+    if(['MISSING','DIFFERENCE','UNPLANNED'].includes(row.status))return true
+    if(row.status!=='OPEN')return false
+    const last=row.events[row.events.length-1]
+    // Do not flag legitimate overnight shifts that are still in progress.
+    return !!last && Date.now()-new Date(last.event_at).getTime()>18*60*60*1000
+  }
   const shown=reviews.filter(row=>(selectedOperator==='ALL'||row.operatorId===selectedOperator) &&
-    (filter!=='INCIDENCIAS'||['MISSING','DIFFERENCE','UNPLANNED'].includes(row.status) ||
-      (row.status==='OPEN'&&row.day<clockToday)))
-  const anomalies=reviews.filter(row=>['MISSING','DIFFERENCE','UNPLANNED'].includes(row.status) ||
-    (row.status==='OPEN'&&row.day<clockToday)).length
+    (filter!=='INCIDENCIAS'||anomalous(row)))
+  const anomalies=reviews.filter(anomalous).length
   const closed=reviews.filter(row=>row.actual!==null)
   const expected=closed.reduce((sum,row)=>sum+row.planned,0)
   const actual=closed.reduce((sum,row)=>sum+(row.actual??0),0)
