@@ -74,8 +74,8 @@ function dayCode(entry?: StaffDay) {
   if (!entry) return '–'
   if (entry.state === 'SHIFT') return compactShiftHours(entry)
   if (isVacationState(entry.state)) return vacationCode(entry)
-  if (entry.state === 'PUBLIC_HOLIDAY') return holidayRef(entry) ?? 'F'
-  if (entry.state === 'COMP_REST') return recoveryRef(entry) ?? 'R'
+  if (entry.state === 'PUBLIC_HOLIDAY') return holidayRef(entry) ? 'F\n' + holidayRef(entry) : 'F'
+  if (entry.state === 'COMP_REST') return recoveryRef(entry) ? 'R\n' + recoveryRef(entry)!.slice(1) : 'R'
   const codes: Record<string, string> = {
     REST: 'D',
     VACATION: 'V',
@@ -87,7 +87,7 @@ function dayCode(entry?: StaffDay) {
     COMP_REST: 'C',
     TRAINING: 'E',
     UNJUSTIFIED_ABSENCE: 'I',
-    OTHER: 'R',
+    OTHER: 'O',
     UNASSIGNED: '–',
   }
   return codes[entry.state] ?? 'R'
@@ -112,6 +112,7 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'PERSONAL_DAY') return compact ? 'AP' : 'Asuntos propios'
   if (entry.state === 'PERMISSION') return compact ? 'P' : 'Permiso'
   if (entry.state === 'TRAINING') return compact ? 'Fo' : 'Formación'
+  if (entry.state === 'OTHER') return compact ? 'O' : 'Otros'
   if (entry.state === 'UNJUSTIFIED_ABSENCE') return compact ? '!' : 'Ausencia'
   return compact ? '?' : stateView(entry.state).label
 }
@@ -122,7 +123,7 @@ const legend: { state: string; code: string; text: string }[] = [
   { state: 'VACATION', code: 'V', text: 'Programadas' },
   { state: 'VACATION_PREVIOUS', code: 'A25', text: 'Vac. de 2025 (A26: 2026)' },
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
-  { state: 'PUBLIC_HOLIDAY', code: '15/08', text: 'Festivo disfrutado' },
+  { state: 'PUBLIC_HOLIDAY', code: 'F', text: 'Festivo disfrutado (con fecha)' },
   { state: 'COMP_REST', code: 'R', text: 'Recuperable' },
 ]
 
@@ -208,6 +209,7 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
                   (mini?'text-[8px] leading-[10px]':'text-[9px] leading-[10px] sm:min-h-8 sm:text-[11px]')+
                   (entry?.state==='SHIFT' && isSplitShift(entry.start_time,entry.end_time) ? ' min-h-8 ' : ' ')+entryTone(entry)}>
                 <span className={'block max-w-full '+(entry?.state==='SHIFT' && isSplitShift(entry.start_time,entry.end_time)
+                  || entry?.state==='PUBLIC_HOLIDAY' || entry?.state==='COMP_REST'
                   ? 'whitespace-pre-line leading-[10px]' : 'truncate')}>{dayCode(entry)}</span>
               </button>
           })}
