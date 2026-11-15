@@ -142,7 +142,7 @@ export function HotelScopeProvider({ children }: { children: ReactNode }) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white px-7 py-8 text-center shadow-sm">
-          <img src="/assets/arias-suite-logo-v2.webp" alt="Arias Suite" className="mx-auto h-14 w-auto object-contain" />
+          <img src="/assets/arias-suite-logo-v3.webp" alt="Arias Suite" className="mx-auto h-14 w-auto object-contain" />
           <p className="mt-5 text-sm text-slate-500">Cargando hotel…</p>
         </div>
       </main>
@@ -154,7 +154,7 @@ export function HotelScopeProvider({ children }: { children: ReactNode }) {
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
         <section className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-7 shadow-lg">
           <div className="flex items-center gap-3">
-            <img src="/assets/arias-suite-logo-v2.webp" alt="Arias Suite" className="h-12 w-auto object-contain" />
+            <img src="/assets/arias-suite-logo-v3.webp" alt="Arias Suite" className="h-12 w-auto object-contain" />
             <div>
               <h1 className="text-xl font-bold text-slate-900">Selecciona el hotel</h1>
               <p className="mt-1 text-sm text-slate-500">Este hotel será el contexto de trabajo de toda Arias Suite.</p>
@@ -184,7 +184,7 @@ export function HotelScopeProvider({ children }: { children: ReactNode }) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
         <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <img src="/assets/arias-suite-logo-v2.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
+          <img src="/assets/arias-suite-logo-v3.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
           <h1 className="mt-5 text-xl font-semibold text-slate-900">Hotel no disponible</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">Tu cuenta no tiene un hotel activo disponible para trabajar.</p>
         </section>
