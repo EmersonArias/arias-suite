@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, FileCheck2, ListChecks, Settings2, Wrench, Building2, Lightbulb, Plus, Clock3, Package } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, FileCheck2, ListChecks, Settings2, Wrench, Building2, Lightbulb, Wind, Plus, Clock3, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
@@ -191,6 +191,12 @@ export default function MaintenanceLandingPage() {
       description: 'Control de luces LED de armario por habitación, con seguimiento y plano visual para recepción.',
       icon: Lightbulb,
       href: '/maintenance/room-projects',
+    },
+    {
+      title: 'Preventivos de Fancoils',
+      description: 'Control por habitación y planta con los mismos colores, estados, filtros y PDF de LED de armario.',
+      icon: Wind,
+      href: '/maintenance/fancoil-preventives',
     },
     {
       title: 'Preventivos',
