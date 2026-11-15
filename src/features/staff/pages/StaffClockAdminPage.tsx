@@ -272,7 +272,7 @@ export default function StaffClockAdminPage(){
         </p>:
         <div className="space-y-2">
           {shown.map(row=>{
-            const bad=row.status==='MISSING'||row.status==='DIFFERENCE'||row.status==='UNPLANNED'||(row.status==='OPEN'&&row.day<clockToday)
+            const bad=anomalous(row)
             const out=row.events.find(e=>e.event_type==='OUT')
             return <details key={row.key} className="rounded-xl border border-slate-200">
               <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] gap-2 p-3 sm:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
