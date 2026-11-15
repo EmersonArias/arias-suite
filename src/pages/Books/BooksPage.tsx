@@ -9,8 +9,6 @@ import {
   X,
   Minimize2,
   Building2,
-  ArrowUpRight,
-  ClipboardList,
   Settings,
   UserRound,
 } from 'lucide-react'
@@ -23,6 +21,7 @@ import { useHotelScope } from '../../shared/context/HotelScopeContext'
 type HomeRegister = {
   iconIndex: number | null
   iconSrc?: string
+  description?: string
   name: string
   path: string | null
   comingSoon?: boolean
@@ -90,12 +89,13 @@ function alertStatusView(alert: MaintenanceAlert) {
 
 const registers: HomeRegister[] = [
   { iconIndex: 0, name: 'Mantenimiento', path: '/maintenance' },
+  { iconIndex: null, iconSrc: '/assets/maintenance-icons-3d/led.webp', name: 'LED de armario', description: 'Seguimiento por habitación', path: '/maintenance/room-projects' },
+  { iconIndex: null, iconSrc: '/assets/record-icons-3d/fancoil.webp', name: 'Preventivos de fancoils', description: 'Revisiones periódicas por habitación', path: '/maintenance/fancoil-preventives' },
   { iconIndex: null, iconSrc: '/assets/record-icons-3d/daily.webp', name: 'Registros técnicos', path: '/registros-tecnicos' },
   { iconIndex: 1, name: 'Pendientes', path: '/maintenance/pending' },
   { iconIndex: 2, name: 'Materiales y stock', path: '/materials' },
   { iconIndex: 3, name: 'Planificador horario', path: '/planificador-horario' },
   { iconIndex: 4, name: 'Proveedores', path: '/providers' },
-  { iconIndex: null, name: 'Registro de jornada', path: '/registro-jornada' },
 ]
 
 export default function BooksPage() {
@@ -470,7 +470,7 @@ export default function BooksPage() {
         </div>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <div className="mx-auto grid w-full max-w-[1680px] grid-cols-2 justify-center gap-3 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 xl:grid-cols-7">
+          <div className="mx-auto grid w-full max-w-[1680px] grid-cols-2 justify-center gap-3 px-2 sm:px-3 md:grid-cols-4 md:px-5">
             {registers.map((register) => (
               <button
                 key={register.name}
@@ -498,6 +498,7 @@ export default function BooksPage() {
                   <span className="mt-2 text-center text-xs font-medium leading-tight text-slate-700">
                     {register.name}
                   </span>
+                  {register.description && <span className="mt-1 text-center text-[11px] leading-4 text-slate-500">{register.description}</span>}
                   {register.name === 'Pendientes' && pendingCount !== null && (
                     <span className="mt-1 rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
                       {pendingCount} pendientes
@@ -513,36 +514,6 @@ export default function BooksPage() {
               </button>
             ))}
           </div>
-
-          <section aria-labelledby="daily-overview" className="mx-auto mt-8 w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-teal-700">Tu hotel, de un vistazo</p><h1 id="daily-overview" className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">Centro de trabajo</h1></div>
-              <p className="text-xs capitalize text-slate-500">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
-              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-labelledby="priority-title">
-                <div className="flex items-center justify-between gap-3"><div><h2 id="priority-title" className="font-semibold">Avisos preventivos</h2><p className="mt-1 text-xs text-slate-500">Revisiones y controles que requieren atención</p></div><button type="button" onClick={() => { setNotificationsOpen(true); void refreshNotifications() }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50">Ver todos →</button></div>
-                <div className="mt-5 space-y-2" aria-live="polite">
-                  {!hotel ? <p className="py-6 text-sm text-slate-500">Selecciona un hotel para consultar sus avisos.</p>
-                    : (notificationsLoading || !alertSnapshot || alertSnapshot.hotelId !== hotel.id) ? <p className="py-6 text-sm text-slate-500">Consultando avisos…</p>
-                    : notificationsError ? <p className="py-6 text-sm text-amber-700">No se han podido consultar los avisos. Puedes volver a intentarlo desde la campana.</p>
-                    : maintenanceAlerts.length === 0 ? <div className="rounded-2xl bg-teal-50 p-6"><Bell className="text-teal-600" size={24}/><p className="mt-3 text-sm font-semibold text-teal-900">Sin avisos preventivos activos</p><p className="mt-1 text-xs leading-5 text-teal-700">Los próximos avisos de mantenimiento aparecerán aquí.</p></div>
-                    : maintenanceAlerts.slice(0, 4).map(alert => { const status = alertStatusView(alert); return <button key={alert.id} type="button" onClick={() => navigate(alert.apparatus_registry_id ? `/maintenance/pam/${alert.apparatus_registry_id}?planId=${alert.maintenance_plan_id}` : '/maintenance/planning')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 p-3 text-left transition hover:border-teal-200 hover:bg-teal-50/40"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{alert.title}</p><p className="mt-1 truncate text-xs text-slate-500">{alert.apparatus_name ?? 'Plan de mantenimiento'}</p></div><span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ' + status.className}>{status.label}</span></button> })}
-                </div>
-              </section>
-              <div className="flex flex-col gap-4">
-                <button type="button" onClick={() => navigate('/maintenance/pending')} className="group relative overflow-hidden rounded-3xl bg-slate-900 p-6 text-left text-white shadow-sm transition hover:bg-slate-800">
-                  <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><ClipboardList size={21}/></span><ArrowUpRight size={20} className="text-teal-300"/></div>
-                  <p className="mt-4 text-sm font-medium text-slate-300">Trabajos pendientes</p><p className="mt-1 text-4xl font-bold tracking-tight">{pendingCount ?? '—'}</p><p className="mt-3 text-xs text-slate-300">{pendingCount === null ? 'Revisa el listado de pendientes del hotel.' : 'Consulta el listado y continúa con las actuaciones.'}</p>
-                </button>
-                <section className="flex-1 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="quick-records">
-                  <h2 id="quick-records" className="text-sm font-semibold text-slate-800">Registros del día</h2><p className="mt-1 text-xs leading-5 text-slate-500">Accede directamente a los controles habituales.</p>
-                  <div className="mt-4 flex flex-wrap gap-2">{[['Preventivo diario', '/maintenance/record'], ['Piscina exterior', '/pools'], ['SPA', '/spa']].map(([name, path]) => <button key={path} type="button" onClick={() => navigate(path)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:border-teal-300 hover:bg-teal-50">{name}</button>)}</div>
-                </section>
-              </div>
-            </div>
-            <p className="mt-6 text-center text-[10px] tracking-wide text-slate-400">Arias Suite · Mantenimiento hotelero</p>
-          </section>
 
           {helpOpen && <section className="fixed right-3 top-32 z-50 w-[min(94vw,440px)] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" aria-label="Ayuda de inicio"><div className="flex items-center justify-between"><h2 className="font-semibold">Cómo empezar</h2><button type="button" aria-label="Cerrar ayuda" onClick={() => setHelpOpen(false)} className="rounded-lg p-2 hover:bg-slate-100"><X size={18}/></button></div><p className="mt-2 text-sm leading-6 text-slate-600">Selecciona tu hotel y abre un módulo. En Registros técnicos encontrarás los controles; en Mantenimiento, los trabajos y preventivos. La campana muestra los avisos del hotel seleccionado.</p></section>}
           {notificationsOpen && (
