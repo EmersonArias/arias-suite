@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Bell,
@@ -8,7 +8,9 @@ import {
   Maximize2,
   X,
   Minimize2,
-  Search,
+  Building2,
+  ArrowUpRight,
+  ClipboardList,
   Settings,
   UserRound,
 } from 'lucide-react'
@@ -52,7 +54,7 @@ function alertStatusView(alert: MaintenanceAlert) {
 
   const today = new Date()
   const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const due = new Date(alert.due_date + 'T12:00:00')
+  const due = new Date(alert.due_date + 'T00:00:00')
   const diffDays = Math.round((due.getTime() - localToday.getTime()) / 86400000)
 
   if (diffDays < 0) {
@@ -100,14 +102,17 @@ export default function BooksPage() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const { hotel, hotels, isPlatformAdmin, setHotel } = useHotelScope()
-  const [search, setSearch] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
-  const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlert[]>([])
+  const [alertSnapshot, setAlertSnapshot] = useState<{ hotelId: string; items: MaintenanceAlert[]; error: boolean } | null>(null)
+  const maintenanceAlerts = alertSnapshot?.hotelId === hotel?.id ? alertSnapshot?.items ?? [] : []
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [pendingCount, setPendingCount] = useState<number | null>(null)
+  const notificationsError = alertSnapshot?.hotelId === hotel?.id && !!alertSnapshot?.error
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [pendingSnapshot, setPendingSnapshot] = useState<{ hotelId: string; count: number | null } | null>(null)
+  const pendingCount = pendingSnapshot?.hotelId === hotel?.id ? pendingSnapshot?.count ?? null : null
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
@@ -115,7 +120,7 @@ export default function BooksPage() {
 
     async function loadPendingCount() {
       if (!hotel?.id) {
-        if (mounted) setPendingCount(null)
+        if (mounted) setPendingSnapshot(null)
         return
       }
 
@@ -126,7 +131,7 @@ export default function BooksPage() {
         .eq('active', true)
         .eq('status', 'PENDING')
 
-      if (mounted) setPendingCount(result.error ? null : result.count ?? 0)
+      if (mounted) setPendingSnapshot({ hotelId: hotel.id, count: result.error ? null : result.count ?? 0 })
     }
 
     void loadPendingCount()
@@ -173,7 +178,7 @@ export default function BooksPage() {
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('triggered_at', { ascending: false })
 
-    if (result.error) return []
+    if (result.error) throw new Error(result.error.message)
 
     const rawAlerts = (result.data ?? []) as Array<Omit<MaintenanceAlert, 'apparatus_registry_id' | 'apparatus_code' | 'apparatus_name'>>
     const planIds = [...new Set(rawAlerts.map((item) => item.maintenance_plan_id).filter(Boolean))]
@@ -215,7 +220,7 @@ export default function BooksPage() {
 
     async function loadNotifications() {
       if (!session?.user.id) {
-        if (mounted) setMaintenanceAlerts([])
+        if (mounted) setAlertSnapshot(null)
         return
       }
 
@@ -223,18 +228,20 @@ export default function BooksPage() {
 
       if (!hotel?.id) {
         if (mounted) {
-          setMaintenanceAlerts([])
+          setAlertSnapshot(null)
           setNotificationsLoading(false)
         }
         return
       }
 
-      const alerts = await loadMaintenanceAlerts(hotel.id)
-
-      if (!mounted) return
-
-      setMaintenanceAlerts(alerts)
-      setNotificationsLoading(false)
+      try {
+        const alerts = await loadMaintenanceAlerts(hotel.id)
+        if (mounted) setAlertSnapshot({ hotelId: hotel.id, items: alerts, error: false })
+      } catch {
+        if (mounted) setAlertSnapshot({ hotelId: hotel.id, items: [], error: true })
+      } finally {
+        if (mounted) setNotificationsLoading(false)
+      }
     }
 
     void loadNotifications()
@@ -250,15 +257,19 @@ export default function BooksPage() {
     setNotificationsLoading(true)
 
     if (!hotel?.id) {
-      setMaintenanceAlerts([])
+      setAlertSnapshot(null)
       setNotificationsLoading(false)
       return
     }
 
-    const alerts = await loadMaintenanceAlerts(hotel.id)
-
-    setMaintenanceAlerts(alerts)
-    setNotificationsLoading(false)
+    try {
+      const alerts = await loadMaintenanceAlerts(hotel.id)
+      setAlertSnapshot({ hotelId: hotel.id, items: alerts, error: false })
+    } catch {
+      setAlertSnapshot({ hotelId: hotel.id, items: [], error: true })
+    } finally {
+      setNotificationsLoading(false)
+    }
   }
 
   async function handleSignOut() {
@@ -276,65 +287,25 @@ export default function BooksPage() {
     navigate('/login', { replace: true })
   }
 
-  const filteredRegisters = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase('es')
-    if (!query) return registers
-
-    return registers.filter((register) => {
-      const haystack = [register.name]
-        .join(' ')
-        .toLocaleLowerCase('es')
-      return haystack.includes(query)
-    })
-  }, [search])
-
   return (
-    <div className="h-[100dvh] overflow-hidden bg-slate-100 px-2 py-2 text-slate-900 sm:px-4 sm:py-3">
+    <div className="h-[100dvh] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#e0f2f1_0%,_#f1f5f9_45%,_#f8fafc_100%)] px-2 py-2 text-slate-900 sm:px-4 sm:py-5">
       <div className="mx-auto flex h-full min-h-0 w-full flex-col">
-        <div className="mb-2 flex justify-center px-1 sm:mb-2">
-          <BrandLogo
-            onActivate={() => window.location.reload()}
-            label="Actualizar Arias Suite"
-            className="h-16 w-auto max-w-[88vw] object-contain sm:h-20"
-          />
-        </div>
-
-        <div className="mx-auto w-full px-2 sm:px-3 md:px-5 lg:px-[clamp(48px,5.5vw,90px)]">
-          <header className="mb-3 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <label className="relative min-w-0 flex-1">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar en Arias Suite..."
-                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-              />
-            </label>
-
-            <div className="flex items-center justify-center gap-2 sm:justify-end">
-              <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 sm:flex">
-                {isPlatformAdmin && hotels.length > 1 ? (
-                  <select
-                    value={hotel?.id ?? ''}
-                    onChange={(event) => setHotel(event.target.value)}
-                    className="max-w-[220px] bg-transparent text-xs font-semibold text-slate-700 outline-none"
-                    aria-label="Hotel actual"
-                    title="Cambiar hotel"
-                  >
-                    {hotels.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="max-w-[220px] truncate text-xs font-semibold text-slate-700" title={hotel?.name ?? 'Hotel actual'}>
-                    {hotel?.name ?? 'Hotel actual'}
-                  </span>
-                )}
+        <div className="mx-auto w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
+          <header className="relative z-20 mb-6 rounded-3xl border border-white bg-white/95 px-4 py-4 shadow-sm sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
+              <BrandLogo onActivate={() => window.location.reload()} label="Actualizar Arias Suite" showTagline className="h-20 w-auto max-w-[70vw] object-contain sm:h-24" />
+              <div className="order-3 flex w-full items-center gap-3 border-t border-slate-100 pt-4 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700"><Building2 size={22} /></span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Establecimiento</p>
+                  {isPlatformAdmin && hotels.length > 1 ? (
+                    <select value={hotel?.id ?? ''} onChange={event => setHotel(event.target.value)} className="mt-1 max-w-full bg-transparent text-sm font-semibold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-teal-600" aria-label="Hotel actual" title="Cambiar hotel">
+                      {hotels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  ) : <p className="mt-1 text-sm font-semibold text-slate-800">{hotel?.name ?? 'Selecciona un hotel'}</p>}
+                </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Herramientas de la aplicación">
               <button
                 type="button"
                 onClick={() => void toggleFullscreen()}
@@ -343,7 +314,7 @@ export default function BooksPage() {
                 aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
               >
                 {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-                <span className="hidden text-xs font-medium sm:inline">
+                <span className="hidden text-xs font-medium xl:inline">
                   {isFullscreen ? 'Salir' : 'Pantalla completa'}
                 </span>
               </button>
@@ -371,6 +342,8 @@ export default function BooksPage() {
               <button
                 type="button"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                onClick={() => { setHelpOpen(open => !open); setUserMenuOpen(false); setAdminMenuOpen(false); setNotificationsOpen(false) }}
+                aria-expanded={helpOpen}
                 title="Ayuda"
                 aria-label="Ayuda"
               >
@@ -497,8 +470,8 @@ export default function BooksPage() {
         </div>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <div className="mx-auto grid w-full grid-cols-2 justify-center gap-2 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 lg:grid-cols-4 xl:grid-cols-7 lg:gap-3 lg:px-[clamp(48px,5.5vw,90px)]">
-            {filteredRegisters.map((register) => (
+          <div className="mx-auto grid w-full max-w-[1680px] grid-cols-2 justify-center gap-3 px-2 sm:grid-cols-3 sm:px-3 md:grid-cols-4 md:px-5 xl:grid-cols-7">
+            {registers.map((register) => (
               <button
                 key={register.name}
                 type="button"
@@ -507,15 +480,15 @@ export default function BooksPage() {
                 }}
                 disabled={register.comingSoon}
                 aria-label={register.comingSoon ? register.name + ' — en preparación' : 'Entrar en ' + register.name}
-                className="group flex min-h-[145px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:scale-[1.025] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
+                className="group flex min-h-[164px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 motion-safe:hover:-translate-y-1 motion-safe:hover:scale-[1.015] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex min-h-[112px] flex-1 flex-col items-center justify-center px-3 py-3">
                   {register.iconSrc
-                    ? <img src={register.iconSrc} alt="" aria-hidden="true" width={512} height={512} className="h-14 w-14 object-contain transition-transform duration-200 group-hover:scale-110" />
+                    ? <img src={register.iconSrc} alt="" aria-hidden="true" width={512} height={512} className="h-20 w-20 object-contain transition-transform duration-200 motion-safe:group-hover:scale-110" />
                     : register.iconIndex===null
-                    ? <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 transition-transform duration-200 group-hover:scale-110"><Clock3 size={36}/></span>
+                    ? <span aria-hidden="true" className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 transition-transform duration-200 motion-safe:group-hover:scale-110"><Clock3 size={44}/></span>
                     : <span aria-hidden="true"
-                        className="block h-14 w-14 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-110"
+                        className="block h-20 w-20 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 motion-safe:group-hover:scale-110"
                         style={{
                           backgroundImage: 'url(/assets/home-icons-3d.webp)',
                           backgroundSize: '500% 100%',
@@ -541,12 +514,37 @@ export default function BooksPage() {
             ))}
           </div>
 
-          {filteredRegisters.length === 0 && (
-            <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-              No se encontraron módulos para «{search}».
+          <section aria-labelledby="daily-overview" className="mx-auto mt-8 w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-teal-700">Tu hotel, de un vistazo</p><h1 id="daily-overview" className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">Centro de trabajo</h1></div>
+              <p className="text-xs capitalize text-slate-500">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             </div>
-          )}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
+              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-labelledby="priority-title">
+                <div className="flex items-center justify-between gap-3"><div><h2 id="priority-title" className="font-semibold">Avisos preventivos</h2><p className="mt-1 text-xs text-slate-500">Revisiones y controles que requieren atención</p></div><button type="button" onClick={() => { setNotificationsOpen(true); void refreshNotifications() }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50">Ver todos →</button></div>
+                <div className="mt-5 space-y-2" aria-live="polite">
+                  {!hotel ? <p className="py-6 text-sm text-slate-500">Selecciona un hotel para consultar sus avisos.</p>
+                    : (notificationsLoading || !alertSnapshot || alertSnapshot.hotelId !== hotel.id) ? <p className="py-6 text-sm text-slate-500">Consultando avisos…</p>
+                    : notificationsError ? <p className="py-6 text-sm text-amber-700">No se han podido consultar los avisos. Puedes volver a intentarlo desde la campana.</p>
+                    : maintenanceAlerts.length === 0 ? <div className="rounded-2xl bg-teal-50 p-6"><Bell className="text-teal-600" size={24}/><p className="mt-3 text-sm font-semibold text-teal-900">Sin avisos preventivos activos</p><p className="mt-1 text-xs leading-5 text-teal-700">Los próximos avisos de mantenimiento aparecerán aquí.</p></div>
+                    : maintenanceAlerts.slice(0, 4).map(alert => { const status = alertStatusView(alert); return <button key={alert.id} type="button" onClick={() => navigate(alert.apparatus_registry_id ? `/maintenance/pam/${alert.apparatus_registry_id}?planId=${alert.maintenance_plan_id}` : '/maintenance/planning')} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 p-3 text-left transition hover:border-teal-200 hover:bg-teal-50/40"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{alert.title}</p><p className="mt-1 truncate text-xs text-slate-500">{alert.apparatus_name ?? 'Plan de mantenimiento'}</p></div><span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ' + status.className}>{status.label}</span></button> })}
+                </div>
+              </section>
+              <div className="flex flex-col gap-4">
+                <button type="button" onClick={() => navigate('/maintenance/pending')} className="group relative overflow-hidden rounded-3xl bg-slate-900 p-6 text-left text-white shadow-sm transition hover:bg-slate-800">
+                  <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><ClipboardList size={21}/></span><ArrowUpRight size={20} className="text-teal-300"/></div>
+                  <p className="mt-4 text-sm font-medium text-slate-300">Trabajos pendientes</p><p className="mt-1 text-4xl font-bold tracking-tight">{pendingCount ?? '—'}</p><p className="mt-3 text-xs text-slate-300">{pendingCount === null ? 'Revisa el listado de pendientes del hotel.' : 'Consulta el listado y continúa con las actuaciones.'}</p>
+                </button>
+                <section className="flex-1 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="quick-records">
+                  <h2 id="quick-records" className="text-sm font-semibold text-slate-800">Registros del día</h2><p className="mt-1 text-xs leading-5 text-slate-500">Accede directamente a los controles habituales.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">{[['Preventivo diario', '/maintenance/record'], ['Piscina exterior', '/pools'], ['SPA', '/spa']].map(([name, path]) => <button key={path} type="button" onClick={() => navigate(path)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:border-teal-300 hover:bg-teal-50">{name}</button>)}</div>
+                </section>
+              </div>
+            </div>
+            <p className="mt-6 text-center text-[10px] tracking-wide text-slate-400">Arias Suite · Mantenimiento hotelero</p>
+          </section>
 
+          {helpOpen && <section className="fixed right-3 top-32 z-50 w-[min(94vw,440px)] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" aria-label="Ayuda de inicio"><div className="flex items-center justify-between"><h2 className="font-semibold">Cómo empezar</h2><button type="button" aria-label="Cerrar ayuda" onClick={() => setHelpOpen(false)} className="rounded-lg p-2 hover:bg-slate-100"><X size={18}/></button></div><p className="mt-2 text-sm leading-6 text-slate-600">Selecciona tu hotel y abre un módulo. En Registros técnicos encontrarás los controles; en Mantenimiento, los trabajos y preventivos. La campana muestra los avisos del hotel seleccionado.</p></section>}
           {notificationsOpen && (
             <>
               <button type="button" aria-label="Cerrar centro de avisos" onClick={() => setNotificationsOpen(false)} className="fixed inset-0 z-40 cursor-default bg-slate-950/10" />
@@ -565,8 +563,9 @@ export default function BooksPage() {
                   </div>
                 </header>
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                  {!notificationsLoading && notificationsError && <p className="p-4 text-sm text-amber-700">No se han podido consultar los avisos. Pulsa Actualizar para volver a intentarlo.</p>}
                   {notificationsLoading && <div className="p-8 text-center text-xs text-slate-400">Actualizando avisos…</div>}
-                  {!notificationsLoading && maintenanceAlerts.length === 0 && (
+                  {!notificationsLoading && !notificationsError && maintenanceAlerts.length === 0 && (
                     <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center">
                       <Bell size={22} className="mx-auto text-slate-300"/>
                       <p className="mt-2 text-sm font-semibold text-slate-700">No hay avisos activos</p>
