@@ -6,7 +6,7 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
-  dateISO, fromISO, hours, isoWeek, minutesInShift, staffStateOptions, isSplitShift,
+  dateISO, fromISO, hours, isoWeek, minutesInShift, plannedMinutes, staffStateOptions, isSplitShift,
   stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
   vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
@@ -63,7 +63,7 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
   const extra=overtime.filter(d=>d.operator_id===operatorId && d.entry_date.startsWith(String(year)))
   const money=(kind:string)=>extra.filter(e=>e.entry_type===kind).reduce((t,e)=>t+e.minutes,0)
   return {
-    planned:own.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+(d.planned_minutes??0),0),
+    planned:own.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+plannedMinutes(d),0),
     shifts:own.filter(d=>d.state==='SHIFT').length,
     vacation:days.filter(d=>d.operator_id===operatorId && isVacationState(d.state)
       && vacationOriginYear(d)===year).length,
@@ -178,7 +178,7 @@ export default function StaffSchedulePage() {
     return {
       month:new Date(year,i,1).toLocaleDateString('es-ES',{month:'long'}),
       shifts:entries.length,
-      minutes:entries.reduce((sum,d)=>sum+(d.planned_minutes??0),0),
+      minutes:entries.reduce((sum,d)=>sum+plannedMinutes(d),0),
     }
   }),[days,hoursDetailOperatorId,year])
   const hoursMonthlyTotal=hoursMonthly.reduce((sum,row)=>sum+row.minutes,0)
@@ -314,9 +314,9 @@ export default function StaffSchedulePage() {
       hotel_id:hotel.id,operator_id:dayEditor.operator_id,work_date:dayEditor.work_date,
       state:vacationState,start_time:isShift?start:null,end_time:isShift?end:null,
       planned_minutes:minutes,
-      // Al editar la planificación, conservar registros reales ya confirmados.
-      actual_minutes:isShift?(existing?.actual_minutes??null):null,
-      actual_confirmed:isShift?(existing?.actual_confirmed??false):false,
+      // No generar ni confirmar horas reales desde el cuadrante; conservarlas solo si ya existen.
+      actual_minutes:existing?.actual_minutes??null,
+      actual_confirmed:existing?.actual_confirmed??false,
       justification:dayEditor.justification,
       source_kind:'MANUAL',source_code:existing?.source_code??null,
       vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
