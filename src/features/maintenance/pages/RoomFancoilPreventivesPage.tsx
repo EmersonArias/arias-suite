@@ -303,12 +303,12 @@ export default function RoomFancoilPreventivesPage() {
   }
 
   function exportRoomListPdf() {
-    const rows = activeRooms
-      .map((code) => {
-        const record = records[code] ?? (DEFAULT_DONE_CODES.has(code) ? { ...defaultRecord(), status: 'DONE' as RoomStatus } : defaultRecord())
-        return { code, floor: Number(code.split('-')[0]), record }
-      })
-      .filter(({ record }) => filter === 'ALL' || record.status === filter)
+    // Exportar exactamente las mismas habitaciones que muestra el filtro del cuadrante.
+    const rows = roomsByFloor
+      .flatMap(({ floor, rooms }) => rooms.map((code) => ({
+        code, floor,
+        record: records[code] ?? (DEFAULT_DONE_CODES.has(code) ? { ...defaultRecord(), status: 'DONE' as RoomStatus } : defaultRecord()),
+      })))
       .sort((a, b) => a.floor - b.floor || a.code.localeCompare(b.code, 'es', { numeric: true }))
 
     if (!rows.length) {
@@ -356,16 +356,17 @@ export default function RoomFancoilPreventivesPage() {
   }
 
   function exportBuildingImage() {
-    const rows = FLOOR_ROOM_LIMITS.map(({ floor, maxRoom }) => ({
-      floor,
-      rooms: Array.from({ length: maxRoom }, (_, index) => roomCode(floor, index + 1))
-        .filter((code) => activeRooms.includes(code)),
-    })).filter((row) => row.rooms.length > 0)
+    // La exportación usa las filas visibles; el filtro ya se ha aplicado en roomsByFloor.
+    const rows = roomsByFloor
     if (!rows.length) {
-      setNotice('No hay habitaciones configuradas para exportar.')
+      setNotice('No hay habitaciones con el estado seleccionado para exportar.')
       return
     }
 
+    const filterLabel = filter === 'ALL' ? 'Todos los estados' : STATUS_LABELS[filter]
+    const filterSlug = filter === 'ALL' ? 'todos' : filter === 'PENDING' ? 'pendientes'
+      : filter === 'IN_PROGRESS' ? 'en-curso' : 'terminados'
+    const visibleRoomCount = rows.reduce((total, row) => total + row.rooms.length, 0)
     const maxRooms = Math.max(...rows.map((row) => row.rooms.length))
     const padding = 34
     const labelWidth = 142
@@ -373,7 +374,7 @@ export default function RoomFancoilPreventivesPage() {
     const cellHeight = 34
     const rowHeight = 43
     const headerHeight = 160
-    const width = padding * 2 + labelWidth + maxRooms * cellWidth
+    const width = Math.max(520, padding * 2 + labelWidth + maxRooms * cellWidth)
     const height = headerHeight + rows.length * rowHeight + 74
     const canvas = document.createElement('canvas')
     const scale = 2
@@ -394,15 +395,17 @@ export default function RoomFancoilPreventivesPage() {
     context.font = '14px Arial, sans-serif'
     context.fillText(hotel?.name ? `Hotel: ${hotel.name}` : 'Seguimiento de habitaciones', padding, 67)
     context.fillText(`Estado a fecha de ${new Date().toLocaleDateString('es-ES')}`, padding, 89)
+    context.fillText(`Filtro: ${filterLabel} · ${visibleRoomCount} habitaciones`, padding, 110)
     context.font = 'bold 13px Arial, sans-serif'
     context.fillStyle = '#475569'
 
     const legendY = 143
-    const legend = [
-      { label: 'Terminada', status: 'DONE' as RoomStatus, x: padding },
-      { label: 'Pendiente', status: 'PENDING' as RoomStatus, x: padding + 126 },
-      { label: 'En curso', status: 'IN_PROGRESS' as RoomStatus, x: padding + 252 },
-    ]
+    const legend = ([
+      { label: 'Terminada', status: 'DONE' as RoomStatus },
+      { label: 'Pendiente', status: 'PENDING' as RoomStatus },
+      { label: 'En curso', status: 'IN_PROGRESS' as RoomStatus },
+    ]).filter((item) => filter === 'ALL' || item.status === filter)
+      .map((item, index) => ({ ...item, x: padding + index * 126 }))
     context.font = '11px Arial, sans-serif'
     legend.forEach((item) => {
       context.fillStyle = STATUS_COLORS[item.status].fill
@@ -452,12 +455,12 @@ export default function RoomFancoilPreventivesPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `preventivos-fancoils-${localDate()}.png`
+      link.download = `preventivos-fancoils-${filterSlug}-${localDate()}.png`
       document.body.appendChild(link)
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      setNotice('Imagen del edificio descargada.')
+      setNotice(`Imagen descargada · ${filterLabel} · ${visibleRoomCount} habitaciones.`)
     }, 'image/png')
   }
 
