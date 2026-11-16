@@ -7,7 +7,7 @@ import { useSystemDialog } from '../../shared/components/dialogs/SystemDialogPro
 import { useBeforeUnloadGuard } from '../../shared/hooks/useBeforeUnloadGuard'
 import { canNavigateInSuite } from '../../shared/navigation/navigationGuard'
 import BrandLogo from '../../shared/components/branding/BrandLogo'
-import { bookDefinitions, sourceCatalog } from './bookDefinitions'
+import { bookDefinitions } from './bookDefinitions'
 import { completedCount, correction, createEntry, entryFields, fieldIssue, filterEntries, frequencyLabels, issueCount, loadSandbox, persistEntry } from './bookModel'
 import type { Scope } from './bookModel'
 import type { BookDefinition, BookEntry, BookField } from './types'
@@ -18,18 +18,19 @@ const button = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-x
 const trialPath = '/registros-tecnicos/pruebas'
 
 function TrialNotice() {
-  return <aside className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"><strong>Zona de pruebas de los libros Excel.</strong> Los ensayos se guardan solo en este navegador, separados por usuario y hotel. No se envían a la base de datos ni cambian el PAM o las habitaciones. Los PDF se identifican como documentos de prueba.</aside>
+  return <aside className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"><strong>Zona de pruebas de los libros técnicos.</strong> Los ensayos se guardan solo en este navegador, separados por usuario y hotel. No se envían a la base de datos ni cambian el PAM o las habitaciones. Los PDF se identifican como documentos de prueba.</aside>
 }
 function BookIndex() {
   return <>
     <div className="mb-5 grid gap-3 sm:grid-cols-2">
-      <Link to={trialPath + '/plan-anual'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-01 · Plan anual</h2><p className="mt-1 text-sm">Consulta el calendario del Excel {sourceCatalog.plan.year}. No activa vencimientos.</p></Link>
-      <Link to={trialPath + '/aparatos'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-02 · Relación de aparatos</h2><p className="mt-1 text-sm">Consulta las referencias de equipos del archivo, sin importar ni modificar el inventario del hotel.</p></Link>
+      <Link to={trialPath + '/plan-anual'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-01 · Plan anual</h2><p className="mt-1 text-sm">Consulta la planificación anual de mantenimiento. Solo lectura; no activa vencimientos.</p></Link>
+      <Link to={trialPath + '/aparatos'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-02 · Relación de aparatos</h2><p className="mt-1 text-sm">Consulta la relación de equipos e instalaciones. Solo lectura; no modifica el inventario del hotel.</p></Link>
+      <article className="rounded-2xl border border-slate-200 bg-slate-100 p-5 text-slate-700"><h2 className="font-bold">R-SSTT-01-03 · Piscina y SPA</h2><p className="mt-1 text-sm">Excluido de estas pruebas. Se mantienen los módulos actuales.</p></article>
     </div>
     <section aria-label="Libros disponibles para probar" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {bookDefinitions.map(book => <Link key={book.id} to={trialPath + '/' + book.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:shadow-md">
         <img src={'/assets/record-icons-3d/' + book.icon + '.webp'} alt="" width={72} height={72} className="h-18 w-18 shrink-0 object-contain" />
-        <div><p className="text-xs font-semibold text-sky-700">{book.code}</p><h2 className="mt-1 font-bold text-slate-800">{book.title}</h2><p className="mt-1 text-xs text-slate-500">{book.fields.length} controles · {book.sheet}</p></div>
+        <div><p className="text-xs font-semibold text-sky-700">{book.code}</p><h2 className="mt-1 font-bold text-slate-800">{book.title}</h2><p className="mt-1 text-xs text-slate-500">{book.fields.length} controles</p></div>
       </Link>)}
     </section>
   </>
@@ -41,7 +42,7 @@ function FieldCard({ field, entry, disabled, update, showErrors }: { field: Book
   const id = 'book-field-' + field.id
   return <div className={'rounded-2xl border bg-white p-4 shadow-sm ' + (issue || adverse ? 'border-amber-300' : 'border-slate-200')}>
     <div className="flex items-start justify-between gap-2"><label htmlFor={id} className="text-sm font-bold leading-5 text-slate-800">{field.label}</label><span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ' + (adverse ? 'bg-amber-50 text-amber-800' : answer.value ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-500')}>{adverse ? 'Con incidencia' : answer.value ? 'Registrado' : 'Sin registrar'}</span></div>
-    {field.reference && <p className="mt-1 text-xs text-slate-500">Referencia del Excel: {field.reference}{field.unit ? ' ' + field.unit : ''}</p>}
+    {field.reference && <p className="mt-1 text-xs text-slate-500">Valor de referencia: {field.reference}{field.unit ? ' ' + field.unit : ''}</p>}
     <div className="mt-3 flex items-center gap-2">
       {field.kind === 'check' || field.kind === 'yesno' ? <select id={id} value={answer.value} disabled={disabled} onChange={e => update(e.target.value)} className={input} aria-describedby={issue ? id + '-error' : undefined}>
         <option value="">Selecciona resultado…</option>
@@ -66,7 +67,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   const [entry, setEntry] = useState(() => createEntry(book, scope))
   const [baseline, setBaseline] = useState<BookEntry | null>(null)
   const [initial, setInitial] = useState(() => JSON.stringify(entry))
-  const [tab, setTab] = useState<'form' | 'history' | 'source'>('form')
+  const [tab, setTab] = useState<'form' | 'history'>('form')
   const [query, setQuery] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -120,10 +121,10 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   }
   return <>
     <div className="mb-4 flex flex-wrap gap-2">
-      {(['form', 'history', 'source'] as const).map((t, i) => <button key={t} type="button" onClick={() => setTab(t)} aria-pressed={tab === t} className={button + (tab === t ? ' border-sky-300 bg-sky-50 text-sky-800' : '')}>{[<ClipboardPlus size={17} />, <History size={17} />, <FileText size={17} />][i]}{['Formulario', `Historial (${bookRecords.length})`, 'Referencia del Excel'][i]}</button>)}
+      {(['form', 'history'] as const).map((t, i) => <button key={t} type="button" onClick={() => setTab(t)} aria-pressed={tab === t} className={button + (tab === t ? ' border-sky-300 bg-sky-50 text-sky-800' : '')}>{[<ClipboardPlus size={17} />, <History size={17} />][i]}{['Formulario', `Historial (${bookRecords.length})`][i]}</button>)}
     </div>
     {storageError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{storageError}<button className={button + ' ml-3'} onClick={() => { try { setRecords(loadSandbox(localStorage, scope)); setStorageError('') } catch { /* Preserve unreadable data. */ } }}>Reintentar lectura</button></div>}
-    {tab === 'source' ? <section className="rounded-2xl border bg-white p-5 text-sm leading-6 text-slate-700"><h2 className="text-lg font-bold">{book.workbook}</h2><p>Hoja: {book.sheet}</p><ul className="my-4 list-disc space-y-2 pl-5">{book.notes.map(note => <li key={note}>{note}</li>)}</ul><p>Los campos siguientes proceden del libro. Fecha, hora, responsable, campaña, detalle de incidencias y versiones completan la trazabilidad digital.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">Celda</th><th>Texto original</th><th>Campo digital</th><th>Frecuencia</th></tr></thead><tbody>{book.fields.map(f => <tr key={f.id} className="border-t"><td className="p-2">{f.source}</td><td className="p-2">{f.sourceLabel}</td><td className="p-2">{f.label}</td><td className="p-2">{f.frequency || 'Según PAM'}</td></tr>)}</tbody></table></div></section> : tab === 'history' ? <section className="rounded-2xl border bg-white p-4 sm:p-5">
+    {tab === 'history' ? <section className="rounded-2xl border bg-white p-4 sm:p-5">
       <h2 className="text-lg font-bold">Historial de pruebas · {book.title}</h2>
       <div className="my-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><label className="text-xs text-slate-600">Equipo, ubicación o técnico<div className="relative mt-1"><Search size={16} className="absolute left-3 top-3.5 text-slate-400" /><input aria-label="Buscar registros" value={query} onChange={e => setQuery(e.target.value)} className={input + ' pl-9'} /></div></label><label className="text-xs text-slate-600">Desde<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={input + ' mt-1'} /></label><label className="text-xs text-slate-600">Hasta<input type="date" value={to} onChange={e => setTo(e.target.value)} className={input + ' mt-1'} /></label><label className="text-xs text-slate-600">Estado<select value={status} onChange={e => setStatus(e.target.value)} className={input + ' mt-1'}><option value="ALL">Todos</option><option value="DRAFT">Borradores</option><option value="FINAL">Finalizados</option></select></label><button className={button + ' self-end'} onClick={() => void exportPdf(filtered)}><FileText size={17} />PDF del listado</button></div>
       {!filtered.length ? <p className="rounded-xl bg-slate-50 p-6 text-sm text-slate-500">No hay registros de prueba que coincidan con los filtros.</p> : <div className="space-y-2">{filtered.map(record => <button key={record.id} onClick={() => void select(record)} className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-4 text-left hover:bg-sky-50"><span><strong className="text-sm">{record.asset}</strong><span className="mt-1 block text-xs text-slate-500">{record.date} · {record.time} · {record.technician} · Rev. {record.revision}</span></span><span className="text-xs text-slate-600">{record.status === 'FINAL' ? 'Finalizado de prueba' : 'Borrador'} · {issueCount(book, record)} incidencias{records.some(r => r.supersedes === record.id) ? ' · Con rectificación' : ''}</span></button>)}</div>}
@@ -162,7 +163,7 @@ export default function TechnicalBooksPage() {
   const book = bookDefinitions.find(b => b.id === bookId)
   if (!hotel || !session?.user.id) return <p className="p-6">Selecciona un hotel para revisar sus libros.</p>
   return <main className="min-h-screen bg-slate-50 p-3 text-slate-900 sm:p-5"><div className="mx-auto max-w-[1300px]">
-    <header className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm"><BrandLogo className="h-12 w-auto" onActivate={() => { if (canNavigateInSuite()) navigate('/') }} /><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-sky-700">{book?.code || 'Libros técnicos · pruebas'}</p><h1 className="text-xl font-bold sm:text-2xl">{book?.title || (bookId === 'plan-anual' ? 'Plan anual de mantenimiento' : bookId === 'aparatos' ? 'Relación de aparatos' : 'Módulos de los Excel')}</h1><p className="mt-1 text-xs text-slate-500">{hotel.name}</p></div><Link to={bookId ? trialPath : '/registros-tecnicos'} onClick={event => { if (!canNavigateInSuite()) event.preventDefault() }} className={button}>Volver a {bookId ? 'los libros' : 'Registros técnicos'}</Link></header>
+    <header className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm"><BrandLogo className="h-12 w-auto" onActivate={() => { if (canNavigateInSuite()) navigate('/') }} /><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-sky-700">{book?.code || 'Libros técnicos · pruebas'}</p><h1 className="text-xl font-bold sm:text-2xl">{book?.title || (bookId === 'plan-anual' ? 'Plan anual de mantenimiento' : bookId === 'aparatos' ? 'Relación de aparatos' : 'Libros técnicos')}</h1><p className="mt-1 text-xs text-slate-500">{hotel.name}</p></div><Link to={bookId ? trialPath : '/registros-tecnicos'} onClick={event => { if (!canNavigateInSuite()) event.preventDefault() }} className={button}>Volver a {bookId ? 'los libros' : 'Registros técnicos'}</Link></header>
     <TrialNotice />
     {!bookId ? <BookIndex /> : ['plan-anual', 'aparatos'].includes(bookId) ? <Suspense fallback={<p>Cargando referencia…</p>}><ReferenceCatalog mode={bookId} /></Suspense> : book ? <BookForm key={`${session.user.id}:${hotel.id}:${book.id}`} book={book} scope={{ userId: session.user.id, hotelId: hotel.id }} hotelName={hotel.name} /> : <p className="rounded-xl bg-white p-5">Este libro no está disponible. Piscina y SPA conservan sus módulos actuales.</p>}
   </div></main>

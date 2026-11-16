@@ -30,7 +30,7 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
       head: [['Control', 'Resultado / medición', 'Detalle']],
       body: entryFields(template, entry).map(field => {
         const answer = entry.answers[field.id]
-        return [`${field.label}${field.frequency ? ' [' + field.frequency + ']' : ''}\n${template.sheet}!${field.source}${field.reference ? '\nReferencia Excel: ' + printable(field.reference) : ''}`,
+        return [`${field.label}${field.frequency ? ' [' + field.frequency + ']' : ''}${field.reference ? '\nValor de referencia: ' + printable(field.reference) : ''}`,
           answerText(field, { ...entry, answers: { ...entry.answers, [field.id]: { value: answer?.value ?? '', note: '' } } }), answer?.note || '']
       }),
       styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
@@ -39,7 +39,7 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
     y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
     autoTable(pdf, {
       startY: y, margin: { top: 30, bottom: 22, left: 14, right: 14 }, theme: 'plain', styles: { fontSize: 8, overflow: 'linebreak' },
-      body: [['Observaciones', entry.observations || 'Sin observaciones'], ['Libro fuente', `${template.workbook}\nSHA-256: ${template.sha256}`]],
+      body: [['Observaciones', entry.observations || 'Sin observaciones']],
     })
     y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
     for (const photo of entry.evidence) {

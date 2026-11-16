@@ -48,7 +48,7 @@ export default function MaintenanceRecordsPage() {
         </section>
 
         <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
-          <div><h2 className="text-sm font-bold text-sky-950">Módulos de los libros Excel</h2><p className="mt-1 text-xs text-sky-800">Formularios en pruebas, referencias de origen, historial y PDF. Piscina y SPA mantienen sus módulos actuales.</p></div>
+          <div><h2 className="text-sm font-bold text-sky-950">Libros técnicos · pruebas</h2><p className="mt-1 text-xs text-sky-800">Plan anual, relación de aparatos, formularios, historial y PDF de prueba. Piscina y SPA mantienen sus módulos actuales.</p></div>
           <Link to="/registros-tecnicos/pruebas" className="rounded-xl bg-sky-800 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-900">Probar los libros</Link>
         </section>
 

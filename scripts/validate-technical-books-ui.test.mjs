@@ -26,7 +26,7 @@ function harness() {
     '../../shared/hooks/useBeforeUnloadGuard': { useBeforeUnloadGuard: value => { beforeUnload = value } },
     '../../shared/navigation/navigationGuard': { canNavigateInSuite: () => true },
   }
-  vm.runInNewContext(compile('src/features/technicalbooks/TechnicalBooksPage.tsx') + '\nexports.BookForm = BookForm; exports.FieldCard = FieldCard;', {
+  vm.runInNewContext(compile('src/features/technicalbooks/TechnicalBooksPage.tsx') + '\nexports.BookForm = BookForm; exports.FieldCard = FieldCard; exports.BookIndex = BookIndex; exports.TrialNotice = TrialNotice;', {
     module: mod, exports: mod.exports, structuredClone, crypto, localStorage: storage, Error,
     requestAnimationFrame: fn => fn(), document: { querySelector: () => null },
     require: name => dependencies[name] ?? (name === 'lucide-react' ? new Proxy({}, { get: () => () => null }) : {}),
@@ -34,7 +34,7 @@ function harness() {
   function render() { cursor = 0; return mod.exports.BookForm({ book: b, scope, hotelName: 'Hotel simulado' }) }
   function click(label, prefix = false) { const node = nodes(render()).find(n => n.type === 'button' && (prefix ? words(n).replace(/\s+/g, ' ').trim().startsWith(label) : words(n).replace(/\s+/g, ' ').trim() === label)); assert.ok(node, label); assert.ok(!node.props.disabled, label + ' habilitado'); return node.props.onClick() }
   function fill(label, value) { const parent = nodes(render()).find(n => n.type === 'label' && words(n).startsWith(label)); assert.ok(parent, label); nodes(parent).find(n => n.type === 'input').props.onChange({ target: { value } }) }
-  return { render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; return render() } }
+  return { index: () => mod.exports.BookIndex(), notice: () => mod.exports.TrialNotice(), render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; return render() } }
 }
 
 test('interacción completa: ficha nueva, controles, borrador, recarga, finalización y rectificación sin red', async () => {
@@ -80,3 +80,13 @@ test('Escape respeta la cancelación al salir de una ficha sin guardar', () => {
   escape(); assert.deepEqual(navigation, [])
   allowed = true; escape(); assert.deepEqual(navigation, [-1])
 })
+
+ test('el índice muestra 01-01 a 01-03 y las pantallas no exponen archivos ni celdas', () => {
+  const h = harness()
+  const index = words(h.index())
+  for (const code of ['R-SSTT-01-01', 'R-SSTT-01-02', 'R-SSTT-01-03']) assert.ok(index.includes(code))
+  assert.match(index, /Excluido de estas pruebas/)
+  const content = index + words(h.notice()) + renderToStaticMarkup(h.render())
+  assert.doesNotMatch(content, /Excel|\.xlsx|Referencia del Excel|SHA-256|Hoja1/i)
+  assert.doesNotMatch(content, /Referencia del Excel/)
+ })

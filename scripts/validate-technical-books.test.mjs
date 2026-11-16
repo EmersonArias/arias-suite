@@ -142,6 +142,8 @@ test('PDF de cada libro conserva controles y todas las páginas están identific
     const content = pdf.output()
     assert.equal((content.match(/DOCUMENTO DE PRUEBA/g) ?? []).length, pdf.getNumberOfPages())
     assert.ok(content.includes('EQUIPO-FICTICIO-001'))
+    assert.doesNotMatch(content, /Excel|\.xlsx|SHA-256|Libro fuente/i)
+    assert.ok(!content.includes(b.sheet + '!' + b.fields[0].source))
     pdfSave('book-' + b.id + '.pdf', pdf)
   }
 })

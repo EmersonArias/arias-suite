@@ -46,3 +46,11 @@ La puesta en uso oficial requiere confirmar versión vigente, inventario y campo
 - Compilación TypeScript / Vite y ESLint de los archivos editados.
 - PDF de todos los formularios y ejemplo largo generados en pruebas; revisión visual de paginación de Fancoils y Legionella.
 - La comprobación de interfaz usa componentes y HTML renderizado; no sustituye una sesión de navegador autenticada. Chromium no pudo iniciarse por restricciones de sockets del entorno.
+
+## Corrección en pruebas · 16/11/2026
+
+Los códigos R-SSTT-01-01 (plan anual) y R-SSTT-01-02 (relación de aparatos) siguen disponibles como consultas. El índice también identifica R-SSTT-01-03 como Piscina y SPA, excluido de esta prueba por indicación del usuario. No se añaden formularios ni operaciones para ese código.
+
+Se retiran de la interfaz y de los PDF las referencias a Excel, archivos, hojas, celdas y huellas. Se conservan internamente los metadatos y las definiciones guardadas con las revisiones para no alterar ensayos anteriores. Los valores de referencia de los controles se mantienen visibles.
+
+Esta corrección se entrega exclusivamente en una rama de pruebas. No promover a producción sin una nueva indicación del usuario.
