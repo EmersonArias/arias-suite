@@ -1,3 +1,4 @@
+import { accessAuditRow } from './accessAudit.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0'
 
 const corsHeaders = {
@@ -118,6 +119,13 @@ Deno.serve(async (req) => {
   ) {
     return json({ error: genericError }, 401)
   }
+
+  // A telemetry failure must not lock a valid user out. Never log credentials or tokens.
+  try {
+    const row = accessAuditRow(req, profile.id, profile.login_identifier, signInData.session.access_token)
+    const { error: auditError } = await admin.from('user_access_events').insert(row)
+    if (auditError && auditError.code !== '23505') console.warn('access_audit_write_failed')
+  } catch { console.warn('access_audit_write_failed') }
 
   return json({
     access_token: signInData.session.access_token,

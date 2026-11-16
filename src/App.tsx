@@ -12,6 +12,7 @@ import MyProfilePage from './features/auth/pages/MyProfilePage'
 import ProtectedRoute from './features/auth/components/ProtectedRoute'
 import UsersPage from './features/users/pages/UsersPage'
 import RolesPage from './features/roles/pages/RolesPage'
+import AccessLogPage from './features/accesslog/AccessLogPage'
 import ReportsPage from './features/reports/pages/ReportsPage'
 import AssetsPage from './features/registers/pages/AssetsPage'
 import PumpsPage from './features/registers/pages/PumpsPage'
@@ -75,6 +76,7 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route element={<SuiteLayout />}><Route path="/" element={<BooksPage />} />
 <Route path="/users" element={<UsersPage />} />
 <Route path="/roles" element={<RolesPage />} />
+<Route path="/admin/accesos" element={<AccessLogPage />} />
 <Route path="/profile" element={<MyProfilePage />} />
 <Route path="/reports" element={<ReportsPage />} />
 <Route path="/pam" element={<LegacyRedirect to="/maintenance/pam" />} />

@@ -1,15 +1,17 @@
 import { type FormEvent, useState } from 'react'
 import { UserRound, Save } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 import { ariasAuth } from '../../../core/auth/authService'
+import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../context/AuthProvider'
 
 export default function MyProfilePage() {
   const navigate = useNavigate()
   const { session } = useAuth()
+  const { isPlatformAdmin } = useHotelScope()
   const [fullName, setFullName] = useState(session?.user.fullName ?? '')
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -71,6 +73,7 @@ export default function MyProfilePage() {
             </div>
           </div>
 
+          {isPlatformAdmin && <Link to="/admin/accesos" className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900">Registro de accesos de todos los usuarios</Link>}
           <form className="mt-6 max-w-xl space-y-5" onSubmit={submit}>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-slate-700">

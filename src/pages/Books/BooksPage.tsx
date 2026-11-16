@@ -310,6 +310,7 @@ export default function BooksPage() {
                         >
                           Roles y permisos
                         </button>
+                        <button type="button" role="menuitem" onClick={() => { setAdminMenuOpen(false); navigate('/admin/accesos') }} className="mt-0.5 flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50">Registro de accesos</button>
                       </div>
                     </div>
                   )}
