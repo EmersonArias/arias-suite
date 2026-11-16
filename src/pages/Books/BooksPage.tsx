@@ -10,6 +10,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import FullscreenButton from '../../shared/components/navigation/FullscreenButton'
+import HotelBrand from '../../shared/components/branding/HotelBrand'
 import BrandLogo from '../../shared/components/branding/BrandLogo'
 import { useAuth } from '../../features/auth/context/AuthProvider'
 import { ariasAuth } from '../../core/auth/authService'
@@ -264,18 +265,12 @@ export default function BooksPage() {
       <div className="mx-auto flex h-full min-h-0 w-full flex-col">
         <div className="mx-auto w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
           <header className="relative z-20 mb-4 py-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-              <BrandLogo src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite · Mantenimiento hotelero" onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-[4.5rem] w-auto max-w-[80vw] object-contain sm:h-[5.5rem]" />
-              <div className="order-3 flex w-full items-center sm:order-none sm:w-auto sm:flex-1">
-                <div className="min-w-0">
-                  {isPlatformAdmin && hotels.length > 1 ? (
-                    <select value={hotel?.id ?? ''} onChange={event => setHotel(event.target.value)} className="mt-1 max-w-full bg-transparent text-sm font-semibold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-teal-600" aria-label="Hotel actual" title="Cambiar hotel">
-                      {hotels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-                    </select>
-                  ) : <p className="mt-1 text-sm font-semibold text-slate-800">{hotel?.name ?? 'Selecciona un hotel'}</p>}
-                </div>
+            <div className="grid grid-cols-1 items-center justify-items-center gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+              <div className="sm:justify-self-start"><BrandLogo src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite · Mantenimiento hotelero" onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-[4.5rem] w-auto max-w-[80vw] object-contain sm:h-[5.5rem]" /></div>
+              <div className="order-2 flex justify-center sm:order-3 sm:col-span-2 lg:order-none lg:col-span-1">
+                <HotelBrand hotel={hotel} hotels={hotels} canSwitch={isPlatformAdmin} onChange={setHotel} />
               </div>
-              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Herramientas de la aplicación">
+              <div className="order-3 flex flex-wrap items-center justify-center gap-2 sm:order-2 sm:justify-self-end" role="group" aria-label="Herramientas de la aplicación">
               <FullscreenButton />
               <button
                 type="button"
