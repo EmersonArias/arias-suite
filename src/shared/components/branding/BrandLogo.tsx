@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 
 interface BrandLogoProps {
+  src?: string
   alt?: string
   className?: string
   onActivate?: () => void
@@ -9,6 +10,7 @@ interface BrandLogoProps {
 }
 
 export default function BrandLogo({
+  src = '/assets/arias-suite-logo-v4.webp',
   alt = 'Arias Suite',
   className = 'h-11 w-auto object-contain',
   onActivate,
@@ -41,7 +43,7 @@ export default function BrandLogo({
       title={accessibleLabel}
       className="shrink-0 rounded-lg outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-slate-400 active:translate-y-0"
     >
-      <img src="/assets/arias-suite-logo-v4.webp" alt={alt} className={className + ' min-h-11 sm:min-h-14'} />
+      <img src={src} alt={alt} className={className + ' min-h-11 sm:min-h-14'} />
     </button>
   )
 }
