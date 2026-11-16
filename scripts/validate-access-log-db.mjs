@@ -27,6 +27,9 @@ INSERT INTO auth.sessions VALUES('${s1}','${viewer}',now()-interval '1 hour',now
 `)
 const migration=fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_user_access_log.sql'))
 await db.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'))
+const hardening=fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_secure_access_log_rpc.sql'))
+await db.exec(fs.readFileSync('supabase/migrations/'+hardening,'utf8'))
+assert.equal((await db.query("select prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='list_user_access_log'")).rows[0].prosecdef,false)
 const params=[new Date(Date.now()-86400000).toISOString(),new Date(Date.now()+86400000).toISOString()]
 const query='SELECT * FROM public.list_user_access_log($1,$2,$3,$4,$5)'
 async function caller(role,id){await db.exec('RESET ROLE');await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('SET ROLE '+role)}

@@ -15,3 +15,5 @@ La migración es aditiva: crea `user_access_events` y la API de solo lectura `li
 Las pruebas SQL se ejecutan en PostgreSQL embebido aislado (PGlite 0.5.16) con usuarios sintéticos, nunca contra los datos activos. Comprueban migración, RLS, denegación para anónimo/consulta, administrador inactivo, filtros, paginación y deduplicación. Las pruebas del login y la interfaz usan servicios simulados.
 
 Para reproducir SQL: instalar `@electric-sql/pglite@0.5.16` fuera del repositorio y ejecutar `ARIAS_AUDIT_TEST_NODE_MODULES=/ruta/node_modules node scripts/validate-access-log-db.mjs`. Las demás pruebas están en `npm run validate:access-log`.
+
+La segunda migración mueve el lector privilegiado a `access_audit_private`, fuera de la API expuesta. La función pública es SECURITY INVOKER. El lector privado vuelve a comprobar administrador activo y conserva todos los límites; el usuario anónimo no tiene acceso. Esta separación evita exponer una función privilegiada en el esquema público.
