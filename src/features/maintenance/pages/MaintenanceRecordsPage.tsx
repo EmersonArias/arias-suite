@@ -1,9 +1,10 @@
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { technicalBookRecords } from '../../technicalbooks/bookLinks'
 import { Link } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 
-const records = [
+const previousRecords = [
   ['Preventivo diario', 'Registro preventivo de frecuencia corta.', 'daily', '/maintenance/record'],
   ['Piscina exterior', 'Registro de medidas y controles diarios.', 'pool', '/pools'],
   ['Piscina SPA', 'Registro de medidas y controles del SPA.', 'spa', '/spa'],
@@ -21,6 +22,11 @@ const records = [
 
 export default function MaintenanceRecordsPage() {
   const navigate = useNavigate()
+  const previous = useLocation().pathname === '/registros-tecnicos/anteriores'
+  const records: ReadonlyArray<readonly [string, string, string, string, string?]> = previous ? previousRecords : [
+    ...previousRecords.slice(0, 3),
+    ...technicalBookRecords,
+  ]
 
   return (
     <div className="min-h-screen bg-slate-100 px-3 py-3 text-slate-900 sm:px-5 sm:py-5">
@@ -29,7 +35,7 @@ export default function MaintenanceRecordsPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-11" />
-              <div><h1 className="text-xl font-bold sm:text-2xl">Registros técnicos</h1><p className="text-xs text-slate-500 sm:text-sm">Controles y revisiones del hotel</p></div>
+              <div><h1 className="text-xl font-bold sm:text-2xl">{previous ? 'Registros anteriores' : 'Registros técnicos'}</h1><p className="text-xs text-slate-500 sm:text-sm">Controles y revisiones del hotel</p></div>
             </div>
             <div className="flex gap-2"><BackButton onBack={() => navigate('/')} /><HomeButton onHome={() => navigate('/')} /></div>
           </div>
@@ -39,21 +45,21 @@ export default function MaintenanceRecordsPage() {
           <div className="flex items-start gap-3">
             <img src="/assets/record-icons-3d/daily.webp" alt="" aria-hidden="true" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" />
             <div>
-              <h2 className="text-sm font-semibold sm:text-base">Registros oficiales</h2>
+              <h2 className="text-sm font-semibold sm:text-base">Controles y libros técnicos</h2>
               <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                Entrada de datos desde el móvil o PC y generación posterior del registro imprimible.
+                Selecciona el equipo o control que quieres revisar. Cada formulario incluye su historial y salida en PDF.
               </p>
             </div>
           </div>
         </section>
 
-        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
-          <div><h2 className="text-sm font-bold text-sky-950">Libros técnicos · pruebas</h2><p className="mt-1 text-xs text-sky-800">Plan anual, relación de aparatos, formularios, historial y PDF de prueba. Piscina y SPA mantienen sus módulos actuales.</p></div>
-          <Link to="/registros-tecnicos/pruebas" className="rounded-xl bg-sky-800 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-900">Probar los libros</Link>
-        </section>
+        {!previous && <aside className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Formularios con guardado local.</strong> Los libros nuevos conservan las revisiones solo en este navegador, separadas por usuario y hotel. No se sincronizan entre móvil y ordenador ni generan tickets del PAM. Sus PDF siguen identificados como documentos de prueba.</aside>}
+        <div className="mb-4 flex flex-wrap gap-3">
+          <Link to={previous ? '/registros-tecnicos' : '/registros-tecnicos/anteriores'} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">{previous ? 'Volver a Registros técnicos' : 'Consultar registros anteriores'}</Link>
+        </div>
 
         <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {records.map(([title, description, icon, href]) => (
+          {records.map(([title, description, icon, href, code]) => (
             <button
               key={title}
               type="button"
@@ -77,6 +83,7 @@ export default function MaintenanceRecordsPage() {
                 <span className="mt-2 text-center text-xs font-semibold leading-snug text-slate-700">
                   {title}
                 </span>
+                {code && <span className="mt-1 text-center text-[10px] text-sky-700">{code}</span>}
               </div>
               <div className="border-t border-slate-200 px-2.5 py-1.5 text-center text-[9px] font-semibold text-slate-400">
                 Abrir registro

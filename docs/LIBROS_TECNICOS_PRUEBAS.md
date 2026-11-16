@@ -54,3 +54,9 @@ Los códigos R-SSTT-01-01 (plan anual) y R-SSTT-01-02 (relación de aparatos) si
 Se retiran de la interfaz y de los PDF las referencias a Excel, archivos, hojas, celdas y huellas. Se conservan internamente los metadatos y las definiciones guardadas con las revisiones para no alterar ensayos anteriores. Los valores de referencia de los controles se mantienen visibles.
 
 Esta corrección se entrega exclusivamente en una rama de pruebas. No promover a producción sin una nueva indicación del usuario.
+
+## Publicación de accesos en Registros técnicos · 16/11/2026
+
+Por indicación expresa del usuario, los 16 formularios y las consultas 01-01 y 01-02 se ofrecen directamente en Registros técnicos con rutas `/registros-tecnicos/libros/:bookId`. Los enlaces anteriores `/pruebas` se mantienen compatibles. El preventivo diario, piscina y SPA conservan exactamente sus destinos actuales. Los demás registros anteriores siguen accesibles en `/registros-tecnicos/anteriores`; no se eliminan datos ni rutas.
+
+Esta publicación es de interfaz y navegación. Conserva el almacenamiento local versionado, los avisos y los PDF de prueba. No habilita persistencia central, auditoría oficial ni generación de tickets. El análisis del PAM continúa pendiente de definición con el usuario. No se ejecutan migraciones ni cambios de permisos.

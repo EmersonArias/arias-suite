@@ -106,6 +106,9 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/maintenance/interventions" element={<ActionsPage />} />
 <Route path="/maintenance/pam/:apparatusId" element={<MaintenancePamDetailPage />} />
 <Route path="/registros-tecnicos" element={<MaintenanceRecordsPage />} />
+<Route path="/registros-tecnicos/anteriores" element={<MaintenanceRecordsPage />} />
+<Route path="/registros-tecnicos/libros" element={<TechnicalBooksRoute />} />
+<Route path="/registros-tecnicos/libros/:bookId" element={<TechnicalBooksRoute />} />
 <Route path="/registros-tecnicos/pruebas" element={<TechnicalBooksRoute />} />
 <Route path="/registros-tecnicos/pruebas/:bookId" element={<TechnicalBooksRoute />} />
 <Route path="/maintenance/audit/records" element={<Navigate to="/registros-tecnicos" replace />} />

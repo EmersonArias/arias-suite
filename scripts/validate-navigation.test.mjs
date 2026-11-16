@@ -127,3 +127,35 @@ test('Mis accesos permite quitar, recargar y separar selecciones sin tocar datos
   state = []
   assert.ok(!nodes(render()).some(node => node.props?.['aria-label']?.startsWith('Abrir ')))
 })
+
+test('Registros técnicos abre cada libro directamente y conserva piscina, SPA y los registros anteriores', async () => {
+  const { technicalBookRecords } = await import('../src/features/technicalbooks/bookLinks.ts')
+  const { bookDefinitions } = await import('../src/features/technicalbooks/bookDefinitions.ts')
+  const destinations = new Set(technicalBookRecords.map(record => record[3]))
+  for (const book of bookDefinitions) assert.ok(destinations.has('/registros-tecnicos/libros/' + book.id), book.id)
+  for (const [, , icon, path] of technicalBookRecords) {
+    assert.ok(fs.existsSync('public/assets/record-icons-3d/' + icon + '.webp'), icon)
+    const matches = router.matchRoutes(routes, path)
+    assert.equal(matches.at(-1).route.element.type, mockPages.get('./features/technicalbooks/TechnicalBooksRoute'), path)
+    assert.ok(matches.some(match => match.route.element?.type === mockPages.get('./features/auth/components/ProtectedRoute')), path)
+  }
+  assert.ok(!destinations.has('/registros-tecnicos/libros/piscina'))
+  const renderRecords = path => {
+    const mod = { exports: {} }
+    vm.runInNewContext(compile('src/features/maintenance/pages/MaintenanceRecordsPage.tsx'), { module: mod, exports: mod.exports,
+      require: name => name === 'react/jsx-runtime' ? jsx : name === 'react-router-dom' ? { Link: router.Link, useNavigate: () => () => {}, useLocation: () => ({ pathname: path }) } : name === '../../technicalbooks/bookLinks' ? { technicalBookRecords } : {},
+    })
+    return mod.exports.default()
+  }
+  const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
+  const main = nodes(renderRecords('/registros-tecnicos'))
+  const previous = nodes(renderRecords('/registros-tecnicos/anteriores'))
+  for (const title of ['Piscina exterior', 'Piscina SPA', 'Preventivo diario']) {
+    const label = 'Abrir registro de ' + title
+    assert.ok(main.some(n => n.props?.['aria-label'] === label))
+    assert.ok(previous.some(n => n.props?.['aria-label'] === label))
+  }
+  for (const book of bookDefinitions) assert.ok(main.some(n => n.props?.['aria-label'] === 'Abrir registro de ' + book.title), book.id)
+  assert.ok(previous.some(n => n.props?.['aria-label'] === 'Abrir registro de PCI'))
+  assert.ok(router.matchRoutes(routes, '/registros-tecnicos/pruebas/fancoils'))
+})
