@@ -436,3 +436,25 @@ svg {
 @media (min-width: 640px) {
   .arias-suite-app .arias-hotel-brand { width: 27.149rem; height: 5.5rem; }
 }
+
+/* Area navigation is separate from personal home shortcuts. */
+.suite-sidebar { display: none; }
+.suite-content { min-width: 0; }
+.suite-mobile-bar { position: sticky; top: 0; z-index: 30; display: flex; height: 3rem; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.suite-mobile-dialog { position: fixed; inset: 0 auto 0 0; width: min(88vw, 320px); max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; border: 0; background: #f8fafc; color: #0f172a; }
+.suite-mobile-dialog::backdrop { background: #0f172a66; }
+.suite-area-link { display: flex; min-height: 46px; align-items: center; gap: 10px; border-radius: 12px; padding: 9px 10px; color: #475569; font-size: 12px; font-weight: 600; }
+.suite-area-link:hover { background: #eef2f6; }
+.suite-area-link:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
+.suite-area-active { color: #115e59; background: #e5f2ef; }
+.suite-content .suite-home { height: calc(100dvh - 3rem); }
+@media (min-width: 1024px) {
+  .suite-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; display: block; width: 15rem; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #f8fafc; }
+  .suite-mobile-bar { display: none; }
+  .suite-content { margin-left: 15rem; }
+  .suite-content .suite-home { height: 100dvh; }
+}
+@media print {
+  .suite-sidebar, .suite-mobile-bar, .suite-mobile-dialog, .suite-breadcrumbs { display: none !important; }
+  .suite-content { margin-left: 0 !important; }
+}

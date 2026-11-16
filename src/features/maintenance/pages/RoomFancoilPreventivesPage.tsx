@@ -477,7 +477,7 @@ export default function RoomFancoilPreventivesPage() {
               </div>
             </div>
             <div className="room-led-toolbar arias-grid-toolbar flex w-full flex-nowrap items-start justify-start gap-1 overflow-x-auto">
-              <BackButton onBack={() => navigate('/maintenance')} />
+              <BackButton onBack={() => navigate('/maintenance/preventivos')} />
               <HomeButton onHome={() => navigate('/')} />
               <ActionButton icon={FileText} label="Exportar" onClick={exportRoomListPdf} />
               <ActionButton icon={Download} label="Imagen" onClick={exportBuildingImage} />

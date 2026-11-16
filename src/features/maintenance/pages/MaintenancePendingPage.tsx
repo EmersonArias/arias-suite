@@ -662,7 +662,7 @@ export default function MaintenancePendingPage() {
               />
               <IconButton icon={RefreshCw} label="Actualizar" title="Actualizar" onClick={() => void loadItems()} disabled={loading} />
               <ActionButton icon={FileText} label="PDF" tone="dark" onClick={openReport} disabled={loading || filtered.length === 0} />
-              <BackButton onBack={() => navigate('/maintenance')} />
+              <BackButton onBack={() => navigate('/maintenance/trabajos')} />
               <HomeButton onHome={() => navigate('/')} />
             </div>
             <div className="flex w-full items-center justify-between gap-1 sm:hidden">
@@ -684,7 +684,7 @@ export default function MaintenancePendingPage() {
               />
               <IconButton icon={RefreshCw} label="Actualizar" title="Actualizar" onClick={() => void loadItems()} disabled={loading} className="h-10 w-10" />
               <IconButton icon={FileText} label="PDF" title="PDF" onClick={openReport} disabled={loading || filtered.length === 0} className="h-10 w-10" />
-              <IconButton icon={CornerUpLeft} label="Volver" title="Volver" onClick={() => navigate('/maintenance')} className="h-10 w-10" />
+              <IconButton icon={CornerUpLeft} label="Volver" title="Volver" onClick={() => navigate('/maintenance/trabajos')} className="h-10 w-10" />
               <IconButton icon={House} label="Inicio" title="Inicio" onClick={() => navigate('/')} className="h-10 w-10" />
             </div>
           </div>

@@ -1,3 +1,6 @@
+import SuiteLayout from './shared/navigation/SuiteLayout'
+import SuiteAreaPage from './shared/navigation/SuiteAreaPage'
+import LegacyRedirect from './shared/navigation/LegacyRedirect'
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import BooksPage from './pages/Books/BooksPage'
 import LoginPage from './features/auth/pages/LoginPage'
@@ -15,7 +18,6 @@ import PoolsPage from './features/pools/pages/PoolsPage'
 import SpaPage from './features/spa/pages/SpaPage'
 import LegionellaPage from './features/legionella/pages/LegionellaPage'
 import ClimatizersPage from './features/climatizers/pages/ClimatizersPage'
-import FancoilsPage from './features/fancoils/pages/FancoilsPage'
 import ElectricalPanelsPage from './features/electricalpanels/pages/ElectricalPanelsPage'
 import ElectricalPanelDetailPage from './features/electricalpanels/pages/ElectricalPanelDetailPage'
 import ElectricalPanelsReportPage from './features/electricalpanels/pages/ElectricalPanelsReportPage'
@@ -41,7 +43,6 @@ import MaintenanceWorkOrdersPage from './features/maintenance/pages/MaintenanceW
 import MaintenanceWorkOrderDetailPage from './features/maintenance/pages/MaintenanceWorkOrderDetailPage'
 import MaintenanceWorkOrderHistoryPage from './features/maintenance/pages/MaintenanceWorkOrderHistoryPage'
 import MaintenanceTicketsReportPage from './features/maintenance/pages/MaintenanceTicketsReportPage'
-import MaintenanceAuditPage from './features/maintenance/pages/MaintenanceAuditPage'
 import MaterialsInventoryPage from './features/materials/pages/MaterialsInventoryPage'
 import MaintenanceLandingPage from './features/maintenance/pages/MaintenanceLandingPage'
 import MaintenancePlanningPage from './features/maintenance/pages/MaintenancePlanningPage'
@@ -61,8 +62,84 @@ export default function App() {
 const location = useLocation()
 const publicPath = ['/login', '/activate', '/forgot-password', '/update-password'].includes(location.pathname)
 return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNavigation />
-<Routes><Route path="/login" element={<LoginPage />} /><Route path="/activate" element={<ActivateAccountPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/update-password" element={<UpdatePasswordPage />} /><Route path="/mi-horario" element={<StaffSelfServicePage />} /><Route path="/fichaje" element={<StaffClockPage />} /><Route element={<ProtectedRoute />}><Route path="/" element={<BooksPage />} /><Route path="/users" element={<UsersPage />} /><Route path="/roles" element={<RolesPage />} /><Route path="/profile" element={<MyProfilePage />} /><Route path="/reports" element={<ReportsPage />} /><Route path="/pam" element={<MaintenancePamPage />} /><Route path="/planning" element={<Navigate to="/maintenance/pam" replace />} /><Route path="/providers" element={<ProvidersPage />} /><Route path="/actions" element={<Navigate to="/maintenance/interventions" replace />} /><Route path="/assets" element={<AssetsPage />} /><Route path="/pumps" element={<PumpsPage />} /><Route path="/pools" element={<PoolsPage />} /><Route path="/spa" element={<SpaPage />} /><Route path="/legionella" element={<LegionellaPage />} /><Route path="/climatizers" element={<ClimatizersPage />} /><Route path="/fancoils" element={<FancoilsPage />} /><Route path="/electricalpanels" element={<ElectricalPanelsPage />} /><Route path="/electricalpanels/new" element={<ElectricalPanelDetailPage />} /><Route path="/electricalpanels/report" element={<ElectricalPanelsReportPage />} /><Route path="/electricalpanels/:id" element={<ElectricalPanelDetailPage />} /><Route path="/apparatusregistry" element={<ApparatusRegistryPage />} /><Route path="/maintenance" element={<MaintenanceLandingPage />} /><Route path="/planificador-horario" element={<StaffSchedulePage />} /><Route path="/registro-jornada" element={<StaffClockAdminPage />} /><Route path="/materials" element={<MaterialsInventoryPage />} /><Route path="/maintenance/pam" element={<MaintenancePamPage />} /><Route path="/maintenance/interventions" element={<ActionsPage />} /><Route path="/maintenance/pam/:apparatusId" element={<MaintenancePamDetailPage />} /><Route path="/registros-tecnicos" element={<MaintenanceRecordsPage />} /><Route path="/maintenance/audit/records" element={<Navigate to="/registros-tecnicos" replace />} /><Route path="/maintenance/records" element={<Navigate to="/registros-tecnicos" replace />} /><Route path="/maintenance/record" element={<MaintenanceRecordPage />} /><Route path="/maintenance/operation" element={<Navigate to="/maintenance" replace />} /><Route path="/maintenance/tickets" element={<MaintenanceWorkOrdersPage />} /><Route path="/maintenance/planning" element={<MaintenancePlanningPage />} /><Route path="/maintenance/pending" element={<MaintenancePendingPage />} /><Route path="/maintenance/pending/report" element={<MaintenancePendingReportPage />} /><Route path="/maintenance/room-projects" element={<RoomProjectsPage />} /><Route path="/maintenance/fancoil-preventives" element={<RoomFancoilPreventivesPage />} /><Route path="/maintenance/work-orders" element={<Navigate to="/maintenance/tickets" replace />} /><Route path="/maintenance/tickets/:workOrderId" element={<MaintenanceWorkOrderDetailPage />} /><Route path="/maintenance/work-orders/:workOrderId" element={<MaintenanceWorkOrderDetailPage />} />
-<Route path="/maintenance/tickets/history" element={<MaintenanceWorkOrderHistoryPage />} /><Route path="/maintenance/tickets/report" element={<MaintenanceTicketsReportPage />} /><Route path="/maintenance/history" element={<Navigate to="/maintenance/tickets/history" replace />} /><Route path="/maintenance/plans" element={<Navigate to="/maintenance/pam" replace />} /><Route path="/maintenance/configuration" element={<MaintenanceConfigurationPage />} /><Route path="/maintenance/structure" element={<HotelStructurePage />} /><Route path="/maintenance/audit" element={<MaintenanceAuditPage />} /><Route path="/apparatusregistry/new" element={<ApparatusRegistryDetailPage />} /><Route path="/apparatusregistry/report" element={<ApparatusRegistryReportPage />} /><Route path="/apparatusregistry/:id" element={<ApparatusRegistryDetailPage />} /><Route path="/photoluminescent" element={<PhotoluminescentPage />} /><Route path="/emergencylights" element={<EmergencyLightsPage />} /><Route path="/firedoors" element={<FireDoorsPage />} /><Route path="/calibrations" element={<CalibrationsPage />} /><Route path="/fireequipment" element={<FireEquipmentPage />} /><Route path="/fireequipment/extinguishers" element={<ExtinguishersPage />} /><Route path="/fireequipment/bie" element={<BiePage />} /><Route path="/fireequipment/sprinklers" element={<SprinklersPage />} /><Route path="/fireequipment/pci-review" element={<PciReviewPage />} /></Route></Routes>
+<Routes>
+<Route path="/login" element={<LoginPage />} />
+<Route path="/activate" element={<ActivateAccountPage />} />
+<Route path="/forgot-password" element={<ForgotPasswordPage />} />
+<Route path="/update-password" element={<UpdatePasswordPage />} />
+<Route path="/mi-horario" element={<StaffSelfServicePage />} />
+<Route path="/fichaje" element={<StaffClockPage />} />
+<Route element={<ProtectedRoute />}>
+<Route element={<SuiteLayout />}><Route path="/" element={<BooksPage />} />
+<Route path="/users" element={<UsersPage />} />
+<Route path="/roles" element={<RolesPage />} />
+<Route path="/profile" element={<MyProfilePage />} />
+<Route path="/reports" element={<ReportsPage />} />
+<Route path="/pam" element={<LegacyRedirect to="/maintenance/pam" />} />
+<Route path="/planning" element={<Navigate to="/maintenance/pam" replace />} />
+<Route path="/providers" element={<ProvidersPage />} />
+<Route path="/actions" element={<Navigate to="/maintenance/interventions" replace />} />
+<Route path="/assets" element={<AssetsPage />} />
+<Route path="/pumps" element={<PumpsPage />} />
+<Route path="/pools" element={<PoolsPage />} />
+<Route path="/spa" element={<SpaPage />} />
+<Route path="/legionella" element={<LegionellaPage />} />
+<Route path="/climatizers" element={<ClimatizersPage />} />
+<Route path="/fancoils" element={<LegacyRedirect to="/maintenance/preventivos/fancoils" />} />
+<Route path="/electricalpanels" element={<ElectricalPanelsPage />} />
+<Route path="/electricalpanels/new" element={<ElectricalPanelDetailPage />} />
+<Route path="/electricalpanels/report" element={<ElectricalPanelsReportPage />} />
+<Route path="/electricalpanels/:id" element={<ElectricalPanelDetailPage />} />
+<Route path="/apparatusregistry" element={<ApparatusRegistryPage />} />
+<Route path="/maintenance" element={<MaintenanceLandingPage />} />
+<Route path="/maintenance/preventivos" element={<SuiteAreaPage hub="preventives" />} />
+<Route path="/maintenance/proyectos" element={<SuiteAreaPage hub="projects" />} />
+<Route path="/maintenance/trabajos" element={<SuiteAreaPage hub="work" />} />
+<Route path="/personal" element={<SuiteAreaPage hub="people" />} />
+<Route path="/documentacion" element={<SuiteAreaPage hub="documents" />} />
+<Route path="/planificador-horario" element={<StaffSchedulePage />} />
+<Route path="/registro-jornada" element={<StaffClockAdminPage />} />
+<Route path="/materials" element={<MaterialsInventoryPage />} />
+<Route path="/maintenance/pam" element={<MaintenancePamPage />} />
+<Route path="/maintenance/interventions" element={<ActionsPage />} />
+<Route path="/maintenance/pam/:apparatusId" element={<MaintenancePamDetailPage />} />
+<Route path="/registros-tecnicos" element={<MaintenanceRecordsPage />} />
+<Route path="/maintenance/audit/records" element={<Navigate to="/registros-tecnicos" replace />} />
+<Route path="/maintenance/records" element={<Navigate to="/registros-tecnicos" replace />} />
+<Route path="/maintenance/record" element={<MaintenanceRecordPage />} />
+<Route path="/maintenance/operation" element={<Navigate to="/maintenance" replace />} />
+<Route path="/maintenance/tickets" element={<MaintenanceWorkOrdersPage />} />
+<Route path="/maintenance/planning" element={<MaintenancePlanningPage />} />
+<Route path="/maintenance/pending" element={<MaintenancePendingPage />} />
+<Route path="/maintenance/pending/report" element={<MaintenancePendingReportPage />} />
+<Route path="/maintenance/room-projects" element={<LegacyRedirect to="/maintenance/proyectos/led-armario" />} />
+<Route path="/maintenance/proyectos/led-armario" element={<RoomProjectsPage />} />
+<Route path="/maintenance/fancoil-preventives" element={<LegacyRedirect to="/maintenance/preventivos/fancoils" />} />
+<Route path="/maintenance/preventivos/fancoils" element={<RoomFancoilPreventivesPage />} />
+<Route path="/maintenance/work-orders" element={<Navigate to="/maintenance/tickets" replace />} />
+<Route path="/maintenance/tickets/:workOrderId" element={<MaintenanceWorkOrderDetailPage />} />
+<Route path="/maintenance/work-orders/:workOrderId" element={<MaintenanceWorkOrderDetailPage />} />
+<Route path="/maintenance/tickets/history" element={<MaintenanceWorkOrderHistoryPage />} />
+<Route path="/maintenance/tickets/report" element={<MaintenanceTicketsReportPage />} />
+<Route path="/maintenance/history" element={<Navigate to="/maintenance/tickets/history" replace />} />
+<Route path="/maintenance/plans" element={<Navigate to="/maintenance/pam" replace />} />
+<Route path="/maintenance/configuration" element={<MaintenanceConfigurationPage />} />
+<Route path="/maintenance/structure" element={<HotelStructurePage />} />
+<Route path="/maintenance/audit" element={<LegacyRedirect to="/documentacion" />} />
+<Route path="/apparatusregistry/new" element={<ApparatusRegistryDetailPage />} />
+<Route path="/apparatusregistry/report" element={<ApparatusRegistryReportPage />} />
+<Route path="/apparatusregistry/:id" element={<ApparatusRegistryDetailPage />} />
+<Route path="/photoluminescent" element={<PhotoluminescentPage />} />
+<Route path="/emergencylights" element={<EmergencyLightsPage />} />
+<Route path="/firedoors" element={<FireDoorsPage />} />
+<Route path="/calibrations" element={<CalibrationsPage />} />
+<Route path="/fireequipment" element={<FireEquipmentPage />} />
+<Route path="/fireequipment/extinguishers" element={<ExtinguishersPage />} />
+<Route path="/fireequipment/bie" element={<BiePage />} />
+<Route path="/fireequipment/sprinklers" element={<SprinklersPage />} />
+<Route path="/fireequipment/pci-review" element={<PciReviewPage />} /></Route>
+</Route>
+</Routes>
 </div>
 )
 }

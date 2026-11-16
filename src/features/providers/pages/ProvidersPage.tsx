@@ -509,7 +509,7 @@ export default function ProvidersPage() {
             <div className="flex min-w-0 items-center gap-2">
               <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-13" />
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-3xl">Proveedores</h1>
+                <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-3xl">Empresas y proveedores</h1>
                 <p className="text-sm text-slate-500">
                   Empresas externas, contactos y servicios · {hotelName || 'Hotel activo'}
                 </p>

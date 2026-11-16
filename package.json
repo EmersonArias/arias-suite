@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "local:check": "node scripts/check-local-environment.mjs",
     "dev:local": "node scripts/check-local-environment.mjs && vite --host 127.0.0.1",
+    "validate:navigation": "node --test scripts/validate-navigation.test.mjs",
     "validate:modules": "node --test scripts/validate-modules.test.mjs scripts/check-local-environment.test.mjs"
   },
   "dependencies": {

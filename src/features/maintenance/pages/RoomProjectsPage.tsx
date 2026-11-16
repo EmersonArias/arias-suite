@@ -568,11 +568,11 @@ export default function RoomProjectsPage() {
               <BrandLogo onActivate={() => navigate('/')} className="h-9 w-auto shrink-0 object-contain sm:h-11" />
               <div className="min-w-0">
                 <h1 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">LED de armario</h1>
-                <p className="mt-0.5 text-[10px] text-slate-400 sm:text-xs">Control visual de habitaciones · Datos provisionales</p>
+                <p className="mt-0.5 text-[10px] text-slate-400 sm:text-xs">Proyecto de renovación · Datos provisionales</p>
               </div>
             </div>
             <div className="room-led-toolbar arias-grid-toolbar flex w-full flex-nowrap items-start justify-start gap-1 overflow-x-auto">
-              <BackButton onBack={() => navigate('/maintenance')} />
+              <BackButton onBack={() => navigate('/maintenance/proyectos')} />
               <HomeButton onHome={() => navigate('/')} />
               <ActionButton icon={FileText} label="Exportar" onClick={exportRoomListPdf} />
               <ActionButton icon={Download} label="Imagen" onClick={exportBuildingImage} />

@@ -1,10 +1,11 @@
+import HomeFavorites from '../../shared/navigation/HomeFavorites'
+import { favoriteStorageKey } from '../../shared/navigation/suiteNavigation'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Bell,
   CircleHelp,
   CalendarClock,
-  Clock3,
   X,
   Settings,
   UserRound,
@@ -16,16 +17,6 @@ import { useAuth } from '../../features/auth/context/AuthProvider'
 import { ariasAuth } from '../../core/auth/authService'
 import { supabase } from '../../lib/supabase'
 import { useHotelScope } from '../../shared/context/HotelScopeContext'
-
-type HomeRegister = {
-  iconIndex: number | null
-  iconSrc?: string
-  description?: string
-  name: string
-  path: string | null
-  comingSoon?: boolean
-  metric?: string
-}
 
 type MaintenanceAlert = {
   id: string
@@ -86,17 +77,6 @@ function alertStatusView(alert: MaintenanceAlert) {
   }
 }
 
-const registers: HomeRegister[] = [
-  { iconIndex: 0, name: 'Mantenimiento', path: '/maintenance' },
-  { iconIndex: null, iconSrc: '/assets/maintenance-icons-3d/led.webp', name: 'LED de armario', description: 'Seguimiento por habitación', path: '/maintenance/room-projects' },
-  { iconIndex: null, iconSrc: '/assets/record-icons-3d/fancoil.webp', name: 'Preventivos de fancoils', description: 'Revisiones periódicas por habitación', path: '/maintenance/fancoil-preventives' },
-  { iconIndex: null, iconSrc: '/assets/record-icons-3d/daily.webp', name: 'Registros técnicos', path: '/registros-tecnicos' },
-  { iconIndex: 1, name: 'Pendientes', path: '/maintenance/pending' },
-  { iconIndex: 2, name: 'Materiales y stock', path: '/materials' },
-  { iconIndex: 3, name: 'Planificador horario', path: '/planificador-horario' },
-  { iconIndex: 4, name: 'Proveedores', path: '/providers' },
-]
-
 export default function BooksPage() {
   const navigate = useNavigate()
   const { session } = useAuth()
@@ -110,33 +90,6 @@ export default function BooksPage() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const notificationsError = alertSnapshot?.hotelId === hotel?.id && !!alertSnapshot?.error
   const [helpOpen, setHelpOpen] = useState(false)
-  const [pendingSnapshot, setPendingSnapshot] = useState<{ hotelId: string; count: number | null } | null>(null)
-  const pendingCount = pendingSnapshot?.hotelId === hotel?.id ? pendingSnapshot?.count ?? null : null
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadPendingCount() {
-      if (!hotel?.id) {
-        if (mounted) setPendingSnapshot(null)
-        return
-      }
-
-      const result = await supabase
-        .from('maintenance_pending_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('hotel_id', hotel.id)
-        .eq('active', true)
-        .eq('status', 'PENDING')
-
-      if (mounted) setPendingSnapshot({ hotelId: hotel.id, count: result.error ? null : result.count ?? 0 })
-    }
-
-    void loadPendingCount()
-    return () => {
-      mounted = false
-    }
-  }, [hotel?.id])
 
   async function loadMaintenanceAlerts(hotelId: string) {
     await supabase.rpc('refresh_maintenance_due_alerts', {
@@ -261,13 +214,13 @@ export default function BooksPage() {
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#e0f2f1_0%,_#f1f5f9_45%,_#f8fafc_100%)] px-2 py-2 text-slate-900 sm:px-4 sm:py-5">
+    <div className="suite-home h-[100dvh] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#e0f2f1_0%,_#f1f5f9_45%,_#f8fafc_100%)] px-2 py-2 text-slate-900 sm:px-4 sm:py-5">
       <div className="mx-auto flex h-full min-h-0 w-full flex-col">
         <div className="mx-auto w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
           <header className="relative z-20 mb-4 py-1">
-            <div className="grid grid-cols-1 items-center justify-items-center gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 items-center justify-items-center gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
               <div className="sm:justify-self-start"><BrandLogo src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite · Mantenimiento hotelero" onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-[4.5rem] w-auto max-w-[80vw] object-contain sm:h-[5.5rem]" /></div>
-              <div className="order-2 flex justify-center sm:order-3 sm:col-span-2 lg:order-none lg:col-span-1">
+              <div className="order-2 flex justify-center sm:order-3 sm:col-span-2 xl:order-none xl:col-span-1">
                 <HotelBrand hotel={hotel} hotels={hotels} canSwitch={isPlatformAdmin} onChange={setHotel} />
               </div>
               <div className="order-3 flex flex-wrap items-center justify-center gap-2 sm:order-2 sm:justify-self-end" role="group" aria-label="Herramientas de la aplicación">
@@ -424,52 +377,9 @@ export default function BooksPage() {
         </div>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <div className="mx-auto grid w-full max-w-[1680px] grid-cols-2 justify-center gap-3 px-2 sm:px-3 md:grid-cols-4 md:px-5">
-            {registers.map((register) => (
-              <button
-                key={register.name}
-                type="button"
-                onClick={() => {
-                  if (register.path) navigate(register.path)
-                }}
-                disabled={register.comingSoon}
-                aria-label={register.comingSoon ? register.name + ' — en preparación' : 'Entrar en ' + register.name}
-                className="group flex min-h-[164px] flex-col items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 motion-safe:hover:-translate-y-1 motion-safe:hover:scale-[1.015] hover:border-slate-300 hover:shadow-[0_18px_32px_rgba(15,23,42,0.18)] active:translate-y-0 active:scale-[0.99]"
-              >
-                <div className="flex min-h-[112px] flex-1 flex-col items-center justify-center px-3 py-3">
-                  {register.iconSrc
-                    ? <img src={register.iconSrc} alt="" aria-hidden="true" width={512} height={512} className="h-20 w-20 object-contain transition-transform duration-200 motion-safe:group-hover:scale-110" />
-                    : register.iconIndex===null
-                    ? <span aria-hidden="true" className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 transition-transform duration-200 motion-safe:group-hover:scale-110"><Clock3 size={44}/></span>
-                    : <span aria-hidden="true"
-                        className="block h-20 w-20 shrink-0 bg-no-repeat transition-transform duration-200 group-hover:-translate-y-0.5 motion-safe:group-hover:scale-110"
-                        style={{
-                          backgroundImage: 'url(/assets/home-icons-3d.webp)',
-                          backgroundSize: '500% 100%',
-                          backgroundPosition: `${register.iconIndex * 25}% 50%`,
-                        }}
-                      />}
-                  <span className="mt-2 text-center text-xs font-medium leading-tight text-slate-700">
-                    {register.name}
-                  </span>
-                  {register.description && <span className="mt-1 text-center text-[11px] leading-4 text-slate-500">{register.description}</span>}
-                  {register.name === 'Pendientes' && pendingCount !== null && (
-                    <span className="mt-1 rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
-                      {pendingCount} pendientes
-                    </span>
-                  )}
-                </div>
+          <HomeFavorites key={favoriteStorageKey(session?.user.id ?? 'guest', hotel?.id ?? 'none')} storageKey={favoriteStorageKey(session?.user.id ?? 'guest', hotel?.id ?? 'none')} />
 
-                {register.comingSoon && (
-                  <div className="border-t border-slate-200 px-2.5 py-1.5 text-center text-[9px] font-semibold text-slate-400">
-                    En preparación
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {helpOpen && <section className="fixed right-3 top-32 z-50 w-[min(94vw,440px)] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" aria-label="Ayuda de inicio"><div className="flex items-center justify-between"><h2 className="font-semibold">Cómo empezar</h2><button type="button" aria-label="Cerrar ayuda" onClick={() => setHelpOpen(false)} className="rounded-lg p-2 hover:bg-slate-100"><X size={18}/></button></div><p className="mt-2 text-sm leading-6 text-slate-600">Selecciona tu hotel y abre un módulo. En Registros técnicos encontrarás los controles; en Mantenimiento, los trabajos y preventivos. La campana muestra los avisos del hotel seleccionado.</p></section>}
+          {helpOpen && <section className="fixed right-3 top-32 z-50 w-[min(94vw,440px)] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl" aria-label="Ayuda de inicio"><div className="flex items-center justify-between"><h2 className="font-semibold">Cómo empezar</h2><button type="button" aria-label="Cerrar ayuda" onClick={() => setHelpOpen(false)} className="rounded-lg p-2 hover:bg-slate-100"><X size={18}/></button></div><p className="mt-2 text-sm leading-6 text-slate-600">Abre un área desde el menú lateral o Áreas de trabajo en el móvil. Personaliza Mis accesos para llegar directamente a tus tareas habituales. La campana muestra los avisos del hotel seleccionado.</p></section>}
           {notificationsOpen && (
             <>
               <button type="button" aria-label="Cerrar centro de avisos" onClick={() => setNotificationsOpen(false)} className="fixed inset-0 z-40 cursor-default bg-slate-950/10" />

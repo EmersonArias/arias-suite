@@ -18,7 +18,7 @@ export default function GlobalEscapeNavigation() {
       if (event.defaultPrevented) return
       if (PUBLIC_PATHS.has(location.pathname)) return
       if (location.pathname === '/') return
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
+      if (document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) return
 
       event.preventDefault()
       navigate(-1)
