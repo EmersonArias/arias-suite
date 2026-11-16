@@ -1,3 +1,5 @@
+import DemoActivityPanel from './DemoActivityPanel'
+import { isDemoUser } from '../../core/access/demoReadOnly'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -59,5 +61,6 @@ export default function AccessLogPage() {
       {busy ? <p role="status" className="p-6 text-slate-500">Cargando accesos…</p> : !rows.length ? <p className="p-6 text-slate-500">{error ? 'No se han podido mostrar los accesos.' : 'No hay accesos disponibles para estos filtros.'}</p> : <table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-100 text-xs text-slate-600"><tr>{['Usuario', 'Fecha de acceso', 'Registro', 'Dispositivo', 'IP / origen', 'Ubicación', 'Última renovación'].map(h => <th key={h} scope="col" className="p-3">{h}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.event_id} className="border-t align-top"><td className="p-3"><strong>{row.full_name || row.login_identifier}</strong>{row.full_name && <p className="text-xs text-slate-500">{row.login_identifier}</p>}</td><td className="p-3 whitespace-nowrap">{accessDate(row.occurred_at)}</td><td className="p-3">{kinds[row.event_kind]}</td><td className="p-3">{accessDevice(row.user_agent)}</td><td className="p-3"><span className="font-mono text-xs">{row.ip_address || 'No disponible'}</span><p className="mt-1 text-xs text-slate-500">{row.ip_source === 'auth_server' ? 'IP del servidor, no del dispositivo' : row.ip_source === 'forwarded_header' ? 'Origen comunicado por la pasarela' : row.ip_source === 'auth_session' ? 'Registrada con la sesión' : 'Sin origen conservado'}</p></td><td className="p-3 text-slate-500">No disponible</td><td className="p-3 whitespace-nowrap">{accessDate(row.renewed_at)}</td></tr>)}</tbody></table>}
     </section>
     <nav aria-label="Páginas del registro" className="mt-4 flex items-center justify-between gap-3"><button type="button" className={control} disabled={page === 0 || busy} onClick={() => setPage(n => n - 1)}>Anterior</button><span className="text-sm text-slate-500">Página {page + 1}</span><button type="button" className={control} disabled={!more || busy || page >= 200} onClick={() => setPage(n => n + 1)}>Siguiente</button></nav>
+    {(!userId || isDemoUser(userId)) && <DemoActivityPanel key={from + to} from={from} to={to} refreshKey={refresh} />}
   </div></main>
 }

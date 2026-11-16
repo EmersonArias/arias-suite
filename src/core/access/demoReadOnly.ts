@@ -37,7 +37,7 @@ export function demoRequestBlocked(url: URL, method: string) {
     return !['/auth/v1/token', '/auth/v1/logout', '/auth/v1/user'].includes(path)
       || (path === '/auth/v1/user' && method !== 'GET')
   }
-  if (path === '/functions/v1/auth-login') return false
+  if (path === '/functions/v1/auth-login' || path === '/functions/v1/record-demo-activity') return false
   return !['GET', 'HEAD', 'OPTIONS'].includes(method)
 }
 
