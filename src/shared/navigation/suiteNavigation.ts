@@ -60,12 +60,12 @@ export function favoriteStorageKey(userId: string, hotelId: string) {
 }
 export function areaForPath(path: string): SuiteAreaId | null {
   if (/^\/(documentacion|reports)(\/|$)/.test(path) || path === '/maintenance/audit') return 'documents'
-  if (/^\/(registros-tecnicos|pumps|pools|spa|legionella|climatizers|electricalpanels|photoluminescent|emergencylights|firedoors|calibrations|fireequipment)(\/|$)/.test(path) || ['/maintenance/record', '/maintenance/records', '/maintenance/audit/records'].includes(path)) return 'records'
+  if (/^\/(registros-tecnicos|pumps|pools|spa|legionella|climatizers|fancoils|electricalpanels|photoluminescent|emergencylights|firedoors|calibrations|fireequipment)(\/|$)/.test(path) || ['/maintenance/record', '/maintenance/records', '/maintenance/audit/records'].includes(path)) return 'records'
   if (/^\/(apparatusregistry|assets)(\/|$)/.test(path) || path === '/maintenance/structure') return 'equipment'
   if (path.startsWith('/materials')) return 'materials'
   if (path.startsWith('/providers')) return 'companies'
   if (/^\/(personal|planificador-horario|registro-jornada)(\/|$)/.test(path)) return 'people'
-  if (/^\/(maintenance|pam|planning|actions|fancoils)(\/|$)/.test(path)) return 'maintenance'
+  if (/^\/(maintenance|pam|planning|actions)(\/|$)/.test(path)) return 'maintenance'
   return null
 }
 export function breadcrumbsForPath(path: string): { label: string; href: string }[] {

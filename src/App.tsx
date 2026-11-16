@@ -18,6 +18,7 @@ import PoolsPage from './features/pools/pages/PoolsPage'
 import SpaPage from './features/spa/pages/SpaPage'
 import LegionellaPage from './features/legionella/pages/LegionellaPage'
 import ClimatizersPage from './features/climatizers/pages/ClimatizersPage'
+import FancoilsPage from './features/fancoils/pages/FancoilsPage'
 import ElectricalPanelsPage from './features/electricalpanels/pages/ElectricalPanelsPage'
 import ElectricalPanelDetailPage from './features/electricalpanels/pages/ElectricalPanelDetailPage'
 import ElectricalPanelsReportPage from './features/electricalpanels/pages/ElectricalPanelsReportPage'
@@ -85,7 +86,7 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/spa" element={<SpaPage />} />
 <Route path="/legionella" element={<LegionellaPage />} />
 <Route path="/climatizers" element={<ClimatizersPage />} />
-<Route path="/fancoils" element={<LegacyRedirect to="/maintenance/preventivos/fancoils" />} />
+<Route path="/fancoils" element={<FancoilsPage />} />
 <Route path="/electricalpanels" element={<ElectricalPanelsPage />} />
 <Route path="/electricalpanels/new" element={<ElectricalPanelDetailPage />} />
 <Route path="/electricalpanels/report" element={<ElectricalPanelsReportPage />} />

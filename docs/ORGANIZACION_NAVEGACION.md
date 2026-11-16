@@ -21,12 +21,12 @@ Referencias de organización consultadas: [MaintainX: vistas de trabajo](https:/
 | Función | Ruta principal | Compatibilidad |
 | --- | --- | --- |
 | LED de armario | `/maintenance/proyectos/led-armario` | `/maintenance/room-projects` redirige conservando filtros y ancla |
-| Fancoils por habitación | `/maintenance/preventivos/fancoils` | `/maintenance/fancoil-preventives` y `/fancoils` redirigen |
+| Fancoils por habitación | `/maintenance/preventivos/fancoils` | `/maintenance/fancoil-preventives` redirige; `/fancoils` conserva su registro independiente |
 | Planes PAM | `/maintenance/pam` | `/pam` redirige |
 | Trabajo pendiente | `/maintenance/trabajos` | El listado existente `/maintenance/pending` se conserva |
 | Documentación | `/documentacion` | `/maintenance/audit` redirige |
 
-La entrada antigua Fancoils en Registros abría una pantalla vacía sin datos. Se retira de ese índice y se conserva su URL como acceso al seguimiento real. Las tablas, filtros, exportaciones y claves de almacenamiento existentes de LED y fancoils no se han cambiado.
+Fancoils se conserva en Registros técnicos con su pantalla y ruta originales, separado del seguimiento de preventivos por habitación. Las tablas, filtros, exportaciones y claves de almacenamiento existentes de LED y fancoils no se han cambiado.
 
 ## Favoritos
 

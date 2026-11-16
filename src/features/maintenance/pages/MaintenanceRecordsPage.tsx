@@ -9,6 +9,7 @@ const records = [
   ['Autocontrol Legionella', 'Registro de controles y seguimiento.', 'legionella', '/legionella'],
   ['Bombas', 'Registro de revisiones y actuaciones.', 'pump', '/pumps'],
   ['Climatizadores / Extractores', 'Registro de revisiones de climatización y extracción.', 'air-handler', '/climatizers'],
+  ['Fancoils', 'Registro de revisiones de fancoils.', 'fancoil', '/fancoils'],
   ['Cuadros eléctricos BT', 'Registro de revisiones y mediciones eléctricas.', 'electrical', '/electricalpanels'],
   ['Elementos fotoluminiscentes', 'Registro de comprobaciones.', 'photoluminescent', '/photoluminescent'],
   ['Luces de emergencia', 'Registro de comprobaciones y revisiones.', 'emergency', '/emergencylights'],

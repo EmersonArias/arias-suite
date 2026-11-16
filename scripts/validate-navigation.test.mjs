@@ -47,6 +47,7 @@ test('las rutas públicas de sesión y fichaje no reciben el menú interno', () 
 test('los enlaces antiguos siguen resolviendo y las redirecciones conservan filtros y anclas', () => {
   for (const path of ['/maintenance/room-projects', '/maintenance/fancoil-preventives', '/fancoils', '/maintenance/audit', '/pam'])
     assert.ok(router.matchRoutes(routes, path), path)
+  assert.equal(router.matchRoutes(routes, '/fancoils').at(-1).route.element.type, mockPages.get('./features/fancoils/pages/FancoilsPage'))
   const mod = { exports: {} }
   vm.runInNewContext(compile('src/shared/navigation/LegacyRedirect.tsx'), { module: mod, exports: mod.exports,
     require: name => name === 'react/jsx-runtime' ? jsx : { ...router, useLocation: () => ({ search: '?status=PENDING', hash: '#rooms' }) },
@@ -57,7 +58,7 @@ test('los enlaces antiguos siguen resolviendo y las redirecciones conservan filt
 })
 test('proyectos, preventivos, controles y personal tienen familias y migas coherentes', () => {
   const cases = [['/maintenance/proyectos/led-armario', 'maintenance'], ['/maintenance/preventivos/fancoils', 'maintenance'],
-    ['/pools', 'records'], ['/maintenance/record', 'records'], ['/electricalpanels/123', 'records'],
+    ['/pools', 'records'], ['/fancoils', 'records'], ['/maintenance/record', 'records'], ['/electricalpanels/123', 'records'],
     ['/apparatusregistry/123', 'equipment'], ['/maintenance/structure', 'equipment'], ['/materials', 'materials'],
     ['/providers', 'companies'], ['/planificador-horario', 'people'], ['/registro-jornada', 'people'], ['/reports', 'documents']]
   for (const [path, area] of cases) assert.equal(areaForPath(path), area, path)
