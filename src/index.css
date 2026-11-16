@@ -431,8 +431,8 @@ svg {
   .arias-suite-app .arias-control-3d { box-shadow: none; background: #fff; }
 }
 
-/* Match the hotel badge to the Arias logo, with a genuinely centered desktop column. */
-.arias-suite-app .arias-hotel-brand { width: 10.8rem; height: 4.5rem; }
+/* Match the visible hotel logo height, preserving its original wide proportions. */
+.arias-suite-app .arias-hotel-brand { width: 22.213rem; max-width: 90vw; height: 4.5rem; }
 @media (min-width: 640px) {
-  .arias-suite-app .arias-hotel-brand { width: 13.2rem; height: 5.5rem; }
+  .arias-suite-app .arias-hotel-brand { width: 27.149rem; height: 5.5rem; }
 }
