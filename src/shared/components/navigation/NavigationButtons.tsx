@@ -1,4 +1,5 @@
 import { CornerUpLeft, House } from 'lucide-react'
+import FullscreenButton from './FullscreenButton'
 import IconButton from '../buttons/IconButton'
 import ActionButton from '../buttons/ActionButton'
 
@@ -27,7 +28,7 @@ export function HomeButton({
   disabled = false,
   className,
 }: Pick<NavigationButtonsProps, 'onHome' | 'disabled'> & { className?: string }) {
-  return <IconButton icon={House} label="Inicio" title="Inicio" onClick={onHome} disabled={disabled} className={className} />
+  return <span className="inline-flex shrink-0 items-start gap-2"><FullscreenButton /><IconButton icon={House} label="Inicio" title="Inicio" onClick={onHome} disabled={disabled} className={className} /></span>
 }
 
 export default function NavigationButtons({

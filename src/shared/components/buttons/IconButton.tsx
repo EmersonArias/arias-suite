@@ -49,10 +49,11 @@ export default function IconButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      data-tone={tone}
       aria-label={label}
       title={title ?? label}
       className={[
-        'arias-icon-button inline-flex shrink-0 items-center justify-center rounded-full',
+        'arias-control-3d arias-icon-button inline-flex shrink-0 items-center justify-center rounded-full',
         dimensions,
         'text-[#294b70] transition-[background-color,box-shadow,transform] duration-150',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',

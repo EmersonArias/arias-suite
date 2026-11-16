@@ -747,7 +747,7 @@ export default function UsersPage() {
               aria-modal="true"
             >
               <img
-                src="/assets/arias-suite-logo-v4.webp"
+                src="/assets/arias-suite-logo-hotel-gold-v1.webp"
                 alt=""
                 aria-hidden="true"
                 className="pointer-events-none absolute -bottom-8 -right-8 w-56 opacity-[0.055]"

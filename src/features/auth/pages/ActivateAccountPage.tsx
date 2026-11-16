@@ -88,7 +88,7 @@ export default function ActivateAccountPage() {
       <div className="mx-auto flex min-h-[80vh] max-w-md items-center justify-center">
         <section className="w-full rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
           <div className="mb-8 text-center">
-            <img src="/assets/arias-suite-logo-v4.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
+            <img src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
             <h1 className="mt-5 text-xl font-semibold text-slate-800">
               {session ? 'Activar cuenta' : 'Activar acceso'}
             </h1>

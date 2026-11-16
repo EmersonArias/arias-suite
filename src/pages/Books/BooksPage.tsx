@@ -5,13 +5,11 @@ import {
   CircleHelp,
   CalendarClock,
   Clock3,
-  Maximize2,
   X,
-  Minimize2,
-  Building2,
   Settings,
   UserRound,
 } from 'lucide-react'
+import FullscreenButton from '../../shared/components/navigation/FullscreenButton'
 import BrandLogo from '../../shared/components/branding/BrandLogo'
 import { useAuth } from '../../features/auth/context/AuthProvider'
 import { ariasAuth } from '../../core/auth/authService'
@@ -113,7 +111,6 @@ export default function BooksPage() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [pendingSnapshot, setPendingSnapshot] = useState<{ hotelId: string; count: number | null } | null>(null)
   const pendingCount = pendingSnapshot?.hotelId === hotel?.id ? pendingSnapshot?.count ?? null : null
-  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -139,31 +136,6 @@ export default function BooksPage() {
       mounted = false
     }
   }, [hotel?.id])
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === document.documentElement)
-    }
-
-    handleFullscreenChange()
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
-
-  async function toggleFullscreen() {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen()
-        return
-      }
-
-      await document.documentElement.requestFullscreen()
-    } catch {
-      // Fullscreen can be denied by the browser or platform policy.
-    }
-  }
-
-
 
   async function loadMaintenanceAlerts(hotelId: string) {
     await supabase.rpc('refresh_maintenance_due_alerts', {
@@ -291,13 +263,11 @@ export default function BooksPage() {
     <div className="h-[100dvh] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#e0f2f1_0%,_#f1f5f9_45%,_#f8fafc_100%)] px-2 py-2 text-slate-900 sm:px-4 sm:py-5">
       <div className="mx-auto flex h-full min-h-0 w-full flex-col">
         <div className="mx-auto w-full max-w-[1680px] px-2 sm:px-3 md:px-5">
-          <header className="relative z-20 mb-6 rounded-3xl border border-white bg-white/95 px-4 py-4 shadow-sm sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
-              <BrandLogo src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite · Mantenimiento hotelero" onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-36 w-auto max-w-[80vw] object-contain sm:h-44" />
-              <div className="order-3 flex w-full items-center gap-3 border-t border-slate-100 pt-4 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700"><Building2 size={22} /></span>
+          <header className="relative z-20 mb-4 py-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <BrandLogo src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite · Mantenimiento hotelero" onActivate={() => window.location.reload()} label="Actualizar Arias Suite" className="h-[4.5rem] w-auto max-w-[80vw] object-contain sm:h-[5.5rem]" />
+              <div className="order-3 flex w-full items-center sm:order-none sm:w-auto sm:flex-1">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Establecimiento</p>
                   {isPlatformAdmin && hotels.length > 1 ? (
                     <select value={hotel?.id ?? ''} onChange={event => setHotel(event.target.value)} className="mt-1 max-w-full bg-transparent text-sm font-semibold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-teal-600" aria-label="Hotel actual" title="Cambiar hotel">
                       {hotels.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -306,18 +276,7 @@ export default function BooksPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Herramientas de la aplicación">
-              <button
-                type="button"
-                onClick={() => void toggleFullscreen()}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-                title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-                aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-              >
-                {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-                <span className="hidden text-xs font-medium xl:inline">
-                  {isFullscreen ? 'Salir' : 'Pantalla completa'}
-                </span>
-              </button>
+              <FullscreenButton />
               <button
                 type="button"
                 onClick={() => {
@@ -327,7 +286,7 @@ export default function BooksPage() {
                   setNotificationsOpen(opening)
                   if (opening) void refreshNotifications()
                 }}
-                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                className="arias-control-3d relative inline-flex h-10 w-10 items-center justify-center rounded-full"
                 title="Centro de avisos"
                 aria-label="Centro de avisos"
                 aria-expanded={notificationsOpen}
@@ -341,7 +300,7 @@ export default function BooksPage() {
               </button>
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                className="arias-control-3d inline-flex h-10 w-10 items-center justify-center rounded-full"
                 onClick={() => { setHelpOpen(open => !open); setUserMenuOpen(false); setAdminMenuOpen(false); setNotificationsOpen(false) }}
                 aria-expanded={helpOpen}
                 title="Ayuda"
@@ -357,7 +316,7 @@ export default function BooksPage() {
                       setAdminMenuOpen((open) => !open)
                       setUserMenuOpen(false)
                     }}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                    className="arias-control-3d inline-flex h-10 w-10 items-center justify-center rounded-full"
                     title="Administración"
                     aria-label="Administración"
                     aria-expanded={adminMenuOpen}
@@ -416,7 +375,7 @@ export default function BooksPage() {
                     setUserMenuOpen((open) => !open)
                     setAdminMenuOpen(false)
                   }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                  className="arias-control-3d inline-flex h-10 w-10 items-center justify-center rounded-full"
                   title="Usuario"
                   aria-label="Usuario"
                   aria-expanded={userMenuOpen}

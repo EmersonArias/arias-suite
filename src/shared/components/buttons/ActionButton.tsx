@@ -46,6 +46,7 @@ export default function ActionButton({
         type={type}
         onClick={onClick}
         disabled={disabled}
+        data-tone={tone}
         aria-label={label}
         title={label}
         className={[
@@ -66,10 +67,11 @@ export default function ActionButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      data-tone={tone}
       aria-label={label}
       title={label}
       className={[
-        'arias-action-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+        'arias-control-3d arias-action-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
         'text-[#294b70] transition-[background-color,box-shadow,transform] duration-150',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
         'active:scale-95',

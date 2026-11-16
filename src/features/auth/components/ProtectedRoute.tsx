@@ -38,7 +38,7 @@ export default function ProtectedRoute() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white px-7 py-8 text-center shadow-[0_18px_45px_rgba(15,23,42,0.10)]">
-          <img src="/assets/arias-suite-logo-v4.webp" alt="Arias Suite" className="mx-auto h-14 w-auto object-contain" />
+          <img src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite" className="mx-auto h-14 w-auto object-contain" />
           <p className="mt-5 text-sm text-slate-500">Comprobando acceso…</p>
         </div>
       </main>
@@ -54,7 +54,7 @@ export default function ProtectedRoute() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
         <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <img src="/assets/arias-suite-logo-v4.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
+          <img src="/assets/arias-suite-logo-hotel-gold-v1.webp" alt="Arias Suite" className="mx-auto h-16 w-auto object-contain" />
           <h1 className="mt-6 text-xl font-semibold text-slate-800">
             Acceso no disponible
           </h1>

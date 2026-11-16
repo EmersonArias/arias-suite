@@ -376,3 +376,57 @@ svg {
     overflow-x: visible;
   }
 }
+
+/* Shared silver/teal controls: relief, gold rim and a pressed state. */
+.arias-suite-app .arias-control-3d {
+  color: #12676b;
+  border: 1px solid #c6b88d;
+  background: radial-gradient(ellipse at 35% 15%, #fff 0%, #f7fafb 35%, #e1e8eb 75%, #c6d0d6 100%);
+  box-shadow: inset 0 2px 2px #fff, inset 0 -2px 3px #9eafb960,
+    0 3px 0 #9caab3, 0 5px 8px #0f172a20;
+  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+}
+.arias-suite-app .arias-control-3d svg {
+  filter: drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #103e4c30);
+}
+.arias-suite-app .arias-control-3d[data-tone="danger"] { color: #b91c1c; }
+.arias-suite-app .arias-control-3d[data-tone="warning"] { color: #925600; }
+.arias-suite-app .arias-control-3d[data-tone="success"] { color: #047857; }
+.arias-suite-app .arias-control-3d[data-tone="primary"] { color: #075985; }
+.arias-suite-app .arias-control-3d:hover:not(:disabled) { filter: brightness(1.04); }
+.arias-suite-app .arias-control-3d:focus-visible { outline: 2px solid #0d9488; outline-offset: 3px; }
+.arias-suite-app .arias-control-3d:active:not(:disabled),
+.arias-suite-app .arias-control-3d[aria-pressed="true"] {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 4px #64748b40, 0 1px 0 #9caab3;
+}
+.arias-suite-app .arias-control-3d:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.arias-suite-app .arias-fullscreen-button { width: 2.5rem; height: 2.5rem; }
+
+/* Consistent compact branding and open headers throughout the app. */
+.arias-suite-app .arias-brand-logo > img {
+  width: auto;
+  height: 4.5rem;
+  min-height: 4.5rem;
+  max-width: 80vw;
+  object-fit: contain;
+}
+.arias-suite-app header:has(.arias-brand-logo) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding-top: .25rem;
+  padding-bottom: .25rem;
+}
+.arias-suite-app header:has(.arias-brand-logo) > div { flex-wrap: wrap; row-gap: .75rem; }
+@media (min-width: 640px) {
+  .arias-suite-app .arias-brand-logo > img { height: 5.5rem; min-height: 5.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arias-suite-app .arias-control-3d { transition: none; }
+}
+@media print {
+  .arias-suite-app .arias-fullscreen-button { display: none !important; }
+  .arias-suite-app .arias-control-3d { box-shadow: none; background: #fff; }
+}
