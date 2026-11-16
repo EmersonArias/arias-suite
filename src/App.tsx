@@ -1,6 +1,7 @@
 import SuiteLayout from './shared/navigation/SuiteLayout'
 import SuiteAreaPage from './shared/navigation/SuiteAreaPage'
 import LegacyRedirect from './shared/navigation/LegacyRedirect'
+import TechnicalBooksRoute from './features/technicalbooks/TechnicalBooksRoute'
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import BooksPage from './pages/Books/BooksPage'
 import LoginPage from './features/auth/pages/LoginPage'
@@ -105,6 +106,8 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/maintenance/interventions" element={<ActionsPage />} />
 <Route path="/maintenance/pam/:apparatusId" element={<MaintenancePamDetailPage />} />
 <Route path="/registros-tecnicos" element={<MaintenanceRecordsPage />} />
+<Route path="/registros-tecnicos/pruebas" element={<TechnicalBooksRoute />} />
+<Route path="/registros-tecnicos/pruebas/:bookId" element={<TechnicalBooksRoute />} />
 <Route path="/maintenance/audit/records" element={<Navigate to="/registros-tecnicos" replace />} />
 <Route path="/maintenance/records" element={<Navigate to="/registros-tecnicos" replace />} />
 <Route path="/maintenance/record" element={<MaintenanceRecordPage />} />

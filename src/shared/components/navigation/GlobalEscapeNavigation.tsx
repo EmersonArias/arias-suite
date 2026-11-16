@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { canNavigateInSuite } from '../../navigation/navigationGuard'
 
 const PUBLIC_PATHS = new Set([
   '/login',
@@ -21,6 +22,7 @@ export default function GlobalEscapeNavigation() {
       if (document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) return
 
       event.preventDefault()
+      if (!canNavigateInSuite()) return
       navigate(-1)
     }
 
