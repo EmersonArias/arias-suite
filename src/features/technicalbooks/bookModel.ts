@@ -1,4 +1,5 @@
 import type { Answer, BookDefinition, BookEntry } from './types.ts'
+import { assertDemoWriteAllowed } from '../../core/access/demoReadOnly.ts'
 
 export type Scope = { hotelId: string; userId: string }
 export type SandboxStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -100,6 +101,7 @@ export function loadSandbox(storage: SandboxStorage, scope: Scope): BookEntry[] 
   return data.entries
 }
 export function persistEntry(storage: SandboxStorage, scope: Scope, book: BookDefinition, input: BookEntry, finalize: boolean, expected: BookEntry | null) {
+  assertDemoWriteAllowed(scope.userId)
   if (scope.hotelId !== input.hotelId || scope.userId !== input.userId) throw new Error('El registro pertenece a otro hotel o usuario.')
   const issues = validateEntry(book, input, finalize)
   if (issues.length) throw new Error(issues.join('\n'))

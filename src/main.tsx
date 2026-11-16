@@ -1,19 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, useLocation } from 'react-router-dom'
-import App from './App'
-import { SystemDialogProvider } from './shared/components/dialogs/SystemDialogProvider'
-import { HotelScopeProvider } from './shared/context/HotelScopeContext'
+import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './features/auth/context/AuthProvider'
+import RoutedApplication from './shared/navigation/RoutedApplication'
 import './index.css'
 
-function RoutedApplication() {
-  const { pathname } = useLocation()
-  if (['/mi-horario','/login','/activate','/forgot-password','/update-password'].includes(pathname)) {
-    return <SystemDialogProvider><App /></SystemDialogProvider>
-  }
-  return <HotelScopeProvider><SystemDialogProvider><App /></SystemDialogProvider></HotelScopeProvider>
-}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

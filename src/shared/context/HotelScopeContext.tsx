@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from '../../features/auth/context/AuthProvider'
 import { supabase } from '../../lib/supabase'
+import { isDemoUser } from '../../core/access/demoReadOnly'
 
 export type HotelScope = {
   id: string
@@ -98,9 +99,12 @@ export function HotelScopeProvider({ children }: { children: ReactNode }) {
       setHotelState(selected)
     } else if (loadedHotels.length === 1) {
       const onlyHotel = loadedHotels[0]
-      const setResult = await supabase.rpc('set_active_hotel', { target_hotel_id: onlyHotel.id })
-      if (!setResult.error) setHotelState(onlyHotel)
-      else setHotelState(null)
+      if (isDemoUser(session.user.id)) setHotelState(onlyHotel)
+      else {
+        const setResult = await supabase.rpc('set_active_hotel', { target_hotel_id: onlyHotel.id })
+        if (!setResult.error) setHotelState(onlyHotel)
+        else setHotelState(null)
+      }
     } else {
       setHotelState(null)
     }
@@ -115,6 +119,12 @@ export function HotelScopeProvider({ children }: { children: ReactNode }) {
   async function setHotel(hotelId: string) {
     const selected = hotels.find((item) => item.id === hotelId)
     if (!selected || !session?.user.id) return
+
+    if (isDemoUser(session.user.id)) {
+      setHotelState(selected)
+      window.dispatchEvent(new CustomEvent('arias:hotel-change', { detail: selected.id }))
+      return
+    }
 
     const result = await supabase.rpc('set_active_hotel', {
       target_hotel_id: selected.id,

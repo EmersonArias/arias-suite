@@ -6,13 +6,14 @@ import ts from 'typescript'
 import * as jsx from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import * as model from '../src/features/technicalbooks/bookModel.ts'
+import * as demoAccess from '../src/core/access/demoReadOnly.ts'
 import { bookDefinitions, sourceCatalog } from '../src/features/technicalbooks/bookDefinitions.ts'
 const b = bookDefinitions.find(b => b.id === 'fancoils')
 const scope = { hotelId: 'hotel-simulado', userId: 'usuario-simulado' }
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
 const words = node => node === null || node === undefined || typeof node === 'boolean' ? '' : typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(words).join(' ') : words(node.props?.children)
-function harness() {
+function harness(userId = scope.userId) {
   const data = new Map(); let state = [], cursor = 0, beforeUnload = false
   const storage = { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) }
   const mod = { exports: {} }; const react = {
@@ -22,6 +23,7 @@ function harness() {
   const dependencies = {
     react, 'react/jsx-runtime': jsx, 'react-router-dom': { Link: ({ children }) => children, useParams: () => ({ bookId: b.id }), useNavigate: () => () => {} },
     './bookModel': model, './bookDefinitions': { bookDefinitions, sourceCatalog },
+    '../../core/access/demoReadOnly': demoAccess,
     '../../shared/components/dialogs/SystemDialogProvider': { useSystemDialog: () => ({ confirm: async () => true, alert: async () => {} }) },
     '../../shared/hooks/useBeforeUnloadGuard': { useBeforeUnloadGuard: value => { beforeUnload = value } },
     '../../shared/navigation/navigationGuard': { canNavigateInSuite: () => true },
@@ -31,7 +33,7 @@ function harness() {
     requestAnimationFrame: fn => fn(), document: { querySelector: () => null },
     require: name => dependencies[name] ?? (name === 'lucide-react' ? new Proxy({}, { get: () => () => null }) : {}),
   })
-  function render() { cursor = 0; return mod.exports.BookForm({ book: b, scope, hotelName: 'Hotel simulado' }) }
+  function render() { cursor = 0; return mod.exports.BookForm({ book: b, scope: { ...scope, userId }, hotelName: 'Hotel simulado' }) }
   function click(label, prefix = false) { const node = nodes(render()).find(n => n.type === 'button' && (prefix ? words(n).replace(/\s+/g, ' ').trim().startsWith(label) : words(n).replace(/\s+/g, ' ').trim() === label)); assert.ok(node, label); assert.ok(!node.props.disabled, label + ' habilitado'); return node.props.onClick() }
   function fill(label, value) { const parent = nodes(render()).find(n => n.type === 'label' && words(n).startsWith(label)); assert.ok(parent, label); nodes(parent).find(n => n.type === 'input').props.onChange({ target: { value } }) }
   return { index: () => mod.exports.BookIndex(), notice: () => mod.exports.TrialNotice(), render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; return render() } }
@@ -90,3 +92,12 @@ test('Escape respeta la cancelación al salir de una ficha sin guardar', () => {
   assert.doesNotMatch(content, /Excel|\.xlsx|Referencia del Excel|SHA-256|Hoja1/i)
   assert.doesNotMatch(content, /Referencia del Excel/)
  })
+
+test('PRUEBA puede previsualizar PDF sin guardar; guardar muestra error y no persiste', () => {
+  const h = harness(demoAccess.DEMO_USER_ID)
+  const pdf = nodes(h.render()).find(n => n.type === 'button' && words(n).trim() === 'PDF de la ficha')
+  assert.ok(pdf && !pdf.props.disabled)
+  h.click('Guardar borrador')
+  assert.match(words(h.render()), /Usuario de prueba/)
+  assert.equal(model.loadSandbox(h.storage, { ...scope, userId: demoAccess.DEMO_USER_ID }).length, 0)
+})

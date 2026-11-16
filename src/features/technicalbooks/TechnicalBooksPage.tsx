@@ -11,6 +11,7 @@ import { bookDefinitions } from './bookDefinitions'
 import { completedCount, correction, createEntry, entryFields, fieldIssue, filterEntries, frequencyLabels, issueCount, loadSandbox, persistEntry } from './bookModel'
 import type { Scope } from './bookModel'
 import type { BookDefinition, BookEntry, BookField } from './types'
+import { isDemoUser } from '../../core/access/demoReadOnly'
 
 const ReferenceCatalog = lazy(() => import('./ReferenceCatalog'))
 const input = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700'
@@ -60,6 +61,7 @@ function FieldCard({ field, entry, disabled, update, showErrors }: { field: Book
   </div>
 }
 function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Scope; hotelName: string }) {
+  const demo = isDemoUser(scope.userId)
   const { confirm, alert } = useSystemDialog()
   const [loaded] = useState(() => { try { return { entries: loadSandbox(localStorage, scope), error: '' } } catch (e) { return { entries: [] as BookEntry[], error: e instanceof Error ? e.message : 'No se pudieron leer las pruebas.' } } })
   const [records, setRecords] = useState(loaded.entries)
@@ -132,7 +134,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
       <section className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3 shadow-sm">
         <button className={button} disabled={busy} onClick={async () => { if (await canLeave()) reset(createEntry(book, scope), null) }}><ClipboardPlus size={17} />Nueva revisión</button>
         {!readOnly ? <><button className={button} disabled={busy || !!storageError} onClick={() => void save(false)}><Save size={17} />Guardar borrador</button><button className={button + ' border-teal-600 bg-teal-600 text-white hover:bg-teal-700'} disabled={busy || !!storageError} onClick={() => void save(true)}><CheckCircle2 size={17} />Finalizar prueba</button><button className={button} disabled={!dirty || busy} onClick={async () => { if (await canLeave()) reset(baseline ? structuredClone(baseline) : createEntry(book, scope), baseline) }}><X size={17} />Cancelar</button></> : <button className={button} disabled={records.some(r => r.supersedes === entry.id)} onClick={() => reset(correction(entry), null)}><Pencil size={17} />Rectificar</button>}
-        <button className={button} disabled={!baseline || dirty || busy} onClick={() => void exportPdf(baseline ? [baseline] : [])}><FileText size={17} />PDF de la ficha</button>
+        <button className={button} disabled={(!demo && (!baseline || dirty)) || busy} onClick={() => void exportPdf(demo ? [entry] : baseline ? [baseline] : [])}><FileText size={17} />PDF de la ficha</button>
         <span className="ml-auto text-xs text-slate-500">Rev. {entry.revision} · {readOnly ? 'Finalizado de prueba' : dirty ? 'Cambios sin guardar' : baseline ? 'Borrador guardado' : 'Nueva ficha'}</span>
       </section>
       {notice && <p role="status" className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800">{notice}</p>}
