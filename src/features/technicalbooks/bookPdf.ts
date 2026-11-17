@@ -5,7 +5,7 @@ import type { BookDefinition, BookEntry } from './types.ts'
 
 const printable = (value: string) => value.replaceAll('√', 'Comprobación').replaceAll('ᵒ', '°')
 
-export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string) {
+export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string, demo = true) {
   if (!entries.length) throw new Error('No hay registros para exportar.')
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   entries.forEach((entry, index) => {
@@ -16,12 +16,12 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
       startY: 30, margin: { top: 30, bottom: 22, left: 14, right: 14 }, theme: 'plain',
       styles: { fontSize: 9, overflow: 'linebreak', cellPadding: 2 },
       body: [
-        ['Hotel', hotel, 'Estado', entry.status === 'FINAL' ? 'Finalizado de prueba' : 'Borrador'],
+        ['Hotel', hotel, 'Estado', entry.status === 'FINAL' ? 'Finalizado' : 'Borrador'],
         [book.assetLabel, entry.asset, 'Fecha / hora', `${entry.date} ${entry.time}`],
         ['Ubicación', entry.location || 'Sin indicar', 'Técnico', entry.technician],
         ['Campaña / revisión', entry.campaign || 'Sin indicar', 'Controles', frequencyLabels[entry.frequency] ?? entry.frequency],
         ['Versión', `Rev. ${entry.revision} · ${entry.id}`, 'Rectifica a', entry.supersedes || 'Primera revisión'],
-        ['Motivo rectificación', entry.correctionReason || 'No procede', 'Finalización local', entry.finalizedAt || 'Sin finalizar'],
+        ['Motivo rectificación', entry.correctionReason || 'No procede', 'Finalización', entry.finalizedAt || 'Sin finalizar'],
       ],
     })
     let y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
@@ -60,9 +60,9 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
     pdf.setTextColor(15, 80, 115); pdf.setFontSize(12)
     pdf.text(`${book.code} · ${book.title}`, 14, 15, { maxWidth: 181 })
     pdf.setTextColor(146, 64, 14); pdf.setFontSize(8)
-    pdf.text('DOCUMENTO DE PRUEBA · SIN VALIDEZ COMO REGISTRO REAL', 14, 23)
+    pdf.text(demo ? 'DOCUMENTO DE PRUEBA · SIN VALIDEZ COMO REGISTRO REAL' : 'REGISTRO TÉCNICO · HISTORIAL DEL HOTEL', 14, 23)
     pdf.setTextColor(90); pdf.setFontSize(8)
-    pdf.text(`Arias Suite · ${page} / ${total} · Datos de prueba guardados en el navegador`, 14, 286)
+    pdf.text(`Arias Suite · ${page} / ${total} · ${demo ? 'Documento de prueba' : 'Registro conservado en Arias Suite'}`, 14, 286)
   }
   return pdf
 }

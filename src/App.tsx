@@ -84,12 +84,16 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/providers" element={<ProvidersPage />} />
 <Route path="/actions" element={<Navigate to="/maintenance/interventions" replace />} />
 <Route path="/assets" element={<AssetsPage />} />
-<Route path="/pumps" element={<PumpsPage />} />
+<Route path="/registros-tecnicos/anteriores/pumps" element={<PumpsPage />} />
+<Route path="/pumps" element={<LegacyRedirect to="/registros-tecnicos/libros/bombas" />} />
 <Route path="/pools" element={<PoolsPage />} />
 <Route path="/spa" element={<SpaPage />} />
-<Route path="/legionella" element={<LegionellaPage />} />
-<Route path="/climatizers" element={<ClimatizersPage />} />
-<Route path="/fancoils" element={<FancoilsPage />} />
+<Route path="/registros-tecnicos/anteriores/legionella" element={<LegionellaPage />} />
+<Route path="/legionella" element={<LegacyRedirect to="/registros-tecnicos/libros/legionella" />} />
+<Route path="/registros-tecnicos/anteriores/climatizers" element={<ClimatizersPage />} />
+<Route path="/climatizers" element={<LegacyRedirect to="/registros-tecnicos/libros/climatizadores" />} />
+<Route path="/registros-tecnicos/anteriores/fancoils" element={<FancoilsPage />} />
+<Route path="/fancoils" element={<LegacyRedirect to="/registros-tecnicos/libros/fancoils" />} />
 <Route path="/electricalpanels" element={<ElectricalPanelsPage />} />
 <Route path="/electricalpanels/new" element={<ElectricalPanelDetailPage />} />
 <Route path="/electricalpanels/report" element={<ElectricalPanelsReportPage />} />
@@ -138,15 +142,23 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/apparatusregistry/new" element={<ApparatusRegistryDetailPage />} />
 <Route path="/apparatusregistry/report" element={<ApparatusRegistryReportPage />} />
 <Route path="/apparatusregistry/:id" element={<ApparatusRegistryDetailPage />} />
-<Route path="/photoluminescent" element={<PhotoluminescentPage />} />
-<Route path="/emergencylights" element={<EmergencyLightsPage />} />
-<Route path="/firedoors" element={<FireDoorsPage />} />
-<Route path="/calibrations" element={<CalibrationsPage />} />
+<Route path="/registros-tecnicos/anteriores/photoluminescent" element={<PhotoluminescentPage />} />
+<Route path="/photoluminescent" element={<LegacyRedirect to="/registros-tecnicos/libros/fotoluminiscentes" />} />
+<Route path="/registros-tecnicos/anteriores/emergencylights" element={<EmergencyLightsPage />} />
+<Route path="/emergencylights" element={<LegacyRedirect to="/registros-tecnicos/libros/luces-emergencia" />} />
+<Route path="/registros-tecnicos/anteriores/firedoors" element={<FireDoorsPage />} />
+<Route path="/firedoors" element={<LegacyRedirect to="/registros-tecnicos/libros/puertas-cortafuegos" />} />
+<Route path="/registros-tecnicos/anteriores/calibrations" element={<CalibrationsPage />} />
+<Route path="/calibrations" element={<LegacyRedirect to="/registros-tecnicos/libros/calibraciones" />} />
 <Route path="/fireequipment" element={<FireEquipmentPage />} />
-<Route path="/fireequipment/extinguishers" element={<ExtinguishersPage />} />
-<Route path="/fireequipment/bie" element={<BiePage />} />
-<Route path="/fireequipment/sprinklers" element={<SprinklersPage />} />
-<Route path="/fireequipment/pci-review" element={<PciReviewPage />} /></Route>
+<Route path="/registros-tecnicos/anteriores/fireequipment/extinguishers" element={<ExtinguishersPage />} />
+<Route path="/fireequipment/extinguishers" element={<LegacyRedirect to="/registros-tecnicos/libros/extintores" />} />
+<Route path="/registros-tecnicos/anteriores/fireequipment/bie" element={<BiePage />} />
+<Route path="/fireequipment/bie" element={<LegacyRedirect to="/registros-tecnicos/libros/bie" />} />
+<Route path="/registros-tecnicos/anteriores/fireequipment/sprinklers" element={<SprinklersPage />} />
+<Route path="/fireequipment/sprinklers" element={<LegacyRedirect to="/registros-tecnicos/libros/rociadores" />} />
+<Route path="/registros-tecnicos/anteriores/fireequipment/pci-review" element={<PciReviewPage />} />
+<Route path="/fireequipment/pci-review" element={<LegacyRedirect to="/registros-tecnicos/libros/pci" />} /></Route>
 </Route>
 </Routes>
 </div>

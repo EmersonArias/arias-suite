@@ -15,7 +15,8 @@
     "validate:activity": "node --test scripts/validate-demo-activity.test.mjs",
     "validate:access-log": "node --test scripts/validate-access-log.test.mjs",
     "validate:demo": "node --test scripts/validate-demo-read-only.test.mjs",
-    "validate:modules": "node --test scripts/validate-modules.test.mjs scripts/check-local-environment.test.mjs"
+    "validate:modules": "node --test scripts/validate-modules.test.mjs scripts/check-local-environment.test.mjs",
+    "validate:books:database": "node scripts/validate-technical-books-database.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -32,6 +33,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",

@@ -14,14 +14,16 @@ const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { comp
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
 const words = node => node === null || node === undefined || typeof node === 'boolean' ? '' : typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(words).join(' ') : words(node.props?.children)
 function harness(userId = scope.userId) {
-  const data = new Map(); let state = [], cursor = 0, beforeUnload = false
+  const data = new Map(); let state = [], cursor = 0, beforeUnload = false, effectStarted = false
   const storage = { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) }
   const mod = { exports: {} }; const react = {
     useState: initial => { const index = cursor++; if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial; return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next }] },
+    useEffect: fn => { if (!effectStarted) { effectStarted = true; fn() } },
     useMemo: fn => fn(), lazy: () => () => null, Suspense: ({ children }) => children,
   }
   const dependencies = {
     react, 'react/jsx-runtime': jsx, 'react-router-dom': { Link: ({ children }) => children, useParams: () => ({ bookId: b.id }), useNavigate: () => () => {} },
+    './bookRepository': { loadBookRecords: async () => model.loadSandbox(storage, { ...scope, userId }), saveBookRecord: async (s, b, e, f, expected) => model.persistEntry(storage, s, b, e, f, expected).entry },
     './bookModel': model, './bookDefinitions': { bookDefinitions, sourceCatalog },
     '../../core/access/demoReadOnly': demoAccess,
     '../../shared/components/dialogs/SystemDialogProvider': { useSystemDialog: () => ({ confirm: async () => true, alert: async () => {} }) },
@@ -36,28 +38,28 @@ function harness(userId = scope.userId) {
   function render() { cursor = 0; return mod.exports.BookForm({ book: b, scope: { ...scope, userId }, hotelName: 'Hotel simulado' }) }
   function click(label, prefix = false) { const node = nodes(render()).find(n => n.type === 'button' && (prefix ? words(n).replace(/\s+/g, ' ').trim().startsWith(label) : words(n).replace(/\s+/g, ' ').trim() === label)); assert.ok(node, label); assert.ok(!node.props.disabled, label + ' habilitado'); return node.props.onClick() }
   function fill(label, value) { const parent = nodes(render()).find(n => n.type === 'label' && words(n).startsWith(label)); assert.ok(parent, label); nodes(parent).find(n => n.type === 'input').props.onChange({ target: { value } }) }
-  return { index: () => mod.exports.BookIndex(), notice: () => mod.exports.TrialNotice(), render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; return render() } }
+  return { index: () => mod.exports.BookIndex(), notice: () => mod.exports.TrialNotice(), render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; effectStarted = false; return render() }, ready: async () => { render(); await new Promise(resolve => setImmediate(resolve)) } }
 }
 
 test('interacción completa: ficha nueva, controles, borrador, recarga, finalización y rectificación sin red', async () => {
-  const h = harness()
+  const h = harness(); await h.ready()
   h.fill('Habitación', 'HAB-PRUEBA-201'); h.fill('Técnico responsable', 'Técnico simulado')
   for (const field of nodes(h.render()).filter(n => n.props?.field)) field.props.update(field.props.field.kind === 'number' ? '22,5' : 'V')
-  h.click('Guardar borrador')
+  h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope).length, 1)
-  assert.match(words(h.render()), /Borrador de prueba guardado/)
+  assert.match(words(h.render()), /Borrador guardado/)
   assert.equal(h.beforeUnload, false)
-  h.reload(); h.click('Historial (1)')
+  h.reload(); await h.ready(); h.click('Historial (1)')
   h.click('HAB-PRUEBA-201', true); await new Promise(resolve => setImmediate(resolve))
-  h.click('Finalizar prueba'); await new Promise(resolve => setImmediate(resolve))
+  h.click('Finalizar revisión'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope)[0].status, 'FINAL')
   assert.ok(nodes(h.render()).filter(n => n.props?.field).every(n => n.props.disabled))
   h.click('Rectificar')
   assert.match(words(h.render()), /Motivo de rectificación/)
   assert.ok(nodes(h.render()).filter(n => n.props?.field).every(n => !n.props.disabled))
 })
-test('formulario vacío informa del error y no simula que ha guardado', () => {
-  const h = harness(); h.click('Guardar borrador')
+test('formulario vacío informa del error y no simula que ha guardado', async () => {
+  const h = harness(); await h.ready(); h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope).length, 0)
   assert.match(words(h.render()), /No se ha guardado/)
   assert.match(words(h.render()), /técnico responsable/)
@@ -83,21 +85,21 @@ test('Escape respeta la cancelación al salir de una ficha sin guardar', () => {
   allowed = true; escape(); assert.deepEqual(navigation, [-1])
 })
 
- test('el índice muestra 01-01 a 01-03 y las pantallas no exponen archivos ni celdas', () => {
-  const h = harness()
+ test('el índice muestra 01-01 a 01-03 y las pantallas no exponen archivos ni celdas', async () => {
+  const h = harness(); await h.ready()
   const index = words(h.index())
   for (const code of ['R-SSTT-01-01', 'R-SSTT-01-02', 'R-SSTT-01-03']) assert.ok(index.includes(code))
-  assert.match(index, /Excluido de estas pruebas/)
+  assert.match(index, /Se mantienen los módulos actuales/)
   const content = index + words(h.notice()) + renderToStaticMarkup(h.render())
   assert.doesNotMatch(content, /Excel|\.xlsx|Referencia del Excel|SHA-256|Hoja1/i)
   assert.doesNotMatch(content, /Referencia del Excel/)
  })
 
-test('PRUEBA puede previsualizar PDF sin guardar; guardar muestra error y no persiste', () => {
-  const h = harness(demoAccess.DEMO_USER_ID)
+test('PRUEBA puede previsualizar PDF sin guardar; guardar muestra error y no persiste', async () => {
+  const h = harness(demoAccess.DEMO_USER_ID); await h.ready()
   const pdf = nodes(h.render()).find(n => n.type === 'button' && words(n).trim() === 'PDF de la ficha')
   assert.ok(pdf && !pdf.props.disabled)
-  h.click('Guardar borrador')
+  h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.match(words(h.render()), /Usuario de prueba/)
   assert.equal(model.loadSandbox(h.storage, { ...scope, userId: demoAccess.DEMO_USER_ID }).length, 0)
 })

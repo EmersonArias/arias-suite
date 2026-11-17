@@ -14,5 +14,6 @@ export type BookEntry = {
   date: string; time: string; asset: string; location: string; technician: string; campaign: string; frequency: string
   answers: Record<string, Answer>; observations: string; evidence: Evidence[]
   status: 'DRAFT' | 'FINAL'; revision: number; supersedes: string | null; correctionReason: string
+  serverVersion?: number
   createdAt: string; finalizedAt: string | null
 }

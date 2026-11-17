@@ -159,8 +159,8 @@ test('PDF largo y listado de varias revisiones mantiene observaciones finales, v
   assert.equal((pdf.output().match(/Arias Suite/g) ?? []).length, pdf.getNumberOfPages())
   pdfSave('book-long.pdf', pdf)
 })
-test('el módulo de pruebas no tiene cliente de red ni operaciones contra Supabase', () => {
-  for (const path of ['bookModel.ts', 'TechnicalBooksPage.tsx', 'bookPdf.ts', 'ReferenceCatalog.tsx']) {
+test('la validación y los PDF no realizan operaciones de red', () => {
+  for (const path of ['bookModel.ts', 'bookPdf.ts', 'ReferenceCatalog.tsx']) {
     const text = readFileSync('src/features/technicalbooks/' + path, 'utf8')
     assert.equal(/supabase|\.rpc\(|fetch\(|XMLHttpRequest/.test(text), false, path)
   }

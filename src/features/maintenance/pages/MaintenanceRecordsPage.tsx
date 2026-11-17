@@ -8,16 +8,16 @@ const previousRecords = [
   ['Preventivo diario', 'Registro preventivo de frecuencia corta.', 'daily', '/maintenance/record'],
   ['Piscina exterior', 'Registro de medidas y controles diarios.', 'pool', '/pools'],
   ['Piscina SPA', 'Registro de medidas y controles del SPA.', 'spa', '/spa'],
-  ['Autocontrol Legionella', 'Registro de controles y seguimiento.', 'legionella', '/legionella'],
-  ['Bombas', 'Registro de revisiones y actuaciones.', 'pump', '/pumps'],
-  ['Climatizadores / Extractores', 'Registro de revisiones de climatización y extracción.', 'air-handler', '/climatizers'],
-  ['Fancoils', 'Registro de revisiones de fancoils.', 'fancoil', '/fancoils'],
+  ['Autocontrol Legionella', 'Registro de controles y seguimiento.', 'legionella', '/registros-tecnicos/anteriores/legionella'],
+  ['Bombas', 'Registro de revisiones y actuaciones.', 'pump', '/registros-tecnicos/anteriores/pumps'],
+  ['Climatizadores / Extractores', 'Registro de revisiones de climatización y extracción.', 'air-handler', '/registros-tecnicos/anteriores/climatizers'],
+  ['Fancoils', 'Registro de revisiones de fancoils.', 'fancoil', '/registros-tecnicos/anteriores/fancoils'],
   ['Cuadros eléctricos BT', 'Registro de revisiones y mediciones eléctricas.', 'electrical', '/electricalpanels'],
-  ['Elementos fotoluminiscentes', 'Registro de comprobaciones.', 'photoluminescent', '/photoluminescent'],
-  ['Luces de emergencia', 'Registro de comprobaciones y revisiones.', 'emergency', '/emergencylights'],
-  ['Puertas cortafuegos', 'Registro de inspecciones.', 'firedoor', '/firedoors'],
+  ['Elementos fotoluminiscentes', 'Registro de comprobaciones.', 'photoluminescent', '/registros-tecnicos/anteriores/photoluminescent'],
+  ['Luces de emergencia', 'Registro de comprobaciones y revisiones.', 'emergency', '/registros-tecnicos/anteriores/emergencylights'],
+  ['Puertas cortafuegos', 'Registro de inspecciones.', 'firedoor', '/registros-tecnicos/anteriores/firedoors'],
   ['PCI', 'Registro de inspecciones de protección contra incendios.', 'fire', '/fireequipment'],
-  ['Calibraciones', 'Registro de calibraciones realizadas.', 'calibration', '/calibrations'],
+  ['Calibraciones', 'Registro de calibraciones realizadas.', 'calibration', '/registros-tecnicos/anteriores/calibrations'],
 ] as const
 
 export default function MaintenanceRecordsPage() {
@@ -53,7 +53,7 @@ export default function MaintenanceRecordsPage() {
           </div>
         </section>
 
-        {!previous && <aside className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Formularios con guardado local.</strong> Los libros nuevos conservan las revisiones solo en este navegador, separadas por usuario y hotel. No se sincronizan entre móvil y ordenador ni generan tickets del PAM. Sus PDF siguen identificados como documentos de prueba.</aside>}
+        {!previous && <aside className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">Los libros nuevos guardan las revisiones en el hotel y permiten consultarlas desde móvil y ordenador. Los registros anteriores se conservan para consulta.</aside>}
         <div className="mb-4 flex flex-wrap gap-3">
           <Link to={previous ? '/registros-tecnicos' : '/registros-tecnicos/anteriores'} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">{previous ? 'Volver a Registros técnicos' : 'Consultar registros anteriores'}</Link>
         </div>

@@ -47,7 +47,8 @@ test('las rutas públicas de sesión y fichaje no reciben el menú interno', () 
 test('los enlaces antiguos siguen resolviendo y las redirecciones conservan filtros y anclas', () => {
   for (const path of ['/maintenance/room-projects', '/maintenance/fancoil-preventives', '/fancoils', '/maintenance/audit', '/pam'])
     assert.ok(router.matchRoutes(routes, path), path)
-  assert.equal(router.matchRoutes(routes, '/fancoils').at(-1).route.element.type, mockPages.get('./features/fancoils/pages/FancoilsPage'))
+  assert.equal(router.matchRoutes(routes, '/fancoils').at(-1).route.element.props.to, '/registros-tecnicos/libros/fancoils')
+  assert.equal(router.matchRoutes(routes, '/registros-tecnicos/anteriores/fancoils').at(-1).route.element.type, mockPages.get('./features/fancoils/pages/FancoilsPage'))
   const mod = { exports: {} }
   vm.runInNewContext(compile('src/shared/navigation/LegacyRedirect.tsx'), { module: mod, exports: mod.exports,
     require: name => name === 'react/jsx-runtime' ? jsx : { ...router, useLocation: () => ({ search: '?status=PENDING', hash: '#rooms' }) },
