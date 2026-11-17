@@ -7,15 +7,19 @@ import * as jsx from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import * as model from '../src/features/technicalbooks/bookModel.ts'
 import * as demoAccess from '../src/core/access/demoReadOnly.ts'
+import * as bookSchedule from '../src/features/technicalbooks/bookSchedule.ts'
+import * as preventiveSchedule from '../src/shared/maintenance/preventiveSchedule.ts'
 import { bookDefinitions, sourceCatalog } from '../src/features/technicalbooks/bookDefinitions.ts'
 const b = bookDefinitions.find(b => b.id === 'fancoils')
 const scope = { hotelId: 'hotel-simulado', userId: 'usuario-simulado' }
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
 const words = node => node === null || node === undefined || typeof node === 'boolean' ? '' : typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(words).join(' ') : words(node.props?.children)
-function harness(userId = scope.userId) {
+function harness(userId = scope.userId, selectedBook = b, seed = []) {
+  const b = selectedBook
   const data = new Map(); let state = [], cursor = 0, beforeUnload = false, effectStarted = false
   const storage = { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) }
+  if (seed.length) storage.setItem(model.sandboxKey({ ...scope, userId }), JSON.stringify({ version: 1, entries: seed }))
   const mod = { exports: {} }; const react = {
     useState: initial => { const index = cursor++; if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial; return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next }] },
     useEffect: fn => { if (!effectStarted) { effectStarted = true; fn() } },
@@ -25,6 +29,8 @@ function harness(userId = scope.userId) {
     react, 'react/jsx-runtime': jsx, 'react-router-dom': { Link: ({ children }) => children, useParams: () => ({ bookId: b.id }), useNavigate: () => () => {} },
     './bookRepository': { loadBookRecords: async () => model.loadSandbox(storage, { ...scope, userId }), saveBookRecord: async (s, b, e, f, expected) => model.persistEntry(storage, s, b, e, f, expected).entry },
     './bookModel': model, './bookDefinitions': { bookDefinitions, sourceCatalog },
+    './bookSchedule': bookSchedule, '../../shared/maintenance/preventiveSchedule': preventiveSchedule,
+    '../../shared/maintenance/useHotelDay': { useHotelDay: () => preventiveSchedule.hotelDay() },
     '../../core/access/demoReadOnly': demoAccess,
     '../../shared/components/dialogs/SystemDialogProvider': { useSystemDialog: () => ({ confirm: async () => true, alert: async () => {} }) },
     '../../shared/hooks/useBeforeUnloadGuard': { useBeforeUnloadGuard: value => { beforeUnload = value } },
@@ -32,6 +38,7 @@ function harness(userId = scope.userId) {
   }
   vm.runInNewContext(compile('src/features/technicalbooks/TechnicalBooksPage.tsx') + '\nexports.BookForm = BookForm; exports.FieldCard = FieldCard; exports.BookIndex = BookIndex; exports.TrialNotice = TrialNotice;', {
     module: mod, exports: mod.exports, structuredClone, crypto, localStorage: storage, Error,
+    window: { addEventListener() {}, removeEventListener() {} },
     requestAnimationFrame: fn => fn(), document: { querySelector: () => null },
     require: name => dependencies[name] ?? (name === 'lucide-react' ? new Proxy({}, { get: () => () => null }) : {}),
   })
@@ -63,6 +70,21 @@ test('formulario vacío informa del error y no simula que ha guardado', async ()
   assert.equal(model.loadSandbox(h.storage, scope).length, 0)
   assert.match(words(h.render()), /No se ha guardado/)
   assert.match(words(h.render()), /técnico responsable/)
+})
+test('semanal ya realizada oculta controles y desactiva guardar; historial y controles diarios accesibles', async () => {
+  const legionella = bookDefinitions.find(b => b.id === 'legionella')
+  const done = { ...model.createEntry(legionella, scope), status: 'FINAL', asset: 'Hotel', technician: 'Técnico', date: preventiveSchedule.hotelDay() }
+  for (const f of legionella.fields.filter(f => f.frequency === 'S')) done.answers[f.id] = { value: 'V', note: '' }
+  const h = harness(scope.userId, legionella, [done]); await h.ready()
+  const selector = nodes(h.render()).find(n => n.type === 'select' && nodes(n).some(o => o.props?.value === 'S'))
+  await selector.props.onChange({ target: { value: 'S' } })
+  assert.equal(nodes(h.render()).filter(n => n.props?.field).length, 0)
+  assert.match(words(h.render()), /Todavía no toca esta revisión. Próxima fecha/)
+  assert.ok(nodes(h.render()).filter(n => n.type === 'button' && words(n).includes('Guardar borrador')).every(n => n.props.disabled))
+  await selector.props.onChange({ target: { value: 'D' } })
+  assert.equal(nodes(h.render()).filter(n => n.props?.field).length, 14)
+  await h.click('Historial (1)')
+  assert.match(words(h.render()), /Hotel/)
 })
 test('los controles del formulario generan HTML etiquetado, sin resultados preseleccionados', () => {
   const h = harness(); const tree = h.render()

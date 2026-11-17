@@ -7,6 +7,8 @@ import ActionButton from "../../../shared/components/buttons/ActionButton"
 import { BackButton, HomeButton } from "../../../shared/components/navigation/NavigationButtons"
 import BrandLogo from "../../../shared/components/branding/BrandLogo"
 import { useSystemDialog } from "../../../shared/components/dialogs/SystemDialogProvider"
+import { hotelDay, planAccess } from "../../../shared/maintenance/preventiveSchedule"
+import { useHotelDay } from "../../../shared/maintenance/useHotelDay"
 
 type Apparatus = { id: string; code: string; name: string; plant: string | null; location: string | null; sourceId: number | null }
 type Plan = {
@@ -153,6 +155,7 @@ function periodicitySelectValue(value: number | null, unit: FormState["periodici
 }
 
 export default function MaintenancePage() {
+  useHotelDay()
   const navigate = useNavigate()
   const { alert: showAlert } = useSystemDialog()
   const { hotel } = useHotelScope()
@@ -416,6 +419,8 @@ export default function MaintenancePage() {
   function openExecutionForm() {
     const selectedPlan = plans.find((plan) => plan.id === selectedId)
     if (!selectedPlan) return
+    const access = planAccess(selectedPlan)
+    if (!access.allowed) { setError(access.message); return }
     setExecutionForm({
       scheduled_date: selectedPlan.next_due_date ?? new Date().toISOString().slice(0, 10),
       executed_at: localDateTimeValue(),
@@ -640,6 +645,8 @@ export default function MaintenancePage() {
   async function saveExecution(event: FormEvent) {
     event.preventDefault()
     if (executionSaving || !selectedId) return
+    const access = planAccess(plans.find(plan => plan.id === selectedId))
+    if (!access.allowed) { setError(access.message); return }
     setExecutionSaving(true)
     setError("")
 
@@ -673,6 +680,9 @@ export default function MaintenancePage() {
       setError("La fecha y hora de ejecución no son válidas.")
       setExecutionSaving(false)
       return
+    }
+    if (hotelDay(executedAt) > hotelDay() || (selectedPlan?.next_due_date && hotelDay(executedAt) < selectedPlan.next_due_date)) {
+      setError('La fecha debe corresponder a una revisión vencida y no puede ser futura.'); setExecutionSaving(false); return
     }
 
     const execution = await supabase.from("maintenance_executions")
@@ -867,9 +877,10 @@ export default function MaintenancePage() {
                   icon={PlayCircle}
                   label="Registrar ejecución"
                   onClick={openExecutionForm}
-                  disabled={!selectedId || !form.active}
+                  disabled={!selectedId || !planAccess(plans.find(plan => plan.id === selectedId)).allowed}
                 />
               </div>
+              {selectedId && <p role="status" className="text-sm text-sky-800">{planAccess(plans.find(plan => plan.id === selectedId)).message}</p>}
               <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
                 <label><span className="mb-1 block text-sm font-medium">Equipo / instalación</span><select value={form.apparatus_registry_id} onChange={(e) => setField("apparatus_registry_id", e.target.value)} className="w-full rounded-xl border px-3 py-2"><option value="">Selecciona un equipo…</option>{(planApparatus.length ? planApparatus : apparatus).map((item) => <option key={item.id} value={item.id}>{item.sourceId ?? "—"} — {item.code} — {item.name}{item.plant ? " · " + item.plant : ""}{item.location ? " · " + item.location : ""}</option>)}</select></label>
                 <label><span className="mb-1 block text-sm font-medium">Nombre del mantenimiento</span><input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Ej.: Revisión mensual ascensor" className="w-full rounded-xl border px-3 py-2" /></label>

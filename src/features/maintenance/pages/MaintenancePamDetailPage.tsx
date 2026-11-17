@@ -9,6 +9,8 @@ import { useEscapeAsCancel } from '../../../shared/hooks/useEscapeAsCancel'
 import { useGuardedNavigation } from '../../../shared/hooks/useGuardedNavigation'
 import { supabase } from '../../../lib/supabase'
 import { ariasAuth } from '../../../core/auth/authService'
+import { hotelDay, planAccess } from '../../../shared/maintenance/preventiveSchedule'
+import { useHotelDay } from '../../../shared/maintenance/useHotelDay'
 
 type Asset = {
   id: string
@@ -235,6 +237,7 @@ function scheduledExecutor(
 }
 
 export default function MaintenancePamDetailPage() {
+  useHotelDay()
   const navigate = useNavigate()
   const { apparatusId } = useParams<{ apparatusId: string }>()
   const [searchParams] = useSearchParams()
@@ -575,6 +578,11 @@ export default function MaintenancePamDetailPage() {
       setErrorMessage('Indica la fecha de la revisión.')
       return
     }
+    const access = planAccess(plan)
+    if (!access.allowed) { setErrorMessage(access.message); return }
+    if (reviewDate > hotelDay() || (plan.next_due_date && reviewDate < plan.next_due_date)) {
+      setErrorMessage('La fecha debe corresponder a una revisión vencida y no puede ser futura.'); return
+    }
 
     setRegistering(true)
     setMessage('')
@@ -599,7 +607,7 @@ export default function MaintenancePamDetailPage() {
         .from('maintenance_work_orders')
         .select('id, ot_number, scheduled_date')
         .eq('maintenance_plan_id', plan.id)
-        .in('status', ['PENDING', 'IN_PROGRESS'])
+        .in('status', ['PENDING', 'IN_MANAGEMENT', 'IN_PROGRESS'])
         .order('scheduled_date', { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle()
@@ -874,7 +882,8 @@ export default function MaintenancePamDetailPage() {
             <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">Sin plan PAM asociado.</div>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <p role="status" className="mb-3 text-sm text-sky-800">{planAccess(plan).message}</p>
+              <fieldset disabled={registering || !planAccess(plan).allowed} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60">
                 <label><span className="mb-1 block text-sm font-semibold text-slate-700">Fecha</span><input type="date" value={reviewDate} disabled={registering} onChange={(event) => setReviewDate(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100" /></label>
                 <label><span className="mb-1 block text-sm font-semibold text-slate-700">Resultado</span><select value={reviewResult} disabled={registering} onChange={(event) => setReviewResult(event.target.value as Execution['result'])} className="w-full rounded-lg border border-slate-300 px-3 py-2">
                   <option value="COMPLETED">Revisada</option>
@@ -884,8 +893,8 @@ export default function MaintenancePamDetailPage() {
                 </select></label>
                 <label><span className="mb-1 block text-sm font-semibold text-slate-700">Empresa</span><input value={reviewCompany} disabled={registering} onChange={(event) => setReviewCompany(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100" /></label>
                 <label className="sm:col-span-2"><span className="mb-1 block text-sm font-semibold text-slate-700">Observaciones / motivo</span><textarea rows={3} value={reviewObservations} disabled={registering} onChange={(event) => setReviewObservations(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100" /></label>
-              </div>
-              <button type="button" onClick={() => void registerReview()} disabled={registering} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              </fieldset>
+              <button type="button" onClick={() => void registerReview()} disabled={registering || !planAccess(plan).allowed} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 <Save size={16} /> {registering ? 'Registrando…' : 'Guardar revisión'}
               </button>
             </>
