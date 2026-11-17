@@ -15,13 +15,20 @@ La rama `feature/technical-registers-database` parte de `staging` (260e7367). La
 - El inventario de cuadros eléctricos y aparatos, piscina, spa, preventivo diario, PAM, tickets y seguimiento visual de fancoils se conservan.
 - Los ensayos locales anteriores no se borran ni se convierten automáticamente en registros reales. No se ejecuta ninguna copia o reinterpretación de datos históricos.
 
-## Aplicación pendiente
+## Aplicación realizada el 17/11/2026
 
 La migración `20261117093753_technical_book_records.sql` es aditiva: crea dos tablas y su validación; no actualiza ni elimina registros existentes, ni modifica las migraciones congeladas 046–063.
 
-Antes de aplicarla al proyecto activo, AGENTS.md exige verificar una copia recuperable. Esta comprobación está pendiente: el conector no ofrece consultas de respaldos y el panel requiere una sesión autenticada.
+La copia manual se extrajo por consultas de lectura y se conservó como archivo ZIP privado. Se verificó en PostgreSQL WASM aislado la recuperación de 67 tablas y 132.604 filas, con 328 restricciones de datos. Después se aplicó la migración sobre esa recuperación: 16 plantillas nuevas y recuentos originales sin cambios.
 
-Tras verificar el respaldo:
+Alcance de la copia: esquema `public` y sus datos. Incluye catálogos de columnas, restricciones, índices, funciones, políticas, triggers, concesiones y secuencias. No contiene cuentas ni credenciales del esquema gestionado `auth`, otros esquemas gestionados ni archivos de Storage; estos servicios no se modifican en este cambio. La extracción es por tablas y no constituye una instantánea transaccional global.
+
+Archivo: `Arias_Suite_copia_manual_2026-11-17.zip`; SHA-256: `eae15040e18882c2eebeb1d8b02d65774850d392a79f37a03ec0c9ba07cdf664`.
+
+La migración `technical_book_records` se aplicó al proyecto activo. Consultas de verificación: 16 plantillas, cero registros de ensayo, RLS activado en ambas tablas, SELECT denegado a anon y DELETE denegado a authenticated. Con contexto de PRUEBA: maintenance.view=true, maintenance.create=false, maintenance.update=false. Los avisos del asesor de seguridad permanecen en las categorías y cantidades preexistentes.
+
+El commit probado `c69ccd7f558571630a99d4403b4feef408be1998` se ha incorporado a staging y a la rama de producción.
+Procedimiento usado y comprobaciones de publicación:
 
 1. Confirmar que no existen los objetos nuevos y que la rama de producción conserva el mismo commit revisado.
 2. Aplicar únicamente esta migración mediante `apply_migration`.
@@ -39,4 +46,4 @@ Si la publicación falla, volver al commit anterior del frontend y conservar las
 - `npm run validate:demo`
 - `npm run validate:navigation`
 
-La prueba aislada de restauración no sustituye a la comprobación pendiente del respaldo de producción. No se han aplicado migraciones ni realizado guardados de prueba en el proyecto activo.
+La prueba aislada de restauración no sustituye a la comprobación pendiente del respaldo de producción. No se realizaron guardados de prueba en el proyecto activo.
