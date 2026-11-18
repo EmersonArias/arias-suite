@@ -1978,7 +1978,7 @@ export const bookDefinitions: BookDefinition[] = [
 export const sourceCatalog = {
   "plan": {
     "workbook": "R-SSTT-01-01 PLAN ANUAL DE MTO ZERO(20261117-230314).xlsx",
-    "sha256": "17baa52345996d022151cb266ed6deada23c49f2eefae5936e0ef051f4ede75b",
+    "sha256": "7b72bed68bebe8c6a38cf8a8467d1cdd684ae2b7bf15df9e9e61f57c9440d34c",
     "year": "2026",
     "rows": [
       {
@@ -4230,7 +4230,7 @@ export const sourceCatalog = {
   },
   "assets": {
     "workbook": "R-SSTT-01-02 RELACION DE APARATOS(10).xlsx",
-    "sha256": "ace50a7709c283c55dadf0f7d4bc3528f1fe62d3163dc11431111cc6f87443c3",
+    "sha256": "6e5136fc89b2f882b90e826f9ed099a93159c25b632e3b103fd4a2fe2b12ba1b",
     "rows": [
       {
         "sourceRow": 2,
@@ -4263,7 +4263,7 @@ export const sourceCatalog = {
         "sourceRow": 5,
         "id": "4",
         "newId": "",
-        "name": "ASCENSOR DE SERVICIO C",
+        "name": "MONTACARGAS",
         "floor": "HOTEL",
         "location": "ZONAS COMUNES",
         "maintainer": "KONE"
