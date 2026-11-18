@@ -1978,7 +1978,7 @@ export const bookDefinitions: BookDefinition[] = [
 export const sourceCatalog = {
   "plan": {
     "workbook": "R-SSTT-01-01 PLAN ANUAL DE MTO ZERO(20261117-230314).xlsx",
-    "sha256": "4518d4a4ba7381aebb99c034863bee76ef4f08a82ba1649679dce204ba7246df",
+    "sha256": "c3b4e9dd5bea77f6c5ac17b85c949d1f60413fa01e3a59d30ba87dc03f974bc1",
     "year": "2025",
     "rows": [
       {
@@ -2925,7 +2925,7 @@ export const sourceCatalog = {
       },
       {
         "sourceRow": 12,
-        "equipment": "7",
+        "equipment": "340",
         "title": "_R-SSTT-01-07 FANCOILS",
         "schedule": [
           {
@@ -4230,7 +4230,7 @@ export const sourceCatalog = {
   },
   "assets": {
     "workbook": "R-SSTT-01-02 RELACION DE APARATOS(10).xlsx",
-    "sha256": "5e4df98b8145df0d48994937d30905f20acec2a6f8f85cc9ebe05132da6f35cb",
+    "sha256": "1bcc8f7681a78db9ee1ccf0c842b527c99122f5c5495a06e6849998b846e7d31",
     "rows": [
       {
         "sourceRow": 2,
@@ -7018,6 +7018,15 @@ export const sourceCatalog = {
         "id": "339",
         "newId": "",
         "name": "ELEMENTOS FOTOLUMINISCENTES",
+        "floor": "",
+        "location": "",
+        "maintainer": ""
+      },
+      {
+        "sourceRow": 312,
+        "id": "340",
+        "newId": "",
+        "name": "FANCOILS DE HABITACIONES",
         "floor": "",
         "location": "",
         "maintainer": ""
