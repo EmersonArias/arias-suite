@@ -16,6 +16,7 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
       startY: 30, margin: { top: 30, bottom: 22, left: 14, right: 14 }, theme: 'plain',
       styles: { fontSize: 9, overflow: 'linebreak', cellPadding: 2 },
       body: [
+        ...(entry.pamTicketNumber ? [['Ticket PAM', entry.pamTicketNumber, 'Plan', entry.pamPlanId || '']] : []),
         ['Hotel', hotel, 'Estado', entry.status === 'FINAL' ? 'Finalizado' : 'Borrador'],
         [book.assetLabel, entry.asset, 'Fecha / hora', `${entry.date} ${entry.time}`],
         ['Ubicación', entry.location || 'Sin indicar', 'Técnico', entry.technician],

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Camera,
-  ClipboardPlus,
+  History,
+
   Droplets,
   FileText,
   Plus,
   Save,
-  Pencil,
+
   Waves,
 } from 'lucide-react'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
@@ -18,12 +18,15 @@ import ActionButton from '../../../shared/components/buttons/ActionButton'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
-import { correction, createEntry } from '../../technicalbooks/bookModel'
+import { createEntry } from '../../technicalbooks/bookModel'
 import { loadBookRecords, saveBookRecord } from '../../technicalbooks/bookRepository'
 import type { BookEntry } from '../../technicalbooks/types'
 import { decodeSample, encodeSample, waterBook } from '../waterBooks'
 import type { Sample, WaterBookType } from '../waterBooks'
 import { hotelDay } from '../../../shared/maintenance/preventiveSchedule'
+
+import { chlorineKeys, resolveChlorine } from '../chlorine'
+import PamTicketPicker from '../../technicalbooks/PamTicketPicker'
 
 export type WaterQualityBookType = WaterBookType
 type Disinfectant = Sample['disinfectant']
@@ -95,6 +98,7 @@ function ParameterCard({
   type = 'number',
   step = '0.1',
   status = 'EMPTY',
+  calculated = false,
   disabled = false,
   placeholder,
   helper,
@@ -109,32 +113,33 @@ function ParameterCard({
   status?: Status
   disabled?: boolean
   placeholder?: string
+  calculated?: boolean
   helper?: string
 }) {
   return (
     <div className={'rounded-2xl border bg-white p-3 shadow-sm ' + (status === 'CRITICAL' ? 'border-red-200' : 'border-slate-200')}>
-      <div className='flex items-start justify-between gap-3'>
+      <div className='flex flex-wrap items-start justify-between gap-1'>
         <div className='min-w-0'>
           <div className='text-sm font-bold text-slate-800'>{label}</div>
-          <div className='mt-0.5 text-[11px] leading-4 text-slate-500'>Referencia: {reference}</div>
-          {helper && <div className='text-[10px] leading-4 text-slate-400'>{helper}</div>}
+          <details className="text-[10px] text-slate-500"><summary>Referencia</summary>{reference} {helper}</details>
         </div>
         <span className={'shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ' + statusClass(status)}>
-          {statusText(status)}
+          {calculated ? 'Calculado' : statusText(status)}
         </span>
       </div>
       <div className='mt-2 flex items-center gap-2'>
         <input
           type={type}
+          aria-label={label}
           inputMode={type === 'number' ? 'decimal' : 'text'}
           step={type === 'number' ? step : undefined}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
           placeholder={placeholder}
-          className='w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-lg font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500'
+          className='w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-base font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500'
         />
-        {unit && <span className='w-14 shrink-0 text-right text-xs font-semibold text-slate-500'>{unit}</span>}
+        {unit && <span className='shrink-0 text-right text-xs font-semibold text-slate-500'>{unit}</span>}
       </div>
     </div>
   )
@@ -151,10 +156,10 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
   const book = useMemo(() => waterBook(type), [type])
   const demo = isDemoUser(userId)
   const navigate = useNavigate()
-  const { alert: showAlert } = useSystemDialog()
+  const { alert: showAlert, confirm } = useSystemDialog()
   const isSpa = type === 'spa'
   const title = isSpa ? 'Libro de SPA' : 'Libro de Piscina'
-  const subtitle = isSpa ? 'Control de calidad del agua del vaso de hidromasaje' : 'Control de calidad del agua de la piscina'
+
   const [records, setRecords] = useState<BookEntry[]>([])
   const [form, setForm] = useState<Sample>(() => ({
     ...emptySample,
@@ -168,7 +173,9 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
   const saving = useRef(false)
   const [loadError, setLoadError] = useState('')
   const [attempt, retry] = useState(0)
-  const [reason, setReason] = useState('')
+  const [history, setHistory] = useState(false)
+  const [ticket, setTicket] = useState<string>()
+  const [outcome, setOutcome] = useState<BookEntry['pamOutcome']>()
   const [draftId, setDraftId] = useState(() => crypto.randomUUID())
   const selected = records.find(r => r.id === selectedId)
   const editing = editable && !demo && !busy && !loading && !loadError
@@ -181,7 +188,7 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     return () => { active = false }
   }, [hotelId, type, attempt])
   const [disinfectant, setDisinfectant] = useState<Disinfectant>('CHLORINE')
-  const technicianRef = useRef<HTMLInputElement>(null)
+
 
   useEffect(() => {
     setForm((current) => ({ ...current, disinfectant }))
@@ -191,42 +198,34 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     setForm((current) => ({ ...current, [field]: value }))
   }
 
-  const calculatedTotalChlorine = useMemo(() => {
-    const free = toNumber(form.freeChlorine)
-    const combined = toNumber(form.combinedChlorine)
-    if (free === null || combined === null) return ''
-    return (free + combined).toFixed(2)
-  }, [form.freeChlorine, form.combinedChlorine])
-
-  useEffect(() => {
-    if (form.totalChlorine !== calculatedTotalChlorine) {
-      setForm((current) => ({ ...current, totalChlorine: calculatedTotalChlorine }))
-    }
-  }, [calculatedTotalChlorine, form.totalChlorine])
-
+  const chlorine = resolveChlorine({ freeChlorine: form.freeChlorine, combinedChlorine: form.combinedChlorine, totalChlorine: form.totalChlorine })
   const temperatureStatus = isSpa
     ? rangeStatus(form.temperature, undefined, 36, undefined, 40)
     : 'EMPTY'
-  const freeChlorineStatus = rangeStatus(form.freeChlorine, 0.5, 2, 0, 5)
-  const combinedChlorineStatus = rangeStatus(form.combinedChlorine, undefined, 0.6, undefined, 3)
+  const freeChlorineStatus = rangeStatus(chlorine.values.freeChlorine, 0.5, 2, 0, 5)
+  const combinedChlorineStatus = rangeStatus(chlorine.values.combinedChlorine, undefined, 0.6, undefined, 3)
   const phStatus = rangeStatus(form.ph, 7.2, 8.0, 6, 9)
   const turbidityStatus = rangeStatus(form.turbidity, undefined, 5, undefined, 20)
   const bromineStatus = rangeStatus(form.bromine, 2, 5, undefined, 10)
 
   function handleNew() {
     setDraftId(crypto.randomUUID())
-    setReason('')
+    setTicket(undefined); setOutcome(undefined); setHistory(false)
     setSelectedId(null)
     setForm({ ...emptySample, date: hotelDay(), time: localTime(), disinfectant })
     setEditing(true)
-    requestAnimationFrame(() => technicianRef.current?.focus())
+
   }
 
   function handleSelect(record: BookEntry) {
     const sample = decodeSample(record)
     setSelectedId(record.id)
-    setForm(sample)
-    setReason(record.correctionReason)
+    // Older water forms always calculated total chlorine.
+    const derived = chlorineKeys.find(key => record.answers[key]?.note === 'Calculado a partir de las otras dos lecturas.')
+      ?? (sample.freeChlorine && sample.combinedChlorine && sample.totalChlorine ? 'totalChlorine' : null)
+    setForm(derived ? { ...sample, [derived]: '' } : sample)
+    setTicket(record.pamTicketId); setOutcome(record.pamOutcome); setHistory(false)
+
     setDisinfectant(sample.disinfectant)
     setEditing(record.status === 'DRAFT' && record.userId === userId && !demo)
   }
@@ -237,8 +236,12 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     setBusy(true)
     try {
       const draft = selected?.status === 'DRAFT' ? selected : null
-      const base = draft ?? (selected ? correction(selected) : createEntry(book, { hotelId, userId }))
-      const entry = encodeSample({ ...base, id: draft?.id ?? draftId, template: book, correctionReason: reason }, { ...form, disinfectant, totalChlorine: calculatedTotalChlorine })
+      if (finalize && ticket && !outcome) throw new Error('Selecciona el resultado del ticket PAM.')
+      if (finalize && ticket && !await confirm({ title: 'Finalizar muestra y ticket', message: '¿Se ha completado todo el trabajo del ticket seleccionado?', confirmLabel: 'Finalizar' })) return
+      if (disinfectant === 'CHLORINE' && chlorine.error) throw new Error(chlorine.error)
+      const base = draft ?? createEntry(book, { hotelId, userId })
+      const entry = encodeSample({ ...base, id: draft?.id ?? draftId, template: book, pamTicketId: ticket, pamOutcome: outcome }, { ...form, ...chlorine.values, disinfectant })
+      if (disinfectant === 'CHLORINE' && chlorine.calculated) entry.answers[chlorine.calculated].note = 'Calculado a partir de las otras dos lecturas.'
       const saved = await saveBookRecord({ hotelId, userId }, book, entry, finalize, draft)
       setRecords(rows => [saved, ...rows.filter(row => row.id !== saved.id)])
       handleSelect(saved)
@@ -261,11 +264,11 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     }
   }
 
-  const notesWarning = [freeChlorineStatus, combinedChlorineStatus, phStatus, turbidityStatus, isSpa ? temperatureStatus : 'OK', disinfectant === 'BROMINE' ? bromineStatus : 'OK']
+  const notesWarning = [...(disinfectant === 'CHLORINE' ? [freeChlorineStatus, combinedChlorineStatus] : []), phStatus, turbidityStatus, isSpa ? temperatureStatus : 'OK', disinfectant === 'BROMINE' ? bromineStatus : 'OK']
     .some((status) => status === 'OUT' || status === 'CRITICAL')
 
   return (
-    <div className='min-h-screen bg-slate-100 px-3 py-3 pb-24 text-slate-900 sm:px-5 sm:py-5'>
+    <div className='book-screen min-h-screen bg-slate-100 px-2 py-2 text-slate-900 sm:px-5 sm:py-5'>
       <div className='mx-auto max-w-[1280px]'>
         <header className='mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg sm:p-4'>
           <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
@@ -273,19 +276,19 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
               <BrandLogo onActivate={() => navigate('/')} className='h-9 w-auto shrink-0 object-contain sm:h-12' />
               <div className='min-w-0'>
                 <h1 className='text-xl font-bold leading-tight sm:text-3xl'>{title}</h1>
-                <p className='text-xs text-slate-500 sm:text-sm'>{book.code} · {hotelName} · {subtitle}</p>
+                <p className='text-xs text-slate-500 sm:text-sm'>{book.code} · {hotelName}</p>
               </div>
             </div>
-            <div className='flex flex-wrap items-center gap-2'>
+            <div className='book-action-row'>
               <BackButton onBack={() => navigate('/registros-tecnicos')} />
               <HomeButton onHome={() => navigate('/')} />
-              <div className='flex flex-wrap gap-2'>
+              <div className='contents'>
                 <ActionButton icon={FileText} label={selected || !records.length ? 'PDF de la muestra' : 'PDF del historial'} disabled={(!records.length && !demo) || busy || loading} onClick={() => void exportPdf()} />
+                <ActionButton icon={History} label={history ? 'Formulario' : 'Historial'} onClick={() => setHistory(!history)} />
                 {!demo && <>
                   <ActionButton icon={Plus} label='Nueva muestra' disabled={busy} onClick={handleNew} />
                   <ActionButton icon={Save} label='Guardar borrador' disabled={!editing} onClick={() => void handleSave(false)} />
                   <ActionButton icon={Save} label='Finalizar muestra' tone='success' disabled={!editing} onClick={() => void handleSave(true)} />
-                  <ActionButton icon={Pencil} label='Rectificar' disabled={busy || editable || selected?.status !== 'FINAL' || records.some(r => r.supersedes === selectedId)} onClick={() => { setDraftId(crypto.randomUUID()); setReason(''); setEditing(true) }} />
                 </>}
               </div>
             </div>
@@ -295,53 +298,14 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
         {loadError && <p role='alert'>{loadError} <button onClick={() => retry(n => n + 1)}>Reintentar</button></p>}
         {loading && <p role='status'>Cargando muestras…</p>}
         {demo && <p>PRUEBA · Solo lectura</p>}
-        {selected && (selected.status === 'FINAL' && editable || !!selected.supersedes) && <label className='block p-3'>Motivo de rectificación<input className='block w-full rounded border p-2' disabled={!editing} value={reason} onChange={e => setReason(e.target.value)} /></label>}
-        <section className='mb-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 shadow-sm sm:p-4'>
-          <div className='flex items-start gap-3'>
-            <ClipboardPlus className='mt-0.5 shrink-0 text-blue-700' size={20} />
-            <div className='min-w-0'>
-              <div className='text-sm font-bold text-slate-800'>Referencia para la toma de muestras</div>
-              <p className='mt-1 text-xs leading-5 text-slate-600'>
-                Los valores se muestran junto a cada lectura para comparar la muestra en el momento de introducirla. Referencia sanitaria estatal: Real Decreto 742/2013.
-              </p>
-              <p className='mt-1 text-[10px] leading-4 text-slate-500'>
-                En Cataluña, el Manual técnico de piscinas de ASPCAT indica que su contenido se basa en el Decreto 95/2000 y es vigente en lo que no contradiga el RD 742/2013.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <div className='grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]'>
-          <main className='space-y-3'>
-            <section className='rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4'>
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <div>
-                  <h2 className='text-base font-bold sm:text-lg'>Datos de la muestra</h2>
-                  <p className='text-[11px] text-slate-500'>Registra una toma por cada control realizado.</p>
-                </div>
-                {notesWarning && <span className='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700'>Revisar lectura</span>}
-              </div>
-              <div className='grid gap-3 sm:grid-cols-3'>
-                <label className='block'>
-                  <span className='mb-1 block text-xs font-semibold text-slate-600'>Fecha</span>
-                  <input type='date' value={form.date} disabled={!editing || selected?.status === 'FINAL' || !!selected?.supersedes} onChange={(event) => updateField('date', event.target.value)} className='w-full rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' />
-                </label>
-                <label className='block'>
-                  <span className='mb-1 block text-xs font-semibold text-slate-600'>Hora</span>
-                  <input type='time' value={form.time} disabled={!editing} onChange={(event) => updateField('time', event.target.value)} className='w-full rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' />
-                </label>
-                <label className='block'>
-                  <span className='mb-1 block text-xs font-semibold text-slate-600'>Técnico</span>
-                  <input ref={technicianRef} value={form.technician} disabled={!editing} onChange={(event) => updateField('technician', event.target.value)} placeholder='Nombre o iniciales' className='w-full rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' />
-                </label>
-              </div>
-            </section>
-
+        {!history && <main className="space-y-2">
+            <p className="text-xs text-slate-600">{selected ? [selected.date, selected.time, selected.technician].join(' · ') : 'Fecha, hora y operario se registran al guardar.'}</p>
+            <PamTicketPicker hotelId={hotelId} bookId={book.id} ticketId={ticket} outcome={outcome} readOnly={!editing} onSelect={t => { setTicket(t?.ticket_id); setOutcome(undefined) }} onOutcome={setOutcome} />
             <section className='rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm sm:p-4'>
               <div className='mb-3 flex items-start justify-between gap-3'>
                 <div>
                   <h2 className='text-base font-bold sm:text-lg'>Parámetros de agua</h2>
-                  <p className='text-[11px] text-slate-500'>La referencia aparece siempre debajo del parámetro.</p>
+                  {notesWarning && <span className='text-xs text-amber-800'>Revisar lectura</span>}
                 </div>
                 {isSpa ? <Waves className='text-blue-600' size={22} /> : <Droplets className='text-blue-600' size={22} />}
               </div>
@@ -357,19 +321,15 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
                 </div>
               )}
 
-              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+              <div className='grid grid-cols-2 gap-2 xl:grid-cols-3'>
                 <ParameterCard label='Temperatura' unit='°C' reference={isSpa ? '≤ 36 °C en hidromasaje' : '24–30 °C si el vaso está climatizado'} value={form.temperature} onChange={(value) => updateField('temperature', value)} status={temperatureStatus} disabled={!editing} step='0.1' helper={isSpa ? 'Cierre del vaso si supera 40 °C.' : 'En piscina exterior no climatizada se registra la Tª, pero la banda 24–30 °C aplica a vasos climatizados.'} />
-                {disinfectant === 'CHLORINE' && <ParameterCard label='Cloro libre residual' unit='mg/L' reference='0,5–2,0 mg/L' value={form.freeChlorine} onChange={(value) => updateField('freeChlorine', value)} status={freeChlorineStatus} disabled={!editing} step='0.01' helper='Cierre si ausencia de cloro o > 5 mg/L.' />}
-                {disinfectant === 'CHLORINE' && <ParameterCard label='Cloro combinado residual' unit='mg/L' reference='≤ 0,6 mg/L' value={form.combinedChlorine} onChange={(value) => updateField('combinedChlorine', value)} status={combinedChlorineStatus} disabled={!editing} step='0.01' helper='Cierre si > 3 mg/L.' />}
-                {disinfectant === 'CHLORINE' && <div className='rounded-2xl border border-slate-200 bg-white p-3 shadow-sm'>
-                  <div className='text-sm font-bold text-slate-800'>Cloro total</div>
-                  <div className='mt-0.5 text-[11px] leading-4 text-slate-500'>Calculado: cloro libre + cloro combinado</div>
-                  <div className='mt-2 flex items-center gap-2'>
-                    <div className='w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-3 text-lg font-bold text-slate-800'>{form.totalChlorine || '—'}</div>
-                    <span className='w-14 shrink-0 text-right text-xs font-semibold text-slate-500'>mg/L</span>
-                  </div>
-                  <div className='mt-1 text-[10px] leading-4 text-slate-400'>No tiene valor paramétrico independiente en el RD 742/2013.</div>
-                </div>}
+                {disinfectant === 'CHLORINE' && chlorineKeys.map(key => <ParameterCard key={key}
+                  label={{ freeChlorine: 'Cloro libre', totalChlorine: 'Cloro total', combinedChlorine: 'Cloro combinado' }[key]} unit='mg/L'
+                  reference={{ freeChlorine: '0,5–2,0 mg/L', totalChlorine: 'Libre + combinado', combinedChlorine: '≤ 0,6 mg/L' }[key]}
+                  value={chlorine.values[key]} calculated={chlorine.calculated === key} onChange={value => updateField(key, value)}
+                  status={key === 'freeChlorine' ? freeChlorineStatus : key === 'combinedChlorine' ? combinedChlorineStatus : 'EMPTY'}
+                  disabled={!editing || chlorine.calculated === key} step='0.01' />)}
+                {disinfectant === 'CHLORINE' && chlorine.error && <p role="alert" className="text-sm text-red-700">{chlorine.error}</p>}
                 {disinfectant === 'BROMINE' && <ParameterCard label='Bromo total' unit='mg/L' reference='2–5 mg/L' value={form.bromine} onChange={(value) => updateField('bromine', value)} status={bromineStatus} disabled={!editing} step='0.01' helper='Cierre si > 10 mg/L.' />}
                 <ParameterCard label='pH' reference='7,2–8,0' value={form.ph} onChange={(value) => updateField('ph', value)} status={phStatus} disabled={!editing} step='0.1' helper='Cierre si < 6,0 o > 9,0.' />
                 <ParameterCard label='Turbidez' unit='UNF' reference='≤ 5 UNF' value={form.turbidity} onChange={(value) => updateField('turbidity', value)} status={turbidityStatus} disabled={!editing} step='0.1' helper='Cierre si > 20 UNF.' />
@@ -394,7 +354,7 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
                   <span className='text-sm font-bold text-slate-800'>Agua depurada</span>
                   <span className='mt-0.5 block text-[11px] text-slate-500'>Registrar lectura del contador de m³.</span>
                   <div className='mt-2 flex items-center gap-2'>
-                    <input type='number' inputMode='decimal' step='0.01' value={form.filteredWater} disabled={!editing} onChange={(event) => updateField('filteredWater', event.target.value)} className='w-full rounded-xl border border-slate-300 px-3 py-3 text-lg font-semibold outline-none focus:border-blue-500 disabled:bg-slate-100' />
+                    <input type='number' inputMode='decimal' step='0.01' value={form.filteredWater} disabled={!editing} onChange={(event) => updateField('filteredWater', event.target.value)} className='w-full rounded-xl border border-slate-300 px-2 py-1.5 text-base font-semibold outline-none focus:border-blue-500 disabled:bg-slate-100' />
                     <span className='text-xs font-semibold text-slate-500'>m³</span>
                   </div>
                 </label>
@@ -416,13 +376,13 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
               </div>
               <textarea rows={4} disabled={!editing} value={form.notes} onChange={(event) => updateField('notes', event.target.value)} placeholder='Anota incidencias, correcciones realizadas o cualquier observación de la muestra…' className='w-full rounded-xl border border-slate-300 px-3 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100' />
             </section>
-          </main>
+          </main>}
 
-          <aside className='space-y-3'>
+          {history && <aside className='space-y-2'>
             <section className='rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4'>
               <div className='flex items-center justify-between gap-3'>
                 <div>
-                  <h2 className='text-base font-bold'>Muestras registradas</h2>
+                  <h2 className='text-base font-bold'>Historial de muestras</h2>
                   <p className='text-[11px] text-slate-500'>{records.length} en el historial del hotel</p>
                 </div>
                 <button type='button' disabled={busy || demo} onClick={handleNew} className='rounded-xl border border-blue-100 bg-blue-50 p-2 text-blue-700 sm:hidden' aria-label='Nueva muestra'>
@@ -446,24 +406,7 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
               </div>
             </section>
 
-            <section className='rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4'>
-              <div className='mb-2 text-sm font-bold text-slate-800'>Recordatorio de referencia</div>
-              <div className='space-y-2 text-xs text-slate-600'>
-                <div className='flex items-center justify-between gap-3'><span>pH</span><strong>7,2–8,0</strong></div>
-                <div className='flex items-center justify-between gap-3'><span>Cloro libre</span><strong>0,5–2,0 mg/L</strong></div>
-                <div className='flex items-center justify-between gap-3'><span>Cloro combinado</span><strong>≤ 0,6 mg/L</strong></div>
-                <div className='flex items-center justify-between gap-3'><span>Turbidez</span><strong>≤ 5 UNF</strong></div>
-                <div className='flex items-center justify-between gap-3'><span>{isSpa ? 'Temperatura SPA' : 'Temperatura climatizada'}</span><strong>{isSpa ? '≤ 36 °C' : '24–30 °C'}</strong></div>
-              </div>
-              <div className='mt-3 rounded-xl bg-slate-50 p-2 text-[10px] leading-4 text-slate-500'>La ficha no sustituye el protocolo sanitario del establecimiento ni los controles periódicos de laboratorio.</div>
-            </section>
-
-            <section className='hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:block sm:p-4'>
-              <div className='flex items-center gap-2 text-sm font-bold text-slate-800'><Camera size={18} /> Evidencia</div>
-              <p className='mt-1 text-[11px] leading-4 text-slate-500'>La captura fotográfica del fotómetro puede integrarse en la siguiente fase, ligada a la muestra.</p>
-            </section>
-          </aside>
-        </div>
+          </aside>}
 
         <div className='pointer-events-none fixed bottom-3 right-4 z-10 hidden sm:block'>
           <div className='rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-[9px] font-medium text-slate-400 shadow-sm backdrop-blur'>

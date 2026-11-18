@@ -29,6 +29,7 @@ function Revision({ entry }: { entry: BookEntry }) {
         <div className="grid grid-cols-2 gap-2 py-1 break-inside-avoid" key={field.id}>
           <dt>{field.label}</dt><dd className="whitespace-pre-wrap break-words">{answerText(field, entry)}</dd>
         </div>)}</dl>
+      {entry.pamTicketNumber && <p>Ticket PAM · {entry.pamTicketNumber}</p>}
       {entry.campaign && <p>Campaña · {entry.campaign}</p>}
       {entry.observations && <p className="whitespace-pre-wrap">Observaciones · {entry.observations}</p>}
       {entry.supersedes && <p>Rectificación · {entry.correctionReason} · Original {entry.supersedes}</p>}

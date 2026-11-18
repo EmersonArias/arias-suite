@@ -22,6 +22,11 @@ export async function loadBookRecords(hotelId: string, bookId: string): Promise<
 export async function saveBookRecord(scope: Scope, book: BookDefinition, input: BookEntry, finalize: boolean, expected: BookEntry | null): Promise<BookEntry> {
   assertDemoWriteAllowed(scope.userId)
   if (input.hotelId !== scope.hotelId) throw new Error('El registro pertenece a otro hotel.')
+  const profile = await supabase.from('profiles').select('full_name,login_identifier').eq('id', scope.userId).single()
+  if (profile.error) throw new Error('No se pudo identificar al operario de la sesión.')
+  const now = new Date()
+  input = { ...input, technician: profile.data.full_name?.trim() || profile.data.login_identifier || scope.userId,
+    date: hotelDay(now), time: now.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' }) }
   if (!input.supersedes) {
     const latest = await loadBookRecords(scope.hotelId, book.id)
     const schedule = controlSchedule(book, input, latest)

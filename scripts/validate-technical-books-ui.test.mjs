@@ -27,8 +27,9 @@ function harness(userId = scope.userId, selectedBook = b, seed = []) {
   }
   const dependencies = {
     react, 'react/jsx-runtime': jsx, 'react-router-dom': { Link: ({ children }) => children, useParams: () => ({ bookId: b.id }), useNavigate: () => () => {} },
-    './bookRepository': { loadBookRecords: async () => model.loadSandbox(storage, { ...scope, userId }), saveBookRecord: async (s, b, e, f, expected) => model.persistEntry(storage, s, b, e, f, expected).entry },
+    './bookRepository': { loadBookRecords: async () => model.loadSandbox(storage, { ...scope, userId }), saveBookRecord: async (s, b, e, f, expected) => model.persistEntry(storage, s, b, { ...e, technician: 'Operario de sesión' }, f, expected).entry },
     './bookModel': model, './bookDefinitions': { bookDefinitions, sourceCatalog },
+    './PamTicketPicker': { __esModule: true, default: () => null },
     './bookSchedule': bookSchedule, '../../shared/maintenance/preventiveSchedule': preventiveSchedule,
     '../../shared/maintenance/useHotelDay': { useHotelDay: () => preventiveSchedule.hotelDay() },
     '../../core/access/demoReadOnly': demoAccess,
@@ -50,7 +51,7 @@ function harness(userId = scope.userId, selectedBook = b, seed = []) {
 
 test('interacción completa: ficha nueva, controles, borrador, recarga, finalización y rectificación sin red', async () => {
   const h = harness(); await h.ready()
-  h.fill('Habitación', 'HAB-PRUEBA-201'); h.fill('Técnico responsable', 'Técnico simulado')
+  h.fill('Habitación', 'HAB-PRUEBA-201')
   for (const field of nodes(h.render()).filter(n => n.props?.field)) field.props.update(field.props.field.kind === 'number' ? '22,5' : 'V')
   h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope).length, 1)
@@ -61,15 +62,14 @@ test('interacción completa: ficha nueva, controles, borrador, recarga, finaliza
   h.click('Finalizar revisión'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope)[0].status, 'FINAL')
   assert.ok(nodes(h.render()).filter(n => n.props?.field).every(n => n.props.disabled))
-  h.click('Rectificar')
-  assert.match(words(h.render()), /Motivo de rectificación/)
-  assert.ok(nodes(h.render()).filter(n => n.props?.field).every(n => !n.props.disabled))
+  assert.doesNotMatch(words(h.render()), /Rectificar/)
+  assert.equal(model.loadSandbox(h.storage, scope)[0].technician, 'Operario de sesión')
 })
 test('formulario vacío informa del error y no simula que ha guardado', async () => {
   const h = harness(); await h.ready(); h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope).length, 0)
   assert.match(words(h.render()), /No se ha guardado/)
-  assert.match(words(h.render()), /técnico responsable/)
+  assert.match(words(h.render()), /habitación/)
 })
 test('semanal ya realizada oculta controles y desactiva guardar; historial y controles diarios accesibles', async () => {
   const legionella = bookDefinitions.find(b => b.id === 'legionella')
@@ -121,7 +121,6 @@ test('PRUEBA puede previsualizar PDF sin guardar; guardar muestra error y no per
   const h = harness(demoAccess.DEMO_USER_ID); await h.ready()
   const pdf = nodes(h.render()).find(n => n.type === 'button' && words(n).trim() === 'PDF de la ficha')
   assert.ok(pdf && !pdf.props.disabled)
-  h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
-  assert.match(words(h.render()), /Usuario de prueba/)
+  assert.ok(!nodes(h.render()).some(n => n.type === 'button' && words(n).includes('Guardar borrador')))
   assert.equal(model.loadSandbox(h.storage, { ...scope, userId: demoAccess.DEMO_USER_ID }).length, 0)
 })

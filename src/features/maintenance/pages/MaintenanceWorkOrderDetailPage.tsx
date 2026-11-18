@@ -77,6 +77,7 @@ export default function MaintenanceWorkOrderDetailPage(){
   useHotelDay()
   const navigate=useNavigate()
   const location=useLocation()
+  const [linkedBook, setLinkedBook] = useState<{ticket: string; book: string} | null>(null)
   const { workOrderId }=useParams<{workOrderId:string}>()
   const { hotel }=useHotelScope()
   const { session } = useAuth()
@@ -193,6 +194,15 @@ export default function MaintenanceWorkOrderDetailPage(){
     }))
     setEvidence(resolved.filter(Boolean) as Evidence[]); setEvidenceLoading(false)
   }
+  useEffect(() => {
+    let active = true
+    if (order?.id && order.work_type === 'PREVENTIVE' && order.status !== 'COMPLETED') {
+      void supabase.from('technical_book_due_tickets').select('book_id').eq('ticket_id', order.id).limit(1).maybeSingle().then(({ data }) => {
+        if (active) setLinkedBook(data ? { ticket: order.id, book: data.book_id } : null)
+      })
+    } else setLinkedBook(null)
+    return () => { active = false }
+  }, [order?.id, order?.work_type, order?.status])
   useEffect(()=>{void load();void loadEvidence()},[workOrderId])
 
   const locationHotelId = order?.hotel_id || hotel?.id
@@ -401,6 +411,10 @@ export default function MaintenanceWorkOrderDetailPage(){
             <div><div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Criticidad</div><span className={'mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold '+(order.priority==='CRITICAL'?'bg-rose-100 text-rose-800':order.priority==='HIGH'?'bg-orange-100 text-orange-800':order.priority==='NORMAL'?'bg-slate-100 text-slate-700':'bg-sky-50 text-sky-700')}>{priorityLabels[order.priority]}</span></div>
           </div>
             <div className="flex flex-wrap gap-2">
+              {linkedBook?.ticket === order.id && <button type="button" className="rounded-xl border px-3 py-2 text-sm font-semibold" onClick={() => {
+                const route = linkedBook.book === 'pool' ? '/pools' : linkedBook.book === 'spa' ? '/spa' : '/registros-tecnicos/libros/' + linkedBook.book
+                navigate(route + '?ticket=' + order.id)
+              }}>Abrir libro R-SSTT</button>}
               {order.status === 'PENDING' && (
                 <button type="button" onClick={()=>void changeTicketStatus('IN_MANAGEMENT')} disabled={working} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50">
                   Atender

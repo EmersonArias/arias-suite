@@ -14,6 +14,11 @@ export type BookEntry = {
   date: string; time: string; asset: string; location: string; technician: string; campaign: string; frequency: string
   answers: Record<string, Answer>; observations: string; evidence: Evidence[]
   status: 'DRAFT' | 'FINAL'; revision: number; supersedes: string | null; correctionReason: string
+  pamTicketId?: string
+  pamOutcome?: 'COMPLETED' | 'COMPLETED_WITH_ISSUES'
+  pamTicketNumber?: string
+  pamPlanId?: string
+  pamEquipmentId?: string
   serverVersion?: number
   controlIds?: string[]
   createdAt: string; finalizedAt: string | null
