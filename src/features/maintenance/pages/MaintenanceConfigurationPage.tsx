@@ -8,6 +8,9 @@ import { BackButton, HomeButton } from '../../../shared/components/navigation/Na
 import ActionButton from '../../../shared/components/buttons/ActionButton'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
 
+import { useAuth } from '../../auth/context/AuthProvider'
+
+type Exercise = { operator_id: string; started_at: string | null }
 type HotelConfig = {
   hotel_id: string
   ot_generation_mode: 'AUTO' | 'MANUAL'
@@ -195,9 +198,18 @@ function describeRule(rule: Rule) {
 
 
 export default function MaintenanceConfigurationPage() {
+  const { hotel } = useHotelScope()
+  const { session } = useAuth()
+  return <HotelConfiguration key={hotel?.id + ':' + session?.user.id} />
+}
+
+function HotelConfiguration() {
   const navigate = useNavigate()
-  const { alert: showAlert } = useSystemDialog()
+  const { alert: showAlert, confirm } = useSystemDialog()
+  const { session } = useAuth()
   const { hotel: currentHotel } = useHotelScope()
+  const [exercise, setExercise] = useState<Exercise | null>(null)
+  const [starting, setStarting] = useState(false)
   const hotelId = currentHotel?.id ?? ''
   const [config, setConfig] = useState<HotelConfig | null>(null)
   const [rules, setRules] = useState<Rule[]>([])
@@ -217,7 +229,7 @@ export default function MaintenanceConfigurationPage() {
     }
 
     setError('')
-    const [configQuery, rulesQuery] = await Promise.all([
+    const [configQuery, rulesQuery, exerciseQuery] = await Promise.all([
       supabase.from('maintenance_hotel_config').select('*').eq('hotel_id', targetHotelId).maybeSingle(),
       supabase
         .from('maintenance_automation_rules')
@@ -225,13 +237,15 @@ export default function MaintenanceConfigurationPage() {
         .eq('hotel_id', targetHotelId)
         .order('priority', { ascending: true })
         .order('created_at', { ascending: true }),
+      supabase.from('maintenance_exercise_start').select('operator_id,started_at').eq('hotel_id', targetHotelId).maybeSingle(),
     ])
 
-    if (configQuery.error || rulesQuery.error) {
-      setError(configQuery.error?.message ?? rulesQuery.error?.message ?? 'No se pudo cargar la configuración.')
+    if (configQuery.error || rulesQuery.error || exerciseQuery.error) {
+      setError(configQuery.error?.message ?? rulesQuery.error?.message ?? exerciseQuery.error?.message ?? 'No se pudo cargar la configuración.')
       return
     }
 
+    setExercise(exerciseQuery.data)
     setConfig({
       hotel_id: targetHotelId,
       ...(defaultConfig as Omit<HotelConfig, 'hotel_id'>),
@@ -247,6 +261,23 @@ export default function MaintenanceConfigurationPage() {
       setRules([])
     }
   }, [hotelId])
+
+  async function startExercise() {
+    if (starting || !exercise || exercise.started_at || exercise.operator_id !== session?.user.id) return
+    setStarting(true)
+    try {
+      const accepted = await confirm({ title: 'Iniciar ejercicio', variant: 'warning', confirmLabel: 'Iniciar ejercicio',
+        message: 'Se activarán los tickets automáticos del PAM desde hoy. Las fechas anteriores se omitirán. El ejercicio solo puede iniciarse una vez.' })
+      if (!accepted) return
+      const result = await supabase.rpc('start_hotel_exercise', { target_hotel_id: hotelId })
+      await loadHotelConfig(hotelId)
+      if (result.error) setError(result.error.message)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo confirmar el inicio del ejercicio.')
+    } finally {
+      setStarting(false)
+    }
+  }
 
   function setConfigField<K extends keyof Omit<HotelConfig, 'hotel_id'>>(field: K, value: HotelConfig[K]) {
     setConfig((current) => current ? { ...current, [field]: value } : current)
@@ -428,9 +459,15 @@ export default function MaintenanceConfigurationPage() {
                   <Settings2 className="mt-0.5 text-slate-500" size={22} />
                   <div className="w-full">
                     <h2 className="font-bold">Generación de tickets</h2>
-                    <p className="mt-1 text-xs text-slate-500">Define cómo deben materializarse los tickets preventivos derivadas del PAM.</p>
+                    <p className="mt-1 text-xs text-slate-500">Configura la generación de preventivos del PAM.</p>
+                    {exercise && <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm" role="status">
+                      {exercise.started_at ? <p>Ejercicio iniciado el {new Date(exercise.started_at).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' })}</p> : <>
+                        <p>Ejercicio pendiente. Generación automática desactivada.</p>
+                        {exercise.operator_id === session?.user.id && <button type="button" disabled={starting} onClick={() => void startExercise()} className="mt-2 rounded-lg bg-sky-800 px-3 py-2 font-semibold text-white disabled:opacity-50">Iniciar ejercicio</button>}
+                      </>}
+                    </div>}
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <label><span className="mb-1 block text-sm font-medium">Modo</span><select value={config.ot_generation_mode} onChange={(e) => setConfigField('ot_generation_mode', e.target.value as HotelConfig['ot_generation_mode'])} className="w-full rounded-xl border px-3 py-2"><option value="AUTO">Automática</option><option value="MANUAL">Manual</option></select></label>
+                      <label><span className="mb-1 block text-sm font-medium">Modo</span><select disabled={!!exercise && !exercise.started_at} value={config.ot_generation_mode} onChange={(e) => setConfigField('ot_generation_mode', e.target.value as HotelConfig['ot_generation_mode'])} className="w-full rounded-xl border px-3 py-2"><option value="AUTO">Automática</option><option value="MANUAL">Manual</option></select></label>
                       <label><span className="mb-1 block text-sm font-medium">Antelación (días)</span><input type="number" min={0} max={365} value={config.ot_generation_lead_days} onChange={(e) => setConfigField('ot_generation_lead_days', Number(e.target.value))} className="w-full rounded-xl border px-3 py-2" /></label>
                       <label><span className="mb-1 block text-sm font-medium">Asignación</span><select value={config.ot_assignment_mode} onChange={(e) => setConfigField('ot_assignment_mode', e.target.value as HotelConfig['ot_assignment_mode'])} className="w-full rounded-xl border px-3 py-2"><option value="NONE">Sin asignar</option><option value="MANUAL">Manual</option><option value="RULES">Según reglas</option></select></label>
                       <label><span className="mb-1 block text-sm font-medium">Ticket vencido</span><select value={config.ot_overdue_action} onChange={(e) => setConfigField('ot_overdue_action', e.target.value as HotelConfig['ot_overdue_action'])} className="w-full rounded-xl border px-3 py-2"><option value="KEEP_PENDING">Mantener pendiente</option><option value="ESCALATE">Escalar automáticamente</option></select></label>
