@@ -115,7 +115,13 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
     if (busy || readOnly || loading || notDue) return
     if (finalize && entry.pamTicketId && !entry.pamOutcome) { setErrors(['Selecciona el resultado del ticket PAM.']); return }
     setShowErrors(finalize); setErrors([])
-    if (finalize && !await confirm({ title: 'Finalizar revisión', message: entry.pamTicketId ? 'Se cerrará el ticket PAM seleccionado. ¿Se ha completado todo su trabajo, incluidas las unidades a las que corresponde?' : 'Se comprobarán los controles y se guardará la revisión en el hotel. Una vez finalizada no podrá borrarse ni modificarse.', confirmLabel: 'Finalizar' })) return
+    let finalizationMessage = 'Se comprobarán los controles y se guardará la revisión en el hotel. Una vez finalizada no podrá borrarse ni modificarse.'
+    if (entry.pamTicketId) {
+      finalizationMessage = book.id === 'fotoluminiscentes'
+        ? 'Se cerrará el ticket anual global de elementos fotoluminiscentes. ¿Confirmas que has terminado la revisión de todas las señales del hotel?'
+        : 'Se cerrará el ticket PAM seleccionado. ¿Se ha completado todo su trabajo, incluidas las unidades a las que corresponde?'
+    }
+    if (finalize && !await confirm({ title: 'Finalizar revisión', message: finalizationMessage, confirmLabel: 'Finalizar' })) return
     setBusy(true)
     try {
       const next = await saveBookRecord(scope, book, pendingEntry, finalize, baseline)
