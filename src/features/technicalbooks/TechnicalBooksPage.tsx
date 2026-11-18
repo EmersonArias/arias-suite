@@ -30,7 +30,7 @@ function BookIndex() {
     <div className="mb-5 grid gap-3 sm:grid-cols-2">
       <Link to={trialPath + '/plan-anual'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-01 · Plan anual</h2><p className="mt-1 text-sm">Consulta la planificación anual de mantenimiento. Solo lectura; no activa vencimientos.</p></Link>
       <Link to={trialPath + '/aparatos'} className="rounded-2xl border border-sky-100 bg-sky-50 p-5 text-sky-950"><h2 className="font-bold">R-SSTT-01-02 · Relación de aparatos</h2><p className="mt-1 text-sm">Consulta la relación de equipos e instalaciones. Solo lectura; no modifica el inventario del hotel.</p></Link>
-      <article className="rounded-2xl border border-slate-200 bg-slate-100 p-5 text-slate-700"><h2 className="font-bold">R-SSTT-01-03 · Piscina y SPA</h2><p className="mt-1 text-sm">Se mantienen los módulos actuales.</p></article>
+      <article className="rounded-2xl border border-slate-200 bg-slate-100 p-5 text-slate-700"><h2 className="font-bold">R-SSTT-01-03 · Piscina y SPA</h2><div className="mt-2 flex gap-4 text-sky-700"><Link to="/pools">Abrir piscina</Link><Link to="/spa">Abrir spa</Link></div></article>
     </div>
     <section aria-label="Libros disponibles" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {bookDefinitions.map(book => <Link key={book.id} to={trialPath + '/' + book.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300 hover:shadow-md">

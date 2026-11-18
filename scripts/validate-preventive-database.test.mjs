@@ -4,6 +4,9 @@ import assert from 'node:assert/strict'
 import { bookDefinitions } from '../src/features/technicalbooks/bookDefinitions.ts'
 import { createEntry, correction } from '../src/features/technicalbooks/bookModel.ts'
 import { bookPeriods } from '../src/features/technicalbooks/bookSchedule.ts'
+import { waterBook, encodeSample, decodeSample } from '../src/features/waterquality/waterBooks.ts'
+import { buildBookPdf } from '../src/features/technicalbooks/bookPdf.ts'
+import { validateEntry } from '../src/features/technicalbooks/bookModel.ts'
 const db = new PGlite()
 const hotel = '10000000-0000-4000-8000-000000000001', user = '20000000-0000-4000-8000-000000000001'
 await db.exec(`create role anon; create role authenticated; create schema auth;
@@ -18,7 +21,9 @@ await db.exec(`create role anon; create role authenticated; create schema auth;
  create table public.maintenance_work_orders(id uuid default gen_random_uuid(),work_type text,status text,scheduled_date date);
  grant select,insert,update on public.maintenance_plans,public.maintenance_executions,public.maintenance_work_orders to authenticated;`)
 await db.exec(fs.readFileSync('supabase/migrations/20261117093753_technical_book_records.sql', 'utf8'))
+const originalValidator = (await db.query("select prosrc from pg_proc where oid='public.validate_technical_book_record()'::regprocedure")).rows[0].prosrc
 await db.exec(fs.readFileSync('supabase/migrations/20261117224212_preventive_due_access.sql', 'utf8'))
+await db.exec(fs.readFileSync('supabase/migrations/20261118001000_water_book_templates.sql', 'utf8'))
 await db.exec(`set role authenticated; set request.jwt.claim.sub='${user}';`)
 const dates = (await db.query("select timezone('Europe/Madrid',now())::date::text today, (timezone('Europe/Madrid',now())::date-1)::text yesterday, (timezone('Europe/Madrid',now())::date+1)::text tomorrow")).rows[0]
 const legionella = bookDefinitions.find(b => b.id === 'legionella')
@@ -65,5 +70,27 @@ const order = (await db.query("insert into maintenance_work_orders(work_type,sta
 await assert.rejects(() => db.query("insert into maintenance_work_orders(work_type,status,scheduled_date) values('PREVENTIVE','COMPLETED',$1)", [dates.tomorrow]), /Todavía no toca/)
 await assert.rejects(() => db.query("update maintenance_work_orders set status='COMPLETED' where id=$1", [order]), /Todavía no toca/)
 await db.query("update maintenance_work_orders set work_type='CORRECTIVE',status='COMPLETED' where id=$1", [order])
+for (const type of ['pool', 'spa']) {
+  const book = waterBook(type)
+  const sample = { date: dates.today, time: '08:00', temperature: '25', technician: 'Técnico',
+    freeChlorine: '1', combinedChlorine: '0.2', totalChlorine: '1.20', bromine: '3', ph: '7.4',
+    transparency: true, turbidity: '0.5', filteredWater: '400', filtersCleaned: false,
+    notes: 'Control diario', disinfectant: type === 'pool' ? 'CHLORINE' : 'BROMINE' }
+  const first = encodeSample(entry(book), sample)
+  const stored = (await insert(first)).rows[0].payload
+  assert.deepEqual(validateEntry(book, stored, true), [])
+  assert.equal(decodeSample(stored).disinfectant, sample.disinfectant)
+  assert.equal(decodeSample(stored).filtersCleaned, false)
+  await insert(encodeSample(entry(book), { ...sample, time: '15:00' }))
+  const fixed = { ...correction(stored), status: 'FINAL', correctionReason: 'Revisada lectura' }
+  fixed.answers.ph.value = '7.5'
+  await insert(fixed)
+  assert.equal((await db.query('select payload from technical_book_records where id=$1', [first.id])).rows[0].payload.answers.ph.value, '7.4')
+  assert.ok(buildBookPdf(book, [stored, fixed], 'Hotel de ensayo', true).getNumberOfPages() >= 2)
+}
+await db.exec('reset role')
+await db.exec(fs.readFileSync('supabase/rollback/20261117224212_preventive_due_access.sql', 'utf8'))
+assert.equal((await db.query("select prosrc from pg_proc where oid='public.validate_technical_book_record()'::regprocedure")).rows[0].prosrc, originalValidator)
+assert.equal((await db.query("select count(*)::int as n from technical_book_records where book_id in ('pool','spa')")).rows[0].n, 6)
 await db.close()
 console.log('Validación SQL local: periodicidades, duplicados, fichas parciales, rectificaciones, equipos y acceso PAM/tickets correctos.')

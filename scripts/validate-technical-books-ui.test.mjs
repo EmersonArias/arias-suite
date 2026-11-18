@@ -111,7 +111,7 @@ test('Escape respeta la cancelación al salir de una ficha sin guardar', () => {
   const h = harness(); await h.ready()
   const index = words(h.index())
   for (const code of ['R-SSTT-01-01', 'R-SSTT-01-02', 'R-SSTT-01-03']) assert.ok(index.includes(code))
-  assert.match(index, /Se mantienen los módulos actuales/)
+  assert.match(index, /Abrir piscina.*Abrir spa/)
   const content = index + words(h.notice()) + renderToStaticMarkup(h.render())
   assert.doesNotMatch(content, /Excel|\.xlsx|Referencia del Excel|SHA-256|Hoja1/i)
   assert.doesNotMatch(content, /Referencia del Excel/)
