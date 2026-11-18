@@ -1977,8 +1977,8 @@ export const bookDefinitions: BookDefinition[] = [
 ]
 export const sourceCatalog = {
   "plan": {
-    "workbook": "R-SSTT-01-01 PLAN ANUAL DE MTO ZERO(20261116-012706).xlsx",
-    "sha256": "756a7a463fb706a8e34aeeafeaa3997bf1429f33a847ecf92c5f1134da1f543a",
+    "workbook": "R-SSTT-01-01 PLAN ANUAL DE MTO ZERO(20261117-230314).xlsx",
+    "sha256": "4518d4a4ba7381aebb99c034863bee76ef4f08a82ba1649679dce204ba7246df",
     "year": "2025",
     "rows": [
       {
@@ -2957,7 +2957,7 @@ export const sourceCatalog = {
       },
       {
         "sourceRow": 14,
-        "equipment": "09",
+        "equipment": "339",
         "title": "_R-SSTT-01-09 ELEMENTOS FOTOLUMISCENTES",
         "schedule": [
           {
@@ -4230,7 +4230,7 @@ export const sourceCatalog = {
   },
   "assets": {
     "workbook": "R-SSTT-01-02 RELACION DE APARATOS(10).xlsx",
-    "sha256": "35c6cba7eb08dfddaa9ba97c7ea3f0eddd92cf2f41b15549a1d6f0df4be4fe4a",
+    "sha256": "5e4df98b8145df0d48994937d30905f20acec2a6f8f85cc9ebe05132da6f35cb",
     "rows": [
       {
         "sourceRow": 2,
@@ -7012,6 +7012,15 @@ export const sourceCatalog = {
         "floor": "HOTEL",
         "location": "SSTT",
         "maintainer": "GRASTOP"
+      },
+      {
+        "sourceRow": 311,
+        "id": "339",
+        "newId": "",
+        "name": "ELEMENTOS FOTOLUMINISCENTES",
+        "floor": "",
+        "location": "",
+        "maintainer": ""
       }
     ]
   }
