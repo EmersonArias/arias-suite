@@ -27,7 +27,7 @@ export async function saveBookRecord(scope: Scope, book: BookDefinition, input: 
   const now = new Date()
   input = { ...input, technician: profile.data.full_name?.trim() || profile.data.login_identifier || scope.userId,
     date: hotelDay(now), time: now.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' }) }
-  if (!input.supersedes) {
+  if (!input.supersedes && !input.campaignTicketId) {
     const latest = await loadBookRecords(scope.hotelId, book.id)
     const schedule = controlSchedule(book, input, latest)
     const blocked = schedule.find(s => !s.due && input.answers[s.field.id]?.value)

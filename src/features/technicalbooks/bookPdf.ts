@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { answerText, entryFields, frequencyLabels } from './bookModel.ts'
+import { answerText, entryFields, frequencyLabels, fieldLabel } from './bookModel.ts'
 import type { BookDefinition, BookEntry } from './types.ts'
 
 const printable = (value: string) => value.replaceAll('√', 'Comprobación').replaceAll('ᵒ', '°')
@@ -31,7 +31,7 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
       head: [['Control', 'Resultado / medición', 'Detalle']],
       body: entryFields(template, entry).map(field => {
         const answer = entry.answers[field.id]
-        return [`${field.label}${field.frequency ? ' [' + field.frequency + ']' : ''}${field.reference ? '\nValor de referencia: ' + printable(field.reference) : ''}`,
+        return [`${fieldLabel(entry.bookId, field)}${field.frequency ? ' [' + field.frequency + ']' : ''}${field.reference ? '\nValor de referencia: ' + printable(field.reference) : ''}`,
           answerText(field, { ...entry, answers: { ...entry.answers, [field.id]: { value: answer?.value ?? '', note: '' } } }), answer?.note || '']
       }),
       styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },

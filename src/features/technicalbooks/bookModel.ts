@@ -68,6 +68,10 @@ export function validateEntry(book: BookDefinition, entry: BookEntry, complete =
   for (const field of entryFields(book, entry)) {
     const issue = fieldIssue(field, entry.answers[field.id], complete)
     if (issue) issues.push(`${field.label}: ${issue}`)
+    if (complete && entry.targetKey && book.id === 'legionella' && /^activity-(9|1[0-8])$/.test(field.id) &&
+      entry.answers[field.id]?.value && entry.answers[field.id].value !== 'NA' && !entry.controlEquipmentIds?.[field.id]) {
+      issues.push(`${field.label}: selecciona el acumulador del catálogo.`)
+    }
   }
   if (complete && book.id === 'puertas-cortafuegos' && entry.answers['control-G']?.value === 'X' && !entry.evidence.length) {
     issues.push('Adjunta una foto de los objetos que impiden el funcionamiento de la puerta, tal como pide la ficha.')
@@ -82,12 +86,15 @@ export function issueCount(book: BookDefinition, entry: BookEntry) {
 export function completedCount(book: BookDefinition, entry: BookEntry) {
   return entryFields(book, entry).filter(f => !!entry.answers[f.id]?.value.trim()).length
 }
+export function fieldLabel(bookId: string, field: BookDefinition['fields'][number]) {
+  return bookId === 'bie' && field.id === 'kg' ? 'Presión del manómetro (KG)' : field.label
+}
 export function answerText(field: BookDefinition['fields'][number], entry: BookEntry) {
   const a = entry.answers[field.id]
   if (!a?.value) return 'Sin registrar'
   const labels: Record<string, string> = { V: 'Correcto', X: 'Avería / no correcto', NA: 'No aplica', SI: 'Sí', NO: 'No' }
   const value = labels[a.value] ?? `${a.value}${field.unit ? ' ' + field.unit : ''}`
-  return value + (a.note ? ` · ${a.note}` : '')
+  return (entry.controlEquipmentLabels?.[field.id] ? entry.controlEquipmentLabels[field.id] + ' · ' : '') + value + (a.note ? ` · ${a.note}` : '')
 }
 
 function isEntry(value: unknown, scope: Scope): value is BookEntry {

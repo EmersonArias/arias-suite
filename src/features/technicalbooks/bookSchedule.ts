@@ -4,7 +4,7 @@ import type { BookDefinition, BookEntry, BookField } from './types.ts'
 
 // Frecuencias verificadas en el PAM importado. Los libros sin frecuencia quedan manuales.
 export const bookPeriods: Record<string, Period> = {
-  bombas: { value: 6, unit: 'MONTH' }, climatizadores: { value: 6, unit: 'MONTH' },
+  bombas: { value: 6, unit: 'MONTH' }, climatizadores: { value: 6, unit: 'MONTH' }, 'fancoils-comunes': { value: 6, unit: 'MONTH' },
   fancoils: { value: 1, unit: 'YEAR' }, 'cuadros-bt': { value: 1, unit: 'YEAR' }, fotoluminiscentes: { value: 1, unit: 'YEAR' },
   'luces-emergencia': { value: 3, unit: 'MONTH' }, 'puertas-cortafuegos': { value: 3, unit: 'MONTH' },
   extintores: { value: 3, unit: 'MONTH' }, bie: { value: 3, unit: 'MONTH' }, pci: { value: 3, unit: 'MONTH' },
@@ -16,10 +16,13 @@ function periodFor(book: BookDefinition, field: BookField): Period | undefined {
   return bookPeriods[book.id]
 }
 export function controlSchedule(book: BookDefinition, entry: BookEntry, records: BookEntry[], today = hotelDay()) {
+  if (entry.campaignTicketId) return book.fields.map(field => ({ field, nextDue: null, due: true, manual: false }))
   return book.fields.filter(f => !f.frequency || entry.frequency === 'ALL' || f.frequency === entry.frequency).map(field => {
     const period = periodFor(book, field)
     const last = records.filter(r => r.id !== entry.id && r.hotelId === entry.hotelId && r.bookId === book.id && r.status === 'FINAL' && !r.supersedes &&
-      (book.id === 'legionella' || (normalizeIdentity(r.asset) === normalizeIdentity(entry.asset) && normalizeIdentity(r.location) === normalizeIdentity(entry.location))) &&
+      (book.id === 'legionella' && entry.controlEquipmentIds?.[field.id]
+        ? r.controlEquipmentIds?.[field.id] === entry.controlEquipmentIds[field.id]
+        : entry.targetKey ? r.targetKey === entry.targetKey : book.id === 'legionella' || (normalizeIdentity(r.asset) === normalizeIdentity(entry.asset) && normalizeIdentity(r.location) === normalizeIdentity(entry.location))) &&
       r.answers[field.id]?.value.trim() && r.answers[field.id]?.value !== 'NA').map(r => r.date).sort().at(-1)
     const nextDue = period && last ? addPeriod(last, period) : null
     return { field, nextDue, due: !nextDue || (nextDue <= today && nextDue <= entry.date), manual: !period }

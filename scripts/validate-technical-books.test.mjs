@@ -31,8 +31,8 @@ test('los 16 formularios conservan código, hoja, celda y huella del libro; Pisc
   }
 })
 test('el plan y el inventario son referencias; no se convierten las cuatro divisiones mensuales en fechas inventadas', () => {
-  assert.equal(sourceCatalog.plan.year, '2025')
-  assert.equal(sourceCatalog.plan.rows.length, 34); assert.equal(sourceCatalog.assets.rows.length, 311)
+  assert.equal(sourceCatalog.plan.year, '2026')
+  assert.equal(sourceCatalog.plan.rows.length, 34); assert.equal(sourceCatalog.assets.rows.length, 312)
   const signs = sourceCatalog.plan.rows.find(row => row.sourceRow === 14)
   assert.equal(signs.equipment, '339')
   assert.equal(sourceCatalog.assets.rows.find(row => row.id === signs.equipment)?.name, 'ELEMENTOS FOTOLUMINISCENTES')

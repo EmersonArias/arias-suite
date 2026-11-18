@@ -21,5 +21,13 @@ export type BookEntry = {
   pamEquipmentId?: string
   serverVersion?: number
   controlIds?: string[]
+  assetId?: string
+  locationId?: string
+  unitId?: string
+  targetKey?: string
+  campaignTicketId?: string
+  campaignTargetId?: string
+  controlEquipmentIds?: Record<string, string>
+  controlEquipmentLabels?: Record<string, string>
   createdAt: string; finalizedAt: string | null
 }

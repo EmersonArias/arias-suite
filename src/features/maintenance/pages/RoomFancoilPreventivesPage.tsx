@@ -3,11 +3,14 @@ import { Download, FileText, X } from 'lucide-react'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { supabase } from '../../../lib/supabase'
+import { loadBookCatalog } from '../../technicalbooks/bookCatalog'
+import { loadBookCampaigns, loadCampaignTargets, campaignTargetUrl, campaignTargetCompleted } from '../../technicalbooks/bookCampaignRepository'
+import type { BookCampaign, CampaignTarget } from '../../technicalbooks/bookCampaignRepository'
 
 type RoomStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE'
 type RoomRecord = {
@@ -75,6 +78,8 @@ export default function RoomFancoilPreventivesPage() {
   const hotelKey = hotel?.id ?? 'hotel-no-seleccionado'
   const storageKey = `arias-suite:room-fancoil-preventives:v1:${hotelKey}`
   const [records, setRecords] = useState<Record<string, RoomRecord>>({})
+  const [activeCampaign, setActiveCampaign] = useState<BookCampaign | null>(null)
+  const [roomTargets, setRoomTargets] = useState<Record<string, CampaignTarget>>({})
   const [activeRooms, setActiveRooms] = useState<string[]>(DEFAULT_ROOM_CODES)
   const [loadedKey, setLoadedKey] = useState('')
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
@@ -118,6 +123,7 @@ export default function RoomFancoilPreventivesPage() {
     let cancelled = false
 
     async function loadRoomData() {
+      setActiveCampaign(null); setRoomTargets({})
       setActiveRooms(safeRead<string[]>(`${storageKey}:rooms`, DEFAULT_ROOM_CODES))
       setSelectedRoom(null)
       setLoadedKey(storageKey)
@@ -140,49 +146,38 @@ export default function RoomFancoilPreventivesPage() {
         return
       }
 
-      // Create an initial database row for each configured room, preserving rows already stored.
-      const configuredRooms = safeRead<string[]>(`${storageKey}:rooms`, DEFAULT_ROOM_CODES)
-      const storedCodes = new Set((data ?? []).map((row) => row.room_code))
-      const initialRows = configuredRooms
-        .filter((room_code) => !storedCodes.has(room_code))
-        .map((room_code) => {
-          const initial = DEFAULT_DONE_CODES.has(room_code) ? 'DONE' : 'PENDING'
-          return {
-            hotel_id: hotel.id,
-            room_code,
-            status: initial,
-            completed_at: null,
-            technician: '',
-            notes: '',
-          }
-        })
-
-      let persistedData = data ?? []
-      if (initialRows.length) {
-        const { error: seedError } = await supabase
-          .from('maintenance_room_fancoil_tracking')
-          .upsert(initialRows, { onConflict: 'hotel_id,room_code', ignoreDuplicates: true })
-
+      let campaign: BookCampaign | undefined
+      let targets: Record<string, CampaignTarget> = {}
+      try {
+        const [catalog, campaigns] = await Promise.all([loadBookCatalog(hotel.id), loadBookCampaigns(hotel.id)])
         if (cancelled) return
-        if (seedError) {
-          setNotice('No se han podido inicializar todas las habitaciones en la base de datos. Comprueba tus permisos de mantenimiento.')
-        } else {
-          const { data: refreshed, error: refreshError } = await supabase
-            .from('maintenance_room_fancoil_tracking')
-            .select('room_code, status, completed_at, technician, notes')
-            .eq('hotel_id', hotel.id)
+        const configuredRooms = catalog.locations.filter(row => row.active && row.location_type === 'HABITACION' && row.code)
+        setActiveRooms(configuredRooms.map(row => row.code!))
+        campaign = campaigns.find(row => row.kind === 'FANCOILS' && !row.closed_at && row.scheduled_date <= localDate())
+        if (campaign) {
+          const members = await loadCampaignTargets(hotel.id, campaign.ticket_id)
           if (cancelled) return
-          if (!refreshError && refreshed) persistedData = refreshed
+          targets = Object.fromEntries(members.filter(row => row.required).flatMap(row => {
+            const location = configuredRooms.find(room => room.id === row.location_id)
+            return location ? [[location.code!, row]] : []
+          }))
         }
+        setActiveCampaign(campaign || null); setRoomTargets(targets)
+      } catch (e) {
+        if (!cancelled) setNotice('No se pudo cargar el catálogo de habitaciones. ' + (e as Error).message)
+        return
       }
 
       const savedRecords: Record<string, RoomRecord> = Object.fromEntries(
-        persistedData.map((row) => [row.room_code, {
-          status: row.status as RoomStatus,
-          completedAt: row.completed_at ?? '',
-          technician: row.technician ?? '',
-          notes: row.notes ?? '',
-        }]),
+        (data ?? []).map((row) => {
+          const target = targets[row.room_code]
+          let status = row.status as RoomStatus
+          if (campaign) {
+            status = target?.started_at ? 'IN_PROGRESS' : 'PENDING'
+            if (target && campaignTargetCompleted(target)) status = 'DONE'
+          }
+          return [row.room_code, { status, completedAt: row.completed_at ?? '', technician: row.technician ?? '', notes: row.notes ?? '' }]
+        }),
       )
       setRecords({ ...DEFAULT_DONE_RECORDS, ...savedRecords })
 
@@ -208,10 +203,9 @@ export default function RoomFancoilPreventivesPage() {
   }, [activeRooms, loadedKey, storageKey])
 
   const roomsByFloor = useMemo(
-    () => FLOOR_ROOM_LIMITS.map(({ floor, maxRoom }) => ({
+    () => [...new Set(activeRooms.map(code => Number(code.split('-')[0])))].filter(Number.isFinite).sort((a, b) => a - b).map(floor => ({
       floor,
-      rooms: Array.from({ length: maxRoom }, (_, index) => roomCode(floor, index + 1))
-        .filter((code) => activeRooms.includes(code))
+      rooms: activeRooms.filter(code => Number(code.split('-')[0]) === floor).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
         .filter((code) => {
           if (filter === 'ALL') return true
           return (records[code]?.status ?? (DEFAULT_DONE_CODES.has(code) ? 'DONE' : 'PENDING')) === filter
@@ -238,6 +232,9 @@ export default function RoomFancoilPreventivesPage() {
       setNotice('Selecciona un hotel antes de guardar los cambios.')
       return
     }
+    if (activeCampaign && status === 'DONE' && roomTargets[code] && !campaignTargetCompleted(roomTargets[code])) {
+      navigate(campaignTargetUrl(roomTargets[code])); return
+    }
     const existing = records[code] ?? (DEFAULT_DONE_CODES.has(code) ? { ...defaultRecord(), status: 'DONE' as RoomStatus } : defaultRecord())
     const updated: RoomRecord = {
       ...existing,
@@ -246,20 +243,20 @@ export default function RoomFancoilPreventivesPage() {
     }
 
     const technician = loggedInTechnician || updated.technician
-    const { error } = await supabase.from('maintenance_room_fancoil_tracking').upsert({
+    const { data, error } = await supabase.from('maintenance_room_fancoil_tracking').upsert({
       hotel_id: hotel.id,
       room_code: code,
       status: updated.status,
       completed_at: updated.completedAt || null,
       technician,
       notes: updated.notes,
-    }, { onConflict: 'hotel_id,room_code' })
+    }, { onConflict: 'hotel_id,room_code' }).select('status,completed_at,technician,notes').single()
 
     if (error) {
       setNotice(`No se ha podido guardar el preventivo de la habitación ${code} en la base de datos. Comprueba tus permisos e inténtalo de nuevo.`)
       return
     }
-    setRecords((current) => ({ ...current, [code]: { ...updated, technician: loggedInTechnician || updated.technician } }))
+    setRecords((current) => ({ ...current, [code]: { status: data.status as RoomStatus, completedAt: data.completed_at || '', technician: data.technician, notes: data.notes } }))
     setNotice('Guardado')
   }
 
@@ -281,23 +278,26 @@ export default function RoomFancoilPreventivesPage() {
       return
     }
     const roomCodeToSave = selectedRoom
+    if (activeCampaign && draft.status === 'DONE' && roomTargets[roomCodeToSave] && !campaignTargetCompleted(roomTargets[roomCodeToSave])) {
+      navigate(campaignTargetUrl(roomTargets[roomCodeToSave])); return
+    }
     const completedAt = draft.status === 'DONE' ? (draft.completedAt || localDate()) : ''
-    const updated = { ...draft, completedAt, technician: draft.technician.trim() || loggedInTechnician }
-    const { error } = await supabase.from('maintenance_room_fancoil_tracking').upsert({
+    const updated = { ...draft, completedAt, technician: loggedInTechnician }
+    const { data, error } = await supabase.from('maintenance_room_fancoil_tracking').upsert({
       hotel_id: hotel.id,
       room_code: roomCodeToSave,
       status: updated.status,
       completed_at: updated.completedAt || null,
       technician: updated.technician,
       notes: updated.notes,
-    }, { onConflict: 'hotel_id,room_code' })
+    }, { onConflict: 'hotel_id,room_code' }).select('status,completed_at,technician,notes').single()
 
     if (error) {
       setNotice(`No se ha podido guardar el preventivo de la habitación ${roomCodeToSave}. Comprueba tus permisos e inténtalo de nuevo.`)
       return
     }
 
-    setRecords((current) => ({ ...current, [roomCodeToSave]: updated }))
+    setRecords((current) => ({ ...current, [roomCodeToSave]: { status: data.status as RoomStatus, completedAt: data.completed_at || '', technician: data.technician, notes: data.notes } }))
     setSelectedRoom(null)
     setNotice('Guardado')
   }
@@ -477,6 +477,7 @@ export default function RoomFancoilPreventivesPage() {
               </div>
             </div>
             <div className="room-led-toolbar arias-grid-toolbar flex w-full flex-nowrap items-start justify-start gap-1 overflow-x-auto">
+              <Link className="rounded-lg border bg-white px-3 py-2 text-sm" to={'/registros-tecnicos/campanas' + (activeCampaign ? '?ticket=' + activeCampaign.ticket_id : '')}>Campaña global</Link>
               <BackButton onBack={() => navigate('/maintenance/preventivos')} />
               <HomeButton onHome={() => navigate('/')} />
               <ActionButton icon={FileText} label="Exportar" onClick={exportRoomListPdf} />
@@ -574,6 +575,7 @@ export default function RoomFancoilPreventivesPage() {
             </div>
 
             <div className="mt-5 space-y-4">
+              <Link className="block rounded-lg border border-sky-300 bg-sky-50 p-3 font-semibold text-sky-900" to={roomTargets[selectedRoom] ? campaignTargetUrl(roomTargets[selectedRoom]) : '/registros-tecnicos/libros/fancoils?room=' + encodeURIComponent(selectedRoom)}>Abrir ficha R-SSTT-01-07</Link>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-semibold text-slate-700">Estado del trabajo</span>
                 <select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as RoomStatus }))} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200">
@@ -585,12 +587,12 @@ export default function RoomFancoilPreventivesPage() {
               {draft.status === 'DONE' && (
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-semibold text-slate-700">Fecha del preventivo</span>
-                  <input type="date" value={draft.completedAt || localDate()} onChange={(event) => setDraft((current) => ({ ...current, completedAt: event.target.value }))} className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
+                  <p className="text-sm">{draft.completedAt || (selectedRecord.status === 'DONE' ? 'Sin fecha en el registro anterior' : 'Se registrará al guardar')}</p>
                 </label>
               )}
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-slate-700">Realizado por</span>
-                <input value={draft.technician} onChange={(event) => setDraft((current) => ({ ...current, technician: event.target.value }))} placeholder="Nombre del técnico (opcional)" className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200" />
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">Operario del guardado</span>
+                <p className="text-sm">{loggedInTechnician || 'Se identifica mediante la sesión'}</p>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-semibold text-slate-700">Observaciones</span>

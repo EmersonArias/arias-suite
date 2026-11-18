@@ -6,7 +6,7 @@ import { useAuth } from '../auth/context/AuthProvider'
 import { isDemoUser } from '../../core/access/demoReadOnly'
 import { waterBook } from '../waterquality/waterBooks'
 import { bookDefinitions } from './bookDefinitions'
-import { answerText, entryFields, filterEntries } from './bookModel'
+import { answerText, entryFields, filterEntries, fieldLabel } from './bookModel'
 import { loadBookRecords } from './bookRepository'
 import type { BookDefinition, BookEntry } from './types'
 
@@ -27,7 +27,7 @@ function Revision({ entry }: { entry: BookEntry }) {
     <div className={(open ? 'block' : 'hidden') + ' mt-2 text-sm print:block'}>
       <dl className="divide-y divide-slate-100">{entryFields(entry.template, entry).map(field =>
         <div className="grid grid-cols-2 gap-2 py-1 break-inside-avoid" key={field.id}>
-          <dt>{field.label}</dt><dd className="whitespace-pre-wrap break-words">{answerText(field, entry)}</dd>
+          <dt>{fieldLabel(entry.bookId, field)}</dt><dd className="whitespace-pre-wrap break-words">{answerText(field, entry)}</dd>
         </div>)}</dl>
       {entry.pamTicketNumber && <p>Ticket PAM · {entry.pamTicketNumber}</p>}
       {entry.campaign && <p>Campaña · {entry.campaign}</p>}

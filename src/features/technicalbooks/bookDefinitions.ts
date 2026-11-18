@@ -1978,8 +1978,8 @@ export const bookDefinitions: BookDefinition[] = [
 export const sourceCatalog = {
   "plan": {
     "workbook": "R-SSTT-01-01 PLAN ANUAL DE MTO ZERO(20261117-230314).xlsx",
-    "sha256": "c3b4e9dd5bea77f6c5ac17b85c949d1f60413fa01e3a59d30ba87dc03f974bc1",
-    "year": "2025",
+    "sha256": "17baa52345996d022151cb266ed6deada23c49f2eefae5936e0ef051f4ede75b",
+    "year": "2026",
     "rows": [
       {
         "sourceRow": 6,
@@ -2900,7 +2900,7 @@ export const sourceCatalog = {
       },
       {
         "sourceRow": 11,
-        "equipment": "22,25,34,60-62,75-79,97-107,134,199-203,269,276-277",
+        "equipment": "22,25,34,60-62,75-79,97-107,134,199-203,269,276-277-159-160-319",
         "title": "_R-SSTT-01-06 CLIMATIZADORES/EXTRACTORES",
         "schedule": [
           {
@@ -3059,7 +3059,7 @@ export const sourceCatalog = {
       },
       {
         "sourceRow": 17,
-        "equipment": "12",
+        "equipment": "341",
         "title": "_R-SSTT-01-12 SISTEMAS CI",
         "schedule": [
           {
@@ -4230,7 +4230,7 @@ export const sourceCatalog = {
   },
   "assets": {
     "workbook": "R-SSTT-01-02 RELACION DE APARATOS(10).xlsx",
-    "sha256": "1bcc8f7681a78db9ee1ccf0c842b527c99122f5c5495a06e6849998b846e7d31",
+    "sha256": "ace50a7709c283c55dadf0f7d4bc3528f1fe62d3163dc11431111cc6f87443c3",
     "rows": [
       {
         "sourceRow": 2,
@@ -7029,6 +7029,15 @@ export const sourceCatalog = {
         "name": "FANCOILS DE HABITACIONES",
         "floor": "",
         "location": "",
+        "maintainer": ""
+      },
+      {
+        "sourceRow": 313,
+        "id": "341",
+        "newId": "",
+        "name": "SISTEMAS CONTRA INCENDIOS",
+        "floor": "HOTEL",
+        "location": "ZONAS COMUNES",
         "maintainer": ""
       }
     ]

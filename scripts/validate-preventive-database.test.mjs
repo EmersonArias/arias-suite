@@ -24,6 +24,7 @@ await db.exec(fs.readFileSync('supabase/migrations/20261117093753_technical_book
 const originalValidator = (await db.query("select prosrc from pg_proc where oid='public.validate_technical_book_record()'::regprocedure")).rows[0].prosrc
 await db.exec(fs.readFileSync('supabase/migrations/20261117224212_preventive_due_access.sql', 'utf8'))
 await db.exec(fs.readFileSync('supabase/migrations/20261118001000_water_book_templates.sql', 'utf8'))
+await db.exec(fs.readFileSync('supabase/migrations/20261118062000_book_catalog_due_identity.sql', 'utf8'))
 await db.exec(`set role authenticated; set request.jwt.claim.sub='${user}';`)
 const dates = (await db.query("select timezone('Europe/Madrid',now())::date::text today, (timezone('Europe/Madrid',now())::date-1)::text yesterday, (timezone('Europe/Madrid',now())::date+1)::text tomorrow")).rows[0]
 const legionella = bookDefinitions.find(b => b.id === 'legionella')

@@ -8,7 +8,7 @@ import { useBeforeUnloadGuard } from '../../shared/hooks/useBeforeUnloadGuard'
 import { canNavigateInSuite } from '../../shared/navigation/navigationGuard'
 import BrandLogo from '../../shared/components/branding/BrandLogo'
 import { bookDefinitions } from './bookDefinitions'
-import { completedCount, createEntry, entryFields, fieldIssue, filterEntries, frequencyLabels, issueCount } from './bookModel'
+import { completedCount, createEntry, entryFields, fieldIssue, filterEntries, frequencyLabels, issueCount, fieldLabel } from './bookModel'
 import type { Scope } from './bookModel'
 import type { BookDefinition, BookEntry, BookField } from './types'
 import { loadBookRecords, saveBookRecord } from './bookRepository'
@@ -18,6 +18,10 @@ import { dueMessage, hotelDay } from '../../shared/maintenance/preventiveSchedul
 import { useHotelDay } from '../../shared/maintenance/useHotelDay'
 
 import PamTicketPicker from './PamTicketPicker'
+import BookTargetPicker from './BookTargetPicker'
+import type { CatalogTarget, CatalogAsset } from './bookCatalog'
+import { loadBookCatalog, selectCatalogTarget } from './bookCatalog'
+import { loadCampaignTarget, campaignTargetCompleted, findOpenCampaignTarget } from './bookCampaignRepository'
 const ReferenceCatalog = lazy(() => import('./ReferenceCatalog'))
 const input = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700'
 const button = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40'
@@ -41,14 +45,15 @@ function BookIndex() {
     </section>
   </>
 }
-function FieldCard({ field, entry, disabled, update, showErrors }: { field: BookField; entry: BookEntry; disabled: boolean; showErrors: boolean; update: (value: string, note?: string) => void }) {
+function FieldCard({ field, entry, disabled, update, showErrors, assets, onEquipment }: { field: BookField; entry: BookEntry; disabled: boolean; showErrors: boolean; update: (value: string, note?: string) => void; assets?: CatalogAsset[]; onEquipment?: (id: string) => void }) {
   const answer = entry.answers[field.id] ?? { value: '', note: '' }
   const issue = fieldIssue(field, answer, showErrors)
   const adverse = answer.value === 'X' || (!!field.adverse && answer.value === field.adverse)
   const id = 'book-field-' + field.id
   return <div className={'rounded-xl border bg-white p-2 ' + (issue || adverse ? 'border-amber-300' : 'border-slate-200')}>
-    <div className="flex items-start justify-between gap-2"><label htmlFor={id} className="text-sm font-bold leading-5 text-slate-800">{field.label}</label><span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ' + (adverse ? 'bg-amber-50 text-amber-800' : answer.value ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-500')}>{adverse ? 'Con incidencia' : answer.value ? 'Registrado' : 'Sin registrar'}</span></div>
+    <div className="flex items-start justify-between gap-2"><label htmlFor={id} className="text-sm font-bold leading-5 text-slate-800">{fieldLabel(entry.bookId, field)}</label><span className={'shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ' + (adverse ? 'bg-amber-50 text-amber-800' : answer.value ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-500')}>{adverse ? 'Con incidencia' : answer.value ? 'Registrado' : 'Sin registrar'}</span></div>
     {field.reference && <p className="mt-1 text-xs text-slate-500">Valor de referencia: {field.reference}{field.unit ? ' ' + field.unit : ''}</p>}
+    {assets && <label className="mt-1 block text-xs text-slate-600">Equipo de este control<select className={input + ' mt-1'} disabled={disabled} value={entry.controlEquipmentIds?.[field.id] || ''} onChange={e => onEquipment?.(e.target.value)}><option value="">Ubicación de la revisión</option>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.source_id ?? asset.code} · {asset.name} · {asset.plant}</option>)}</select></label>}
     <div className="mt-3 flex items-center gap-2">
       {field.kind === 'check' || field.kind === 'yesno' ? <select id={id} value={answer.value} disabled={disabled} onChange={e => update(e.target.value)} className={input} aria-describedby={issue ? id + '-error' : undefined}>
         <option value="">Selecciona resultado…</option>
@@ -94,6 +99,34 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   const [errors, setErrors] = useState<string[]>([])
   const [showErrors, setShowErrors] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [campaignLoading, setCampaignLoading] = useState(false)
+  const [campaignError, setCampaignError] = useState('')
+  const [controlAssets, setControlAssets] = useState<CatalogAsset[]>([])
+  useEffect(() => {
+    if (book.id !== 'legionella') return
+    let active = true
+    loadBookCatalog(scope.hotelId).then(catalog => { if (active) setControlAssets(catalog.assets.filter(row => row.active && /ACS|AFSCH|AFCH|AGUA|ALJIBE|DUCHA|CLOR|DOSIFIC/i.test(row.name))) })
+      .catch(e => { if (active) setStorageError(e.message) })
+    return () => { active = false }
+  }, [scope.hotelId, book.id])
+  const requestedTarget = new URLSearchParams(globalThis.location?.search || '').get('target')
+  const requestedCampaign = new URLSearchParams(globalThis.location?.search || '').get('campaign')
+  useEffect(() => {
+    if (!requestedTarget || !requestedCampaign) return
+    let active = true
+    setCampaignLoading(true); setCampaignError('')
+    Promise.all([loadCampaignTarget(scope.hotelId, requestedTarget), loadBookCatalog(scope.hotelId)]).then(([target, catalog]) => {
+      if (!active) return
+      if (target.book_id !== book.id || target.ticket_id !== requestedCampaign || !target.required) throw new Error('La unidad no corresponde a este libro o campaña.')
+      if (campaignTargetCompleted(target)) throw new Error('Esta unidad ya está terminada. Consulta su ficha o el trabajo anterior en la campaña.')
+      const selection: CatalogTarget = { key: target.target_key, label: target.label, path: target.location,
+        locationId: target.location_id, assetId: target.equipment_id || undefined, unitId: target.unit_id || undefined,
+        floor: '', metadata: catalog.units.find(row => row.id === target.unit_id)?.metadata }
+      const next = { ...selectCatalogTarget(createEntry(book, scope), selection), campaignTicketId: target.ticket_id, campaignTargetId: target.id }
+      setEntry(next); setInitial(JSON.stringify(next)); setBaseline(null); setTab('form')
+    }).catch(e => { if (active) setCampaignError(e.message) }).finally(() => { if (active) setCampaignLoading(false) })
+    return () => { active = false }
+  }, [requestedTarget, requestedCampaign, scope.hotelId, book.id])
   const dirty = JSON.stringify(entry) !== initial
   const foreignDraft = entry.status === 'DRAFT' && !!baseline && entry.userId !== scope.userId
   const readOnly = demo || entry.status === 'FINAL' || foreignDraft
@@ -108,11 +141,21 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   const filtered = useMemo(() => filterEntries(records, book.id, query, from, to, status), [records, book.id, query, from, to, status])
   const bookRecords = records.filter(r => r.bookId === book.id)
   function update<K extends keyof BookEntry>(key: K, value: BookEntry[K]) { setEntry(e => ({ ...e, [key]: value })); setNotice('') }
+  async function selectTarget(target: CatalogTarget) {
+    if (target.key === entry.targetKey) return
+    if (Object.keys(entry.answers).length && !await confirm({ title: 'Cambiar equipo', message: 'Se vaciarán los controles de este borrador para revisar el equipo seleccionado.', confirmLabel: 'Cambiar' })) return
+    setCampaignLoading(true); setCampaignError('')
+    try {
+      const member = await findOpenCampaignTarget(scope.hotelId, book.id, target.key)
+      setEntry(e => ({ ...selectCatalogTarget(e, target), campaignTicketId: member?.ticket_id, campaignTargetId: member?.id }))
+    } catch (e) { setCampaignError((e as Error).message) }
+    finally { setCampaignLoading(false) }
+  }
   function reset(next: BookEntry, saved: BookEntry | null) { setEntry(next); setBaseline(saved); setInitial(JSON.stringify(next)); setErrors([]); setShowErrors(false); setNotice(''); setTab('form') }
   async function canLeave() { return !dirty || await confirm({ title: 'Cambios sin guardar', message: '¿Quieres descartar los cambios de esta ficha?', confirmLabel: 'Descartar', variant: 'warning' }) }
   async function select(next: BookEntry) { if (await canLeave()) reset(structuredClone(next), structuredClone(next)) }
   async function save(finalize: boolean) {
-    if (busy || readOnly || loading || notDue) return
+    if (busy || readOnly || loading || campaignLoading || campaignError || notDue) return
     if (finalize && entry.pamTicketId && !entry.pamOutcome) { setErrors(['Selecciona el resultado del ticket PAM.']); return }
     setShowErrors(finalize); setErrors([])
     let finalizationMessage = 'Se comprobarán los controles y se guardará la revisión en el hotel. Una vez finalizada no podrá borrarse ni modificarse.'
@@ -131,7 +174,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   }
   async function changeFrequency(value: string) {
     if (Object.values(entry.answers).some(a => a.value || a.note) && !await confirm({ title: 'Cambiar controles', message: 'Cambiar la frecuencia vaciará los controles de este borrador. ¿Continuar?', confirmLabel: 'Cambiar', variant: 'warning' })) return
-    setEntry(e => ({ ...e, frequency: value, controlIds: undefined, answers: {} })); setShowErrors(false); setErrors([])
+    setEntry(e => ({ ...e, frequency: value, controlIds: undefined, answers: {}, controlEquipmentIds: undefined, pamTicketId: undefined, pamOutcome: undefined })); setShowErrors(false); setErrors([])
   }
   async function exportPdf(rows: BookEntry[]) {
     if (!rows.length) { await alert({ title: 'Sin registros', message: 'Guarda una revisión o cambia los filtros antes de exportar.' }); return }
@@ -154,6 +197,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
     <nav aria-label="Acciones del libro" className="book-action-row mb-2">
       <Link className={button} to="/registros-tecnicos" onClick={e => { if (!canNavigateInSuite()) e.preventDefault() }}>Volver</Link>
       <Link className={button} to="/" onClick={e => { if (!canNavigateInSuite()) e.preventDefault() }}>Inicio</Link>
+      <Link className={button} to={'/registros-tecnicos/campanas' + (entry.campaignTicketId ? '?ticket=' + entry.campaignTicketId : '')}>Campañas</Link>
       {(['form', 'history'] as const).map((t, i) => <button key={t} type="button" onClick={() => setTab(t)} aria-pressed={tab === t} className={button + (tab === t ? ' border-sky-300 bg-sky-50 text-sky-800' : '')}>{[<ClipboardPlus size={17} />, <History size={17} />][i]}{['Formulario', `Historial (${bookRecords.length})`][i]}</button>)}
       {tab === 'form' && <>
         <button className={button} disabled={busy} onClick={async () => { if (await canLeave()) reset(createEntry(book, scope), null) }}><ClipboardPlus size={17} />Nueva revisión</button>
@@ -162,6 +206,8 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
       </>}
     </nav>
     {loading && <p role="status" className="mb-4 p-3 text-sm">Cargando historial del hotel…</p>}
+    {campaignLoading && <p role="status" className="p-2 text-sm">Cargando la unidad de la campaña…</p>}
+    {campaignError && <p role="alert" className="rounded-lg border border-red-200 p-3 text-sm text-red-800">{campaignError}</p>}
     {storageError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{storageError}<button className={button + ' ml-3'} onClick={() => { try { setLoading(true); loadBookRecords(scope.hotelId, book.id).then(rows => { setRecords(rows); setStorageError('') }).catch(e => setStorageError(e.message)).finally(() => setLoading(false)) } catch { /* Preserve unreadable data. */ } }}>Reintentar lectura</button></div>}
     {tab === 'history' ? <section className="rounded-2xl border bg-white p-4 sm:p-5">
       <h2 className="text-lg font-bold">Historial de revisiones · {book.title}</h2>
@@ -171,23 +217,22 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
       {foreignDraft && <p className="mb-4 p-3 text-sm text-slate-600">Borrador de otro usuario. Solo su autor puede modificarlo.</p>}
       {notice && <p role="status" className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800">{notice}</p>}
       {!!errors.length && <div role="alert" data-book-errors className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><strong>No se ha guardado.</strong><ul className="mt-2 list-disc space-y-1 pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
-      <PamTicketPicker hotelId={scope.hotelId} bookId={book.id} readOnly={readOnly} ticketId={entry.pamTicketId} outcome={entry.pamOutcome}
+      {(book.id !== 'legionella' || ['ALL', 'M'].includes(entry.frequency)) && <PamTicketPicker hotelId={scope.hotelId} bookId={book.id} readOnly={readOnly} ticketId={entry.pamTicketId} outcome={entry.pamOutcome}
         onSelect={t => setEntry(e => ({ ...e, pamTicketId: t?.ticket_id, pamOutcome: undefined, asset: e.asset || t?.equipment || '', location: e.location || t?.location || '' }))}
-        onOutcome={value => update('pamOutcome', value)} />
-      <section className="mb-2 rounded-xl border bg-white p-2"><h2 className="mb-4 font-bold text-slate-800">Datos de la revisión</h2><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <label className="text-xs font-semibold text-slate-600">{book.assetLabel} *<input value={entry.asset} disabled={readOnly || !!entry.supersedes} maxLength={300} onChange={e => update('asset', e.target.value)} className={input + ' mt-1'} /></label>
-        <label className="text-xs font-semibold text-slate-600">Ubicación<input value={entry.location} disabled={readOnly || !!entry.supersedes} maxLength={300} onChange={e => update('location', e.target.value)} className={input + ' mt-1'} /></label>
+        onOutcome={value => update('pamOutcome', value)} />}
+      <section className="mb-2 rounded-xl border bg-white p-2"><h2 className="mb-2 font-bold text-slate-800">Datos de la revisión</h2><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <BookTargetPicker book={book} entry={entry} disabled={readOnly || campaignLoading || !!entry.supersedes || !!entry.campaignTargetId} onSelect={target => void selectTarget(target)} />
         <p className="text-xs text-slate-600">{baseline ? [baseline.date, baseline.time, baseline.technician].join(' · ') : 'Fecha, hora y operario se registran al guardar.'}</p>
         <label className="text-xs font-semibold text-slate-600">Campaña / trimestre / revisión<input value={entry.campaign} disabled={readOnly} maxLength={300} onChange={e => update('campaign', e.target.value)} placeholder="Ej. 2026 · 4.ª revisión" className={input + ' mt-1'} /></label>
         {book.fields.some(f => f.frequency) && <label className="text-xs font-semibold text-slate-600">Controles de esta visita<select value={entry.frequency} disabled={readOnly || !!entry.supersedes} onChange={e => void changeFrequency(e.target.value)} className={input + ' mt-1'}>{Object.entries(frequencyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
         {entry.supersedes && <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Motivo de rectificación *<textarea value={entry.correctionReason} disabled={readOnly} maxLength={3000} onChange={e => update('correctionReason', e.target.value)} className={input + ' mt-1'} /></label>}
-      </div><p className="mt-4 text-xs text-slate-500">{completedCount(book, pendingEntry)} / {fields.length} controles registrados · {issueCount(book, pendingEntry)} incidencias. Una revisión finalizada puede contener averías: el resultado de la revisión y el estado del equipo se conservan por separado.</p></section>
-      {!readOnly && !entry.supersedes && <aside role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+      </div><p className="mt-4 text-xs text-slate-500">{completedCount(book, pendingEntry)} / {fields.length} controles registrados · {issueCount(book, pendingEntry)} incidencias.</p></section>
+      {!readOnly && !entry.supersedes && (notDue || schedule.some(s => !s.due || s.manual)) && <aside role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
         {entry.date > hotelDay() ? 'No se puede registrar una revisión futura.' : notDue && nextDue ? dueMessage(nextDue) : 'Se muestran los controles pendientes para esta fecha. Los ya realizados permanecen en el historial.'}
         {schedule.some(s => !s.due) && <details className="mt-2"><summary className="cursor-pointer font-semibold">Ver controles que todavía no corresponden</summary><ul className="mt-2 space-y-1">{schedule.filter(s => !s.due).map(s => <li key={s.field.id}>{s.field.label}: {s.nextDue && dueMessage(s.nextDue)}</li>)}</ul></details>}
-        {schedule.some(s => s.manual) && <p className="mt-2">Los controles sin periodicidad definida se registran según el plan o la necesidad; no tienen una fecha automática asignada.</p>}
+        {schedule.some(s => s.manual) && <details className="mt-1"><summary>Frecuencia según plan</summary><p>Los controles sin periodicidad definida se registran según el plan o la necesidad.</p></details>}
       </aside>}
-      {sections.map(section => <section key={section} className="mb-5"><h2 className="mb-3 text-base font-bold text-slate-700">{section}</h2><div className="grid gap-3 lg:grid-cols-2">{fields.filter(f => f.section === section).map(field => <FieldCard key={field.id} field={field} entry={entry} disabled={readOnly || loading || notDue} showErrors={showErrors} update={(value, note) => setEntry(e => ({ ...e, answers: { ...e.answers, [field.id]: { value, note: note ?? e.answers[field.id]?.note ?? '' } } }))} />)}</div></section>)}
+      {sections.map(section => <section key={section} className="mb-5"><h2 className="mb-3 text-base font-bold text-slate-700">{section}</h2><div className={['legionella', 'pci', 'rociadores'].includes(book.id) ? 'grid gap-2 sm:grid-cols-2' : 'grid grid-cols-2 gap-2'}>{fields.filter(f => f.section === section).map(field => <FieldCard key={field.id} field={field} entry={entry} disabled={readOnly || loading || notDue || (book.id === 'pci' && scope.hotelId === '9e2e3d56-25d7-41a5-8dd6-df6858e735bd' && field.id === 'control-B36')} showErrors={showErrors} assets={book.id === 'legionella' ? controlAssets : undefined} onEquipment={id => setEntry(e => ({ ...e, controlEquipmentIds: { ...e.controlEquipmentIds, [field.id]: id } }))} update={(value, note) => setEntry(e => ({ ...e, answers: { ...e.answers, [field.id]: { value, note: note ?? e.answers[field.id]?.note ?? '' } } }))} />)}</div></section>)}
       <section className="rounded-2xl border bg-white p-4 sm:p-5"><label htmlFor="book-observations" className="font-bold text-slate-700">Observaciones / actuaciones</label><textarea id="book-observations" rows={4} value={entry.observations} disabled={readOnly} maxLength={15000} onChange={e => update('observations', e.target.value)} className={input + ' mt-3'} />
         <div className="mt-4"><label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><Camera size={18} />Fotografías de la revisión<input type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={readOnly || busy} onChange={e => { void photos(e.target.files); e.target.value = '' }} className="block max-w-full text-xs" /></label><p className="mt-1 text-xs text-slate-500">Hasta 3 imágenes de 1 MB. Se guardan con la revisión del hotel.</p><div className="mt-3 flex flex-wrap gap-3">{entry.evidence.map((photo, index) => <figure key={index} className="w-32"><img src={photo.dataUrl} alt={photo.name} className="h-24 w-32 rounded-xl object-cover" /><figcaption className="truncate text-xs">{photo.name}</figcaption>{!readOnly && <button className="mt-1 text-xs text-red-700 underline" onClick={() => update('evidence', entry.evidence.filter((_, i) => i !== index))}>Quitar fotografía</button>}</figure>)}</div></div>
       </section>

@@ -30,6 +30,9 @@ function harness(userId = scope.userId, selectedBook = b, seed = []) {
     './bookRepository': { loadBookRecords: async () => model.loadSandbox(storage, { ...scope, userId }), saveBookRecord: async (s, b, e, f, expected) => model.persistEntry(storage, s, b, { ...e, technician: 'Operario de sesión' }, f, expected).entry },
     './bookModel': model, './bookDefinitions': { bookDefinitions, sourceCatalog },
     './PamTicketPicker': { __esModule: true, default: () => null },
+    './BookTargetPicker': { __esModule: true, default: ({ book, entry }) => jsx.jsx('p', { children: book.assetLabel + ' · ' + entry.asset }) },
+    './bookCatalog': { selectCatalogTarget: (entry, target) => ({ ...entry, asset: target.label, location: target.path, targetKey: target.key, locationId: target.locationId }), loadBookCatalog: async () => ({ locations: [], assets: [], units: [] }) },
+    './bookCampaignRepository': { findOpenCampaignTarget: async () => null, campaignTargetCompleted: target => !!target.record_id },
     './bookSchedule': bookSchedule, '../../shared/maintenance/preventiveSchedule': preventiveSchedule,
     '../../shared/maintenance/useHotelDay': { useHotelDay: () => preventiveSchedule.hotelDay() },
     '../../core/access/demoReadOnly': demoAccess,
@@ -38,20 +41,29 @@ function harness(userId = scope.userId, selectedBook = b, seed = []) {
     '../../shared/navigation/navigationGuard': { canNavigateInSuite: () => true },
   }
   vm.runInNewContext(compile('src/features/technicalbooks/TechnicalBooksPage.tsx') + '\nexports.BookForm = BookForm; exports.FieldCard = FieldCard; exports.BookIndex = BookIndex; exports.TrialNotice = TrialNotice;', {
-    module: mod, exports: mod.exports, structuredClone, crypto, localStorage: storage, Error,
+    module: mod, exports: mod.exports, structuredClone, crypto, localStorage: storage, Error, URLSearchParams,
     window: { addEventListener() {}, removeEventListener() {} },
     requestAnimationFrame: fn => fn(), document: { querySelector: () => null },
     require: name => dependencies[name] ?? (name === 'lucide-react' ? new Proxy({}, { get: () => () => null }) : {}),
   })
   function render() { cursor = 0; return mod.exports.BookForm({ book: b, scope: { ...scope, userId }, hotelName: 'Hotel simulado' }) }
   function click(label, prefix = false) { const node = nodes(render()).find(n => n.type === 'button' && (prefix ? words(n).replace(/\s+/g, ' ').trim().startsWith(label) : words(n).replace(/\s+/g, ' ').trim() === label)); assert.ok(node, label); assert.ok(!node.props.disabled, label + ' habilitado'); return node.props.onClick() }
-  function fill(label, value) { const parent = nodes(render()).find(n => n.type === 'label' && words(n).startsWith(label)); assert.ok(parent, label); nodes(parent).find(n => n.type === 'input').props.onChange({ target: { value } }) }
+  function fill(label, value) {
+    if (label === 'Habitación') {
+      const picker = nodes(render()).find(n => n.props?.onSelect && n.props?.book)
+      assert.ok(picker, 'Selector del catálogo')
+      return picker.props.onSelect({ key: 'location:simulada', label: value, path: 'Planta 2 / ' + value, locationId: 'ubicacion-simulada' })
+    }
+    const parent = nodes(render()).find(n => n.type === 'label' && words(n).startsWith(label)); assert.ok(parent, label)
+    return nodes(parent).find(n => n.type === 'input').props.onChange({ target: { value } })
+  }
   return { index: () => mod.exports.BookIndex(), notice: () => mod.exports.TrialNotice(), render, click, fill, storage, get beforeUnload() { return beforeUnload }, reload: () => { state = []; effectStarted = false; return render() }, ready: async () => { render(); await new Promise(resolve => setImmediate(resolve)) } }
 }
 
 test('interacción completa: ficha nueva, controles, borrador, recarga, finalización y rectificación sin red', async () => {
   const h = harness(); await h.ready()
-  h.fill('Habitación', 'HAB-PRUEBA-201')
+  await h.fill('Habitación', 'HAB-PRUEBA-201')
+  await new Promise(resolve => setImmediate(resolve))
   for (const field of nodes(h.render()).filter(n => n.props?.field)) field.props.update(field.props.field.kind === 'number' ? '22,5' : 'V')
   h.click('Guardar borrador'); await new Promise(resolve => setImmediate(resolve))
   assert.equal(model.loadSandbox(h.storage, scope).length, 1)

@@ -89,6 +89,8 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/pools" element={<PoolsPage />} />
 <Route path="/spa" element={<SpaPage />} />
 <Route path="/registros-tecnicos/anteriores/legionella" element={<LegionellaPage />} />
+<Route path="/registros-tecnicos/campanas" element={<TechnicalBooksRoute mode="campaigns" />} />
+<Route path="/registros-tecnicos/catalogo/:bookId" element={<TechnicalBooksRoute mode="catalog" />} />
 <Route path="/legionella" element={<LegacyRedirect to="/registros-tecnicos/libros/legionella" />} />
 <Route path="/registros-tecnicos/anteriores/climatizers" element={<ClimatizersPage />} />
 <Route path="/climatizers" element={<LegacyRedirect to="/registros-tecnicos/libros/climatizadores" />} />
