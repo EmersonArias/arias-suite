@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
+import BrandLogo from '../../../shared/components/branding/BrandLogo'
+import { useAuth } from '../../auth/context/AuthProvider'
+import PrintReportFooter from '../../../shared/components/reports/PrintReportFooter'
 import {
   formatDate,
   fromDatabase,
@@ -13,6 +16,8 @@ import {
 export default function ElectricalPanelsReportPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+
+  const { session } = useAuth()
 
   const [panels, setPanels] = useState<
     ElectricalPanel[]
@@ -133,30 +138,17 @@ export default function ElectricalPanelsReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-3 sm:p-5 print:bg-white print:p-0">
+    <div className="arias-report-page min-h-screen bg-slate-100 p-3 sm:p-5 print:bg-white print:p-0">
         <style>{`
           @page {
             size: A4 landscape;
-            margin: 12mm 10mm 18mm 10mm;
+            margin: 14mm 10mm 8mm 10mm;
           }
 
           @media print {
             body {
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
-            }
-
-            .arias-report-footer {
-              position: fixed;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              padding-top: 3mm;
-              border-top: 0.3mm solid #cbd5e1;
-              background: #ffffff;
-              font-size: 8px;
-              color: #475569;
-              text-align: center;
             }
           }
         `}</style>
@@ -258,9 +250,8 @@ export default function ElectricalPanelsReportPage() {
           <div className="rounded-2xl bg-white p-4 shadow-lg print:rounded-none print:p-0 print:shadow-none">
             <div className="mb-5 flex items-center justify-between gap-6 border-b border-slate-200 pb-4">
               <div className="flex items-center gap-4">
-                <img
-                  src="/logo.png"
-                  alt="Arias Suite"
+                <BrandLogo
+                  onActivate={() => navigate('/')}
                   className="h-9 w-auto object-contain print:h-7"
                 />
 
@@ -275,7 +266,7 @@ export default function ElectricalPanelsReportPage() {
               </div>
 
               <div className="text-right text-sm text-slate-600">
-                <div>Técnico: Emerson Arias</div>
+                <div>Generado por: {session?.user.fullName || session?.user.email || 'Usuario'}</div>
                 <div>
                   Registros: {reportPanels.length}
                 </div>
@@ -389,9 +380,7 @@ export default function ElectricalPanelsReportPage() {
             </div>
           </div>
         )}
-        <div className="arias-report-footer">
-          Arias_PAM / Emerson Arias
-        </div>
+        <PrintReportFooter />
       </div>
     </div>
   )

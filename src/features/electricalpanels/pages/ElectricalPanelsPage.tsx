@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
+import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
+import IconButton from '../../../shared/components/buttons/IconButton'
+import GridViewport from '../../../shared/components/grid/GridViewport'
+import { useGridKeyboardNavigation } from '../../../shared/components/grid/useGridKeyboardNavigation'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import {
   fromDatabase,
   matchesDateFilter,
@@ -12,6 +18,7 @@ import {
 
 export default function ElectricalPanelsPage() {
   const navigate = useNavigate()
+  const { confirm } = useSystemDialog()
 
   const [panels, setPanels] = useState<ElectricalPanel[]>([])
   const [selectedId, setSelectedId] = useState('')
@@ -111,6 +118,15 @@ export default function ElectricalPanelsPage() {
     panels.find((panel) => panel.id === selectedId) ??
     null
 
+  const gridIds = useMemo(() => filteredPanels.map((panel) => panel.id), [filteredPanels])
+  const { currentIndex, moveSelection, getGridProps, getRowProps } = useGridKeyboardNavigation({
+    ids: gridIds,
+    selectedId,
+    onSelectedIdChange: setSelectedId,
+    onOpen: (id) => navigate(`/electricalpanels/${id}`),
+    autoFocusFirst: true,
+  })
+
   const handleModify = () => {
     if (!selected) {
       setErrorMessage('Selecciona un registro.')
@@ -126,9 +142,12 @@ export default function ElectricalPanelsPage() {
       return
     }
 
-    const confirmed = window.confirm(
-      `¿Eliminar el registro ${selected.code}? Esta acción no se puede deshacer.`,
-    )
+    const confirmed = await confirm({
+      title: 'Eliminar registro',
+      message: `¿Quieres eliminar el registro ${selected.code}? Esta acción no se puede deshacer.`,
+      variant: 'warning',
+      confirmLabel: 'Eliminar',
+    })
 
     if (!confirmed) return
 
@@ -196,9 +215,8 @@ export default function ElectricalPanelsPage() {
         <div className="mb-4 rounded-2xl bg-white p-3 shadow-lg sm:p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <img
-                src="/logo.png"
-                alt="Arias Suite"
+              <BrandLogo
+                onActivate={() => navigate('/')}
                 className="h-12 w-auto shrink-0 object-contain sm:h-14"
               />
 
@@ -387,7 +405,8 @@ export default function ElectricalPanelsPage() {
         </div>
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
-          <div className="overflow-x-auto">
+          <div {...getGridProps()} className="outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-200">
+            <GridViewport className="max-h-[calc(100vh-330px)] min-h-[300px]">
             <table className="min-w-[900px] w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
@@ -413,6 +432,7 @@ export default function ElectricalPanelsPage() {
                 {filteredPanels.map((panel) => (
                   <tr
                     key={panel.id}
+                    {...getRowProps(panel.id)}
                     onClick={() => {
                       setSelectedId(panel.id)
                       navigate(`/electricalpanels/${panel.id}`)
@@ -450,6 +470,16 @@ export default function ElectricalPanelsPage() {
                 ))}
               </tbody>
             </table>
+            </GridViewport>
+            <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2">
+              <span className="text-[11px] text-slate-500">
+                {filteredPanels.length === 0 ? 'Sin registros' : `${currentIndex + 1} / ${filteredPanels.length}`}
+              </span>
+              <div className="flex items-center gap-1">
+                <IconButton icon={ChevronUp} label="Registro anterior" title="Anterior" onClick={() => moveSelection(currentIndex - 1)} disabled={filteredPanels.length === 0 || currentIndex === 0} className="h-9 w-9" />
+                <IconButton icon={ChevronDown} label="Registro siguiente" title="Siguiente" onClick={() => moveSelection(currentIndex + 1)} disabled={filteredPanels.length === 0 || currentIndex === filteredPanels.length - 1} className="h-9 w-9" />
+              </div>
+            </div>
           </div>
 
           {!loading &&
