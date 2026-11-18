@@ -151,7 +151,7 @@ test('Registros técnicos abre cada libro directamente y conserva piscina, SPA y
   const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
   const main = nodes(renderRecords('/registros-tecnicos'))
   const previous = nodes(renderRecords('/registros-tecnicos/anteriores'))
-  for (const title of ['Piscina exterior', 'Piscina SPA', 'Preventivo diario']) {
+  for (const title of ['Piscina exterior', 'Piscina SPA', 'Generador de reportes']) {
     const label = 'Abrir registro de ' + title
     assert.ok(main.some(n => n.props?.['aria-label'] === label))
     assert.ok(previous.some(n => n.props?.['aria-label'] === label))

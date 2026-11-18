@@ -5,7 +5,7 @@ import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 
 const previousRecords = [
-  ['Preventivo diario', 'Registro preventivo de frecuencia corta.', 'daily', '/maintenance/record'],
+  ['Generador de reportes', 'Historial, filtros, PDF e impresión por libro.', 'daily', '/maintenance/record'],
   ['Piscina exterior', 'Registro de medidas y controles diarios.', 'pool', '/pools'],
   ['Piscina SPA', 'Registro de medidas y controles del SPA.', 'spa', '/spa'],
   ['Autocontrol Legionella', 'Registro de controles y seguimiento.', 'legionella', '/registros-tecnicos/anteriores/legionella'],

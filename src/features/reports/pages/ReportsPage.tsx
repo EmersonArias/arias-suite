@@ -5,6 +5,11 @@ import { BackButton, HomeButton } from '../../../shared/components/navigation/Na
 
 const reports = [
   {
+    name: 'Libros R-SSTT',
+    description: 'Revisiones del hotel por libro, con filtros, PDF e impresión.',
+    path: '/maintenance/record',
+  },
+  {
     name: 'Relación de Aparatos',
     description: 'Listado de aparatos con código, descripción, planta, ubicación y estado.',
     path: '/apparatusregistry/report?scope=ALL',

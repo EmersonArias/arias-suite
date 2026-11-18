@@ -28,7 +28,7 @@ export const suiteLinks: SuiteLink[] = [
   { id: 'pending-list', label: 'Pendientes por ubicación y gremio', href: '/maintenance/pending', description: 'Listado de actuaciones pendientes del hotel.', icon: icons + 'pending.webp', area: 'maintenance', parent: 'work' },
   { id: 'interventions', label: 'Intervenciones registradas', href: '/maintenance/interventions', description: 'Trabajos realizados y su historial.', icon: icons + 'interventions.webp', area: 'maintenance' },
   { id: 'history', label: 'Historial de correctivos', href: '/maintenance/tickets/history', description: 'Consulta incidencias finalizadas.', icon: records + 'daily.webp', area: 'maintenance' },
-  { id: 'daily', label: 'Preventivo diario', href: '/maintenance/record', description: 'Registro de los controles habituales.', icon: records + 'daily.webp', area: 'records' },
+  { id: 'daily', label: 'Generador de reportes', href: '/maintenance/record', description: 'Historial, filtros, PDF e impresión por libro.', icon: records + 'daily.webp', area: 'records' },
   { id: 'pool', label: 'Piscina exterior', href: '/pools', description: 'Mediciones y controles de la piscina.', icon: records + 'pool.webp', area: 'records' },
   { id: 'spa', label: 'Piscina SPA', href: '/spa', description: 'Mediciones y controles del SPA.', icon: records + 'spa.webp', area: 'records' },
   { id: 'structure', label: 'Estructura del hotel', href: '/maintenance/structure', description: 'Plantas, habitaciones y ubicaciones.', icon: icons + 'equipment.webp', area: 'equipment' },
