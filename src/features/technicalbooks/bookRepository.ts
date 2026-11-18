@@ -3,6 +3,8 @@ import { assertDemoWriteAllowed } from '../../core/access/demoReadOnly'
 import { entryFields, validateEntry } from './bookModel'
 import type { Scope } from './bookModel'
 import type { BookDefinition, BookEntry } from './types'
+import { controlSchedule } from './bookSchedule'
+import { dueMessage, hotelDay } from '../../shared/maintenance/preventiveSchedule'
 
 type Row = { payload: BookEntry; version: number }
 export async function loadBookRecords(hotelId: string, bookId: string): Promise<BookEntry[]> {
@@ -20,6 +22,14 @@ export async function loadBookRecords(hotelId: string, bookId: string): Promise<
 export async function saveBookRecord(scope: Scope, book: BookDefinition, input: BookEntry, finalize: boolean, expected: BookEntry | null): Promise<BookEntry> {
   assertDemoWriteAllowed(scope.userId)
   if (input.hotelId !== scope.hotelId) throw new Error('El registro pertenece a otro hotel.')
+  if (!input.supersedes) {
+    const latest = await loadBookRecords(scope.hotelId, book.id)
+    const schedule = controlSchedule(book, input, latest)
+    const blocked = schedule.find(s => !s.due && input.answers[s.field.id]?.value)
+    if (blocked?.nextDue) throw new Error(dueMessage(blocked.nextDue) + ' Recarga el historial.')
+    input = { ...input, controlIds: schedule.filter(s => s.due).map(s => s.field.id) }
+    if (input.date > hotelDay()) throw new Error('No se puede registrar una revisión futura.')
+  }
   const issues = validateEntry(book, input, finalize)
   if (issues.length) throw new Error(issues.join('\n'))
   const allowed = new Set(entryFields(book, input).map(field => field.id))

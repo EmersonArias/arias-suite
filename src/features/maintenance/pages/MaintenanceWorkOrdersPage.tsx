@@ -11,6 +11,8 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
+import { workOrderAccess } from '../../../shared/maintenance/preventiveSchedule'
+import { useHotelDay } from '../../../shared/maintenance/useHotelDay'
 
 type TicketAsset = {
   id: string
@@ -187,6 +189,7 @@ function getWorkDescription(item: WorkOrder) {
 
 
 export default function MaintenanceWorkOrdersPage() {
+  useHotelDay()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { hotel } = useHotelScope()
@@ -500,6 +503,8 @@ export default function MaintenanceWorkOrdersPage() {
 
   async function setTicketStatus(ticket: WorkOrder, targetStatus: 'IN_MANAGEMENT' | 'IN_PROGRESS') {
     if (ticket.status === 'COMPLETED' || ticket.status === 'REJECTED') return
+    const access = workOrderAccess(ticket)
+    if (targetStatus === 'IN_PROGRESS' && !access.allowed) { setError(access.message); return }
 
     const label = targetStatus === 'IN_MANAGEMENT' ? 'en gestión' : 'en curso'
     const confirmed = await confirm({
@@ -527,6 +532,8 @@ export default function MaintenanceWorkOrdersPage() {
 
   async function closeTicket(ticket: WorkOrder) {
     if (ticket.status === 'COMPLETED' || ticket.status === 'REJECTED') return
+    const access = workOrderAccess(ticket)
+    if (!access.allowed) { setError(access.message); return }
 
     const confirmed = await confirm({
       title: 'Cerrar ticket',
@@ -831,13 +838,13 @@ export default function MaintenanceWorkOrdersPage() {
                             </button>
                           )}
                           {item.status === 'IN_MANAGEMENT' && (
-                            <button type="button" onClick={(event) => { event.stopPropagation(); void setTicketStatus(item, 'IN_PROGRESS') }} className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100" title="Pasar a en curso">
+                            <button type="button" onClick={(event) => { event.stopPropagation(); void setTicketStatus(item, 'IN_PROGRESS') }} className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-40" disabled={!workOrderAccess(item).allowed} title={workOrderAccess(item).allowed ? "Pasar a en curso" : workOrderAccess(item).message}>
                               En curso
                             </button>
                           )}
                           {item.status !== 'COMPLETED' && item.status !== 'REJECTED' && (
                             <>
-                              <button type="button" onClick={(event) => { event.stopPropagation(); void closeTicket(item) }} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100" title="Cerrar ticket">
+                              <button type="button" onClick={(event) => { event.stopPropagation(); void closeTicket(item) }} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-40" disabled={!workOrderAccess(item).allowed} title={workOrderAccess(item).allowed ? "Cerrar ticket" : workOrderAccess(item).message}>
                                 Cerrar
                               </button>
                               <button type="button" onClick={(event) => { event.stopPropagation(); void rejectTicket(item) }} className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[10px] font-semibold text-rose-700 hover:bg-rose-100" title="Rechazar ticket">

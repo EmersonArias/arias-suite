@@ -10,6 +10,8 @@ import { supabase } from '../../../lib/supabase'
 import { ariasAuth } from '../../../core/auth/authService'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
+import { planAccess } from '../../../shared/maintenance/preventiveSchedule'
+import { useHotelDay } from '../../../shared/maintenance/useHotelDay'
 
 type FrequencyKey =
   | 'DAILY'
@@ -254,6 +256,7 @@ function uniqueWorks(
 }
 
 export default function MaintenancePamPage() {
+  useHotelDay()
   const navigate = useNavigate()
   const { hotel } = useHotelScope()
   const { confirm: showConfirm } = useSystemDialog()
@@ -539,9 +542,15 @@ export default function MaintenancePamPage() {
   const selectedLabel =
     frequencyCards.find((card) => card.key === selectedFrequency)?.label ?? ''
 
+  function reviewAccess(work: PamWork) {
+    const plan = maintenancePlans.find(p => p.id === work.planId)
+    return planAccess(plan ? { ...plan, active: true } : null)
+  }
   async function markWorkCompleted(work: PamWork) {
     const key = `${work.sourceId}-${work.work}`
     if (!work.planId || checkingWorkKey === key || work.state === 'Revisada') return
+    const access = reviewAccess(work)
+    if (!access.allowed) { setError(access.message); return }
 
     const confirmed = await showConfirm({
       title: 'Marcar revisión como realizada',
@@ -575,7 +584,7 @@ export default function MaintenancePamPage() {
         .from('maintenance_work_orders')
         .select('id, scheduled_date')
         .eq('maintenance_plan_id', work.planId)
-        .in('status', ['PENDING', 'IN_PROGRESS'])
+        .in('status', ['PENDING', 'IN_MANAGEMENT', 'IN_PROGRESS'])
         .order('scheduled_date', { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle()
@@ -796,6 +805,7 @@ export default function MaintenancePamPage() {
                         {work.nextRevision
                           ? formatDate(work.nextRevision)
                           : 'Pendiente de primera revisión'}
+                        {!reviewAccess(work).allowed && <span className="mt-1 block max-w-56 whitespace-normal text-[10px] text-sky-800">{reviewAccess(work).message}</span>}
                       </td>
                       <td className="px-2 py-1 font-medium text-slate-700">{work.executor}</td>
                       <td className="px-2 py-1">
@@ -821,7 +831,8 @@ export default function MaintenancePamPage() {
                         <input
                           type="checkbox"
                           checked={work.state === 'Revisada'}
-                          disabled={!work.planId || work.state === 'Revisada' || checkingWorkKey === `${work.sourceId}-${work.work}`}
+                          disabled={!reviewAccess(work).allowed || work.state === 'Revisada' || checkingWorkKey === `${work.sourceId}-${work.work}`}
+                          title={reviewAccess(work).message}
                           onChange={() => void markWorkCompleted(work)}
                           aria-label={work.state === 'Revisada' ? 'Revisada' : 'Marcar como revisada'}
                           className="h-5 w-5 cursor-pointer rounded border-slate-300 accent-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"

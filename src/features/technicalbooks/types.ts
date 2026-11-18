@@ -15,5 +15,6 @@ export type BookEntry = {
   answers: Record<string, Answer>; observations: string; evidence: Evidence[]
   status: 'DRAFT' | 'FINAL'; revision: number; supersedes: string | null; correctionReason: string
   serverVersion?: number
+  controlIds?: string[]
   createdAt: string; finalizedAt: string | null
 }

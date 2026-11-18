@@ -7,7 +7,7 @@ import {
   FileText,
   Plus,
   Save,
-  Trash2,
+  Pencil,
   Waves,
 } from 'lucide-react'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
@@ -15,34 +15,23 @@ import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
 
-export type WaterQualityBookType = 'pool' | 'spa'
-type Disinfectant = 'CHLORINE' | 'BROMINE'
+import { useAuth } from '../../auth/context/AuthProvider'
+import { useHotelScope } from '../../../shared/context/HotelScopeContext'
+import { isDemoUser } from '../../../core/access/demoReadOnly'
+import { correction, createEntry } from '../../technicalbooks/bookModel'
+import { loadBookRecords, saveBookRecord } from '../../technicalbooks/bookRepository'
+import type { BookEntry } from '../../technicalbooks/types'
+import { decodeSample, encodeSample, waterBook } from '../waterBooks'
+import type { Sample, WaterBookType } from '../waterBooks'
+import { hotelDay } from '../../../shared/maintenance/preventiveSchedule'
 
-interface SampleRecord {
-  id: string
-  date: string
-  time: string
-  temperature: string
-  freeChlorine: string
-  combinedChlorine: string
-  totalChlorine: string
-  bromine: string
-  ph: string
-  transparency: boolean | null
-  turbidity: string
-  filteredWater: string
-  filtersCleaned: boolean | null
-  technician: string
-  notes: string
-  disinfectant: Disinfectant
-}
-
+export type WaterQualityBookType = WaterBookType
+type Disinfectant = Sample['disinfectant']
 interface WaterQualityBookPageProps {
   type: WaterQualityBookType
 }
 
-const emptySample: SampleRecord = {
-  id: '',
+const emptySample: Sample = {
   date: '',
   time: '',
   temperature: '',
@@ -60,18 +49,8 @@ const emptySample: SampleRecord = {
   disinfectant: 'CHLORINE',
 }
 
-function pad(value: number) {
-  return String(value).padStart(2, '0')
-}
-
-function localDate() {
-  const now = new Date()
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
-
 function localTime() {
-  const now = new Date()
-  return `${pad(now.getHours())}:${pad(now.getMinutes())}`
+  return new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' }).format(new Date())
 }
 
 function toNumber(value: string) {
@@ -162,19 +141,45 @@ function ParameterCard({
 }
 
 export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps) {
+  const { session } = useAuth()
+  const { hotel } = useHotelScope()
+  if (!hotel || !session?.user.id) return <p>Selecciona un hotel para consultar el libro.</p>
+  return <WaterSamples key={[hotel.id, session.user.id, type].join(':')} type={type} hotelId={hotel.id} userId={session.user.id} hotelName={hotel.name} />
+}
+
+function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookType; hotelId: string; userId: string; hotelName: string }) {
+  const book = useMemo(() => waterBook(type), [type])
+  const demo = isDemoUser(userId)
   const navigate = useNavigate()
-  const { alert: showAlert, confirm } = useSystemDialog()
+  const { alert: showAlert } = useSystemDialog()
   const isSpa = type === 'spa'
   const title = isSpa ? 'Libro de SPA' : 'Libro de Piscina'
   const subtitle = isSpa ? 'Control de calidad del agua del vaso de hidromasaje' : 'Control de calidad del agua de la piscina'
-  const [records, setRecords] = useState<SampleRecord[]>([])
-  const [form, setForm] = useState<SampleRecord>(() => ({
+  const [records, setRecords] = useState<BookEntry[]>([])
+  const [form, setForm] = useState<Sample>(() => ({
     ...emptySample,
-    date: localDate(),
+    date: hotelDay(),
     time: localTime(),
   }))
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editing, setEditing] = useState(true)
+  const [editable, setEditing] = useState(!demo)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const saving = useRef(false)
+  const [loadError, setLoadError] = useState('')
+  const [attempt, retry] = useState(0)
+  const [reason, setReason] = useState('')
+  const [draftId, setDraftId] = useState(() => crypto.randomUUID())
+  const selected = records.find(r => r.id === selectedId)
+  const editing = editable && !demo && !busy && !loading && !loadError
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    loadBookRecords(hotelId, type).then(rows => {
+      if (active) { setRecords(rows); setLoadError('') }
+    }).catch(e => { if (active) setLoadError(e.message) }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [hotelId, type, attempt])
   const [disinfectant, setDisinfectant] = useState<Disinfectant>('CHLORINE')
   const technicianRef = useRef<HTMLInputElement>(null)
 
@@ -182,7 +187,7 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
     setForm((current) => ({ ...current, disinfectant }))
   }, [disinfectant])
 
-  const updateField = <K extends keyof SampleRecord>(field: K, value: SampleRecord[K]) => {
+  const updateField = <K extends keyof Sample>(field: K, value: Sample[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -209,61 +214,51 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
   const bromineStatus = rangeStatus(form.bromine, 2, 5, undefined, 10)
 
   function handleNew() {
+    setDraftId(crypto.randomUUID())
+    setReason('')
     setSelectedId(null)
-    setForm({ ...emptySample, date: localDate(), time: localTime(), disinfectant })
+    setForm({ ...emptySample, date: hotelDay(), time: localTime(), disinfectant })
     setEditing(true)
     requestAnimationFrame(() => technicianRef.current?.focus())
   }
 
-  function handleSelect(record: SampleRecord) {
+  function handleSelect(record: BookEntry) {
+    const sample = decodeSample(record)
     setSelectedId(record.id)
-    setForm({ ...record })
-    setDisinfectant(record.disinfectant)
-    setEditing(false)
+    setForm(sample)
+    setReason(record.correctionReason)
+    setDisinfectant(sample.disinfectant)
+    setEditing(record.status === 'DRAFT' && record.userId === userId && !demo)
   }
 
-  async function handleSave() {
-    if (!form.date || !form.time || !form.technician.trim()) {
-      await showAlert({
-        title: 'Datos obligatorios',
-        message: 'Debes indicar fecha, hora y técnico antes de guardar la muestra.',
-        variant: 'warning',
-      })
-      return
+  async function handleSave(finalize: boolean) {
+    if (!editing || saving.current) return
+    saving.current = true
+    setBusy(true)
+    try {
+      const draft = selected?.status === 'DRAFT' ? selected : null
+      const base = draft ?? (selected ? correction(selected) : createEntry(book, { hotelId, userId }))
+      const entry = encodeSample({ ...base, id: draft?.id ?? draftId, template: book, correctionReason: reason }, { ...form, disinfectant, totalChlorine: calculatedTotalChlorine })
+      const saved = await saveBookRecord({ hotelId, userId }, book, entry, finalize, draft)
+      setRecords(rows => [saved, ...rows.filter(row => row.id !== saved.id)])
+      handleSelect(saved)
+      await showAlert({ title: finalize ? 'Muestra finalizada' : 'Borrador guardado', message: 'Disponible en el historial del hotel.', variant: 'success' })
+    } catch (error) {
+      await showAlert({ title: 'No se ha confirmado el guardado', message: error instanceof Error ? error.message : 'Revisa la conexión.', variant: 'warning' })
+    } finally {
+      saving.current = false
+      setBusy(false)
     }
-
-    const next = { ...form, totalChlorine: calculatedTotalChlorine }
-
-    if (selectedId) {
-      setRecords((current) => current.map((record) => record.id === selectedId ? next : record))
-    } else {
-      const newRecord = { ...next, id: crypto.randomUUID() }
-      setRecords((current) => [newRecord, ...current])
-      setSelectedId(newRecord.id)
-      setForm(newRecord)
-    }
-
-    setEditing(false)
-    await showAlert({
-      title: 'Muestra guardada',
-      message: 'La muestra queda registrada en la pantalla para esta sesión.',
-      variant: 'success',
-    })
   }
 
-  async function handleDelete() {
-    if (!selectedId) return
-    const confirmed = await confirm({
-      title: 'Eliminar muestra',
-      message: '¿Quieres eliminar esta muestra? Esta acción no se puede deshacer.',
-      variant: 'warning',
-      confirmLabel: 'Eliminar',
-    })
-    if (!confirmed) return
-    setRecords((current) => current.filter((record) => record.id !== selectedId))
-    setSelectedId(null)
-    setForm({ ...emptySample, date: localDate(), time: localTime(), disinfectant })
-    setEditing(true)
+  async function exportPdf() {
+    try {
+      const { buildBookPdf } = await import('../../technicalbooks/bookPdf')
+      const printable = selected ? [selected] : records.length ? records : [encodeSample(createEntry(book, { hotelId, userId }), form)]
+      buildBookPdf(book, printable, hotelName, demo).save((demo ? 'PRUEBA-' : '') + book.code + '.pdf')
+    } catch (e) {
+      await showAlert({ title: 'Error al generar el PDF', message: String(e), variant: 'warning' })
+    }
   }
 
   const notesWarning = [freeChlorineStatus, combinedChlorineStatus, phStatus, turbidityStatus, isSpa ? temperatureStatus : 'OK', disinfectant === 'BROMINE' ? bromineStatus : 'OK']
@@ -278,21 +273,29 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
               <BrandLogo onActivate={() => navigate('/')} className='h-9 w-auto shrink-0 object-contain sm:h-12' />
               <div className='min-w-0'>
                 <h1 className='text-xl font-bold leading-tight sm:text-3xl'>{title}</h1>
-                <p className='text-xs text-slate-500 sm:text-sm'>{subtitle}</p>
+                <p className='text-xs text-slate-500 sm:text-sm'>{book.code} · {hotelName} · {subtitle}</p>
               </div>
             </div>
             <div className='flex flex-wrap items-center gap-2'>
               <BackButton onBack={() => navigate('/registros-tecnicos')} />
               <HomeButton onHome={() => navigate('/')} />
-              <div className='hidden sm:flex gap-2'>
-                <ActionButton icon={Plus} label='Nueva muestra' onClick={handleNew} />
-                <ActionButton icon={Save} label='Guardar' tone='success' onClick={() => void handleSave()} />
-                <ActionButton icon={Trash2} label='Eliminar' tone='danger' disabled={!selectedId} onClick={() => void handleDelete()} />
+              <div className='flex flex-wrap gap-2'>
+                <ActionButton icon={FileText} label={selected || !records.length ? 'PDF de la muestra' : 'PDF del historial'} disabled={(!records.length && !demo) || busy || loading} onClick={() => void exportPdf()} />
+                {!demo && <>
+                  <ActionButton icon={Plus} label='Nueva muestra' disabled={busy} onClick={handleNew} />
+                  <ActionButton icon={Save} label='Guardar borrador' disabled={!editing} onClick={() => void handleSave(false)} />
+                  <ActionButton icon={Save} label='Finalizar muestra' tone='success' disabled={!editing} onClick={() => void handleSave(true)} />
+                  <ActionButton icon={Pencil} label='Rectificar' disabled={busy || editable || selected?.status !== 'FINAL' || records.some(r => r.supersedes === selectedId)} onClick={() => { setDraftId(crypto.randomUUID()); setReason(''); setEditing(true) }} />
+                </>}
               </div>
             </div>
           </div>
         </header>
 
+        {loadError && <p role='alert'>{loadError} <button onClick={() => retry(n => n + 1)}>Reintentar</button></p>}
+        {loading && <p role='status'>Cargando muestras…</p>}
+        {demo && <p>PRUEBA · Solo lectura</p>}
+        {selected && (selected.status === 'FINAL' && editable || !!selected.supersedes) && <label className='block p-3'>Motivo de rectificación<input className='block w-full rounded border p-2' disabled={!editing} value={reason} onChange={e => setReason(e.target.value)} /></label>}
         <section className='mb-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 shadow-sm sm:p-4'>
           <div className='flex items-start gap-3'>
             <ClipboardPlus className='mt-0.5 shrink-0 text-blue-700' size={20} />
@@ -321,7 +324,7 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
               <div className='grid gap-3 sm:grid-cols-3'>
                 <label className='block'>
                   <span className='mb-1 block text-xs font-semibold text-slate-600'>Fecha</span>
-                  <input type='date' value={form.date} disabled={!editing} onChange={(event) => updateField('date', event.target.value)} className='w-full rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' />
+                  <input type='date' value={form.date} disabled={!editing || selected?.status === 'FINAL' || !!selected?.supersedes} onChange={(event) => updateField('date', event.target.value)} className='w-full rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 disabled:bg-slate-100' />
                 </label>
                 <label className='block'>
                   <span className='mb-1 block text-xs font-semibold text-slate-600'>Hora</span>
@@ -420,26 +423,26 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
               <div className='flex items-center justify-between gap-3'>
                 <div>
                   <h2 className='text-base font-bold'>Muestras registradas</h2>
-                  <p className='text-[11px] text-slate-500'>{records.length} en esta sesión</p>
+                  <p className='text-[11px] text-slate-500'>{records.length} en el historial del hotel</p>
                 </div>
-                <button type='button' onClick={handleNew} className='rounded-xl border border-blue-100 bg-blue-50 p-2 text-blue-700 sm:hidden' aria-label='Nueva muestra'>
+                <button type='button' disabled={busy || demo} onClick={handleNew} className='rounded-xl border border-blue-100 bg-blue-50 p-2 text-blue-700 sm:hidden' aria-label='Nueva muestra'>
                   <Plus size={18} />
                 </button>
               </div>
               <div className='mt-3 max-h-[420px] space-y-2 overflow-auto pr-1'>
                 {records.map((record) => (
-                  <button key={record.id} type='button' onClick={() => handleSelect(record)} className={'w-full rounded-xl border p-3 text-left transition ' + (selectedId === record.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
+                  <button key={record.id} type='button' disabled={busy} onClick={() => handleSelect(record)} className={'w-full rounded-xl border p-3 text-left transition ' + (selectedId === record.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
                     <div className='flex items-center justify-between gap-2'>
                       <span className='text-sm font-bold text-slate-800'>{record.date}</span>
                       <span className='text-[11px] font-semibold text-slate-500'>{record.time}</span>
                     </div>
                     <div className='mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500'>
                       <span>{record.technician || 'Sin técnico'}</span>
-                      <span>{record.disinfectant === 'BROMINE' ? 'Bromo' : 'Cloro'}</span>
+                      <span>{record.answers.disinfectant?.value} · Rev. {record.revision} · {record.status === 'FINAL' ? 'Finalizada' : 'Borrador'}</span>
                     </div>
                   </button>
                 ))}
-                {records.length === 0 && <div className='rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500'>Todavía no hay muestras en esta sesión.</div>}
+                {!loadError && !loading && records.length === 0 && <div className='rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500'>Todavía no hay muestras en el historial.</div>}
               </div>
             </section>
 
@@ -468,12 +471,7 @@ export default function WaterQualityBookPage({ type }: WaterQualityBookPageProps
           </div>
         </div>
 
-        <div className='fixed inset-x-3 bottom-3 z-20 sm:hidden'>
-          <div className='grid grid-cols-[1fr_1.4fr] gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur'>
-            <button type='button' onClick={handleNew} className='inline-flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-3 text-sm font-bold text-blue-800'><Plus size={17} /> Nueva</button>
-            <button type='button' onClick={() => void handleSave()} className='inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-sm font-bold text-white shadow-sm'><Save size={17} /> Guardar muestra</button>
-          </div>
-        </div>
+
       </div>
     </div>
   )

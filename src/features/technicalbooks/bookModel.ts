@@ -1,5 +1,6 @@
 import type { Answer, BookDefinition, BookEntry } from './types.ts'
 import { assertDemoWriteAllowed } from '../../core/access/demoReadOnly.ts'
+import { hotelDay } from '../../shared/maintenance/preventiveSchedule.ts'
 
 export type Scope = { hotelId: string; userId: string }
 export type SandboxStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -10,7 +11,7 @@ export function sandboxKey(scope: Scope) {
   return `arias-suite:technical-books:trial:v1:${encodeURIComponent(scope.userId)}:${encodeURIComponent(scope.hotelId)}`
 }
 export function localDay(now = new Date()) {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return hotelDay(now)
 }
 export function createEntry(book: BookDefinition, scope: Scope): BookEntry {
   const now = new Date()
@@ -20,7 +21,7 @@ export function createEntry(book: BookDefinition, scope: Scope): BookEntry {
     status: 'DRAFT', revision: 1, supersedes: null, correctionReason: '', createdAt: now.toISOString(), finalizedAt: null }
 }
 export function entryFields(book: BookDefinition, entry: BookEntry) {
-  return book.fields.filter(field => !field.frequency || entry.frequency === 'ALL' || field.frequency === entry.frequency)
+  return book.fields.filter(field => (!field.frequency || entry.frequency === 'ALL' || field.frequency === entry.frequency) && (!entry.controlIds || entry.controlIds.includes(field.id)))
 }
 export function decimal(value: string) {
   const normalized = value.trim().replace(',', '.')
@@ -47,14 +48,21 @@ export function fieldIssue(field: BookDefinition['fields'][number], answer: Answ
   if (value.length > 3000 || (answer?.note.length ?? 0) > 5000) return 'El texto de este control es demasiado largo.'
   return ''
 }
+// Postgres JSONB can reorder object keys when a saved draft is reloaded.
+function orderedKeys(_key: string, value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+}
 export function validateEntry(book: BookDefinition, entry: BookEntry, complete = false): string[] {
   const issues: string[] = []
   if (!validDay(entry.date)) issues.push('Indica una fecha válida.')
+  if (entry.date > hotelDay()) issues.push('No se puede registrar una revisión futura.')
+  if (entry.controlIds && (!entry.controlIds.length || new Set(entry.controlIds).size !== entry.controlIds.length || entry.controlIds.some(id => !book.fields.some(f => f.id === id && (!f.frequency || entry.frequency === 'ALL' || f.frequency === entry.frequency))))) issues.push('Selecciona al menos un control pendiente válido.')
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(entry.time)) issues.push('Indica una hora válida.')
   if (!entry.asset.trim()) issues.push(`Indica ${book.assetLabel.toLowerCase()}.`)
   if (!entry.technician.trim()) issues.push('Indica el técnico responsable.')
   if (entry.bookId !== book.id || entry.definitionHash !== book.sha256) issues.push('La versión de la ficha no coincide con el libro.')
-  if (JSON.stringify(entry.template) !== JSON.stringify(book)) issues.push('La plantilla guardada no coincide con la versión de este formulario.')
+  if (JSON.stringify(entry.template, orderedKeys) !== JSON.stringify(book, orderedKeys)) issues.push('La plantilla guardada no coincide con la versión de este formulario.')
   if (!(entry.frequency in frequencyLabels)) issues.push('Frecuencia de controles no válida.')
   if (entry.supersedes && !entry.correctionReason.trim()) issues.push('Indica el motivo de la rectificación.')
   for (const field of entryFields(book, entry)) {

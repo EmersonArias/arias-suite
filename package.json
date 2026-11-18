@@ -16,7 +16,8 @@
     "validate:access-log": "node --test scripts/validate-access-log.test.mjs",
     "validate:demo": "node --test scripts/validate-demo-read-only.test.mjs",
     "validate:modules": "node --test scripts/validate-modules.test.mjs scripts/check-local-environment.test.mjs",
-    "validate:books:database": "node scripts/validate-technical-books-database.test.mjs"
+    "validate:books:database": "node scripts/validate-technical-books-database.test.mjs",
+    "validate:preventives": "node --test scripts/validate-preventive-schedule.test.mjs && node scripts/validate-preventive-database.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

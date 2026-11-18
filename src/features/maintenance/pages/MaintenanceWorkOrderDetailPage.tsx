@@ -7,6 +7,8 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../auth/context/AuthProvider'
+import { dueMessage, hotelDay } from '../../../shared/maintenance/preventiveSchedule'
+import { useHotelDay } from '../../../shared/maintenance/useHotelDay'
 
 type WorkOrder = {
   id: string; hotel_id: string; scheduled_job_id: string | null; maintenance_plan_id: string | null
@@ -72,6 +74,7 @@ function statusTone(item:WorkOrder){
 function fmtDateTime(v:string|null){ return v ? new Date(v).toLocaleString('es-ES') : '—' }
 
 export default function MaintenanceWorkOrderDetailPage(){
+  useHotelDay()
   const navigate=useNavigate()
   const location=useLocation()
   const { workOrderId }=useParams<{workOrderId:string}>()
@@ -100,6 +103,8 @@ export default function MaintenanceWorkOrderDetailPage(){
   const [assignmentSaving,setAssignmentSaving]=useState(false)
   const galleryRef=useRef<HTMLInputElement|null>(null)
   const canEdit = order?.status !== 'COMPLETED' && order?.status !== 'REJECTED'
+  const preventiveBlocked = baseline?.work_type === 'PREVENTIVE' && (!baseline.scheduled_date || baseline.scheduled_date > hotelDay())
+  const scheduleMessage = baseline?.scheduled_date ? dueMessage(baseline.scheduled_date) : 'Pendiente de programar: indica la fecha en el PAM.'
 
   async function load(){
     if(!workOrderId) return
@@ -256,6 +261,7 @@ export default function MaintenanceWorkOrderDetailPage(){
 
   async function changeTicketStatus(targetStatus: 'IN_MANAGEMENT' | 'IN_PROGRESS') {
     if (!order || !canEdit) return
+    if (targetStatus === 'IN_PROGRESS' && preventiveBlocked) { setError(scheduleMessage); return }
     const label = targetStatus === 'IN_MANAGEMENT' ? 'en gestión' : 'en curso'
     const confirmed = await confirm({
       title: 'Cambiar estado del ticket',
@@ -297,6 +303,7 @@ export default function MaintenanceWorkOrderDetailPage(){
 
   async function completeOrder(){
     if(!order)return
+    if (preventiveBlocked) { setError(scheduleMessage); return }
     setWorking(true);setError('');setMessage('')
     if ((order.execution_location_id ?? '') !== executionLocationId) {
       const locationSave = await supabase
@@ -400,13 +407,13 @@ export default function MaintenanceWorkOrderDetailPage(){
                 </button>
               )}
               {order.status === 'IN_MANAGEMENT' && (
-                <button type="button" onClick={()=>void changeTicketStatus('IN_PROGRESS')} disabled={working} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">
+                <button type="button" onClick={()=>void changeTicketStatus('IN_PROGRESS')} disabled={working || preventiveBlocked} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">
                   En curso
                 </button>
               )}
               {order.status !== 'COMPLETED' && order.status !== 'REJECTED' && (
                 <>
-                  <button type="button" onClick={()=>void completeOrder()} disabled={working} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                  <button type="button" onClick={()=>void completeOrder()} disabled={working || preventiveBlocked} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                     <CheckCircle2 size={16}/>Finalizar ticket
                   </button>
                   <button type="button" onClick={()=>void rejectTicket()} disabled={working} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50">
@@ -416,6 +423,7 @@ export default function MaintenanceWorkOrderDetailPage(){
               )}
             </div>
           </div>
+          {preventiveBlocked && canEdit && <p role="status" className="mt-3 rounded-xl bg-sky-50 p-3 text-sm text-sky-800">{scheduleMessage} El historial y la planificación siguen disponibles.</p>}
           {order.status!=='COMPLETED'&&<div className="mt-4 grid gap-3 sm:grid-cols-[240px_1fr]">
             <label><span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resultado de finalización</span><select value={result} onChange={e=>setResult(e.target.value as typeof result)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">{resultOptions.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
             <div className="flex items-end text-xs text-slate-500">Al finalizar un ticket preventivo se registra la ejecución real, se recalcula la próxima revisión y se genera automáticamente el siguiente ticket.</div>
