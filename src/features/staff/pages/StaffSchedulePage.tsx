@@ -726,13 +726,13 @@ export default function StaffSchedulePage() {
         </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
-            ['Operarios activos',String(operators.filter(o=>o.active).length)],
-            ['Turnos previstos',String(summary.reduce((v,s)=>v+s.shifts,0))],
-            ['Fines de semana previstos',String(summary.reduce((v,s)=>v+s.total,0))],
+            ['Operarios activos',String(filteredOperators.filter(o=>o.active).length)],
+            ['Turnos previstos',String(filteredSummary.reduce((v,s)=>v+s.shifts,0))],
+            ['Fines de semana previstos',String(filteredSummary.reduce((v,s)=>v+s.total,0))],
           ].map(([label,value])=><div key={label} className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</p><p className="mt-0.5 text-lg font-bold sm:mt-1 sm:text-2xl">{value}</p></div>)}
         </div>
         <div className="space-y-1.5 md:hidden">
-          {summary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
+          {filteredSummary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
             <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
               {[['Previstas',hours(s.planned)],['Turnos',String(s.shifts)],['F. semana',String(s.total)],
@@ -752,7 +752,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
           <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
-            {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
+            {filteredSummary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
@@ -765,7 +765,7 @@ export default function StaffSchedulePage() {
 
       {tab==='FINES'&&<section className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
         <h2 className="mb-2 text-sm font-bold sm:text-lg">Fines de semana · {year}</h2>
-        <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">{summary.map(s=><details key={s.operator.id} className="group rounded-lg border px-3 py-2 sm:rounded-xl sm:p-3">
+        <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">{filteredSummary.map(s=><details key={s.operator.id} className="group rounded-lg border px-3 py-2 sm:rounded-xl sm:p-3">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
             <span className="min-w-0 truncate text-sm font-semibold">{s.operator.display_name}</span>
             <span className="shrink-0 text-sm font-bold">{num(s.total)} <span className="text-xs font-normal text-slate-500">sem.</span> <span className="text-slate-400">⌄</span></span>
@@ -858,7 +858,7 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
-        {!demo&&<StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
+        {!demo&&operatorFilter!=='ALL'&&<StaffPeriodEditor kind="VACATION" operators={filteredOperators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
           onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>}
@@ -1083,7 +1083,7 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
-        {!demo&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
+        {!demo&&operatorFilter!=='ALL'&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={filteredOperators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
           onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>}
@@ -1093,15 +1093,15 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
           </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
-            {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
-              className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
+            {filteredSummary.map(s=><div key={s.operator.id}
+              className="rounded-lg border border-slate-200 p-2 text-left">
               <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
               <div className="mt-1 text-xl font-bold">{s.sick} <span className="text-xs font-normal">días</span></div>
               <div className="mt-0.5 text-[10px] text-slate-500">{s.sickDocumented} justif. · {s.sickUnjustified} no justif. · {s.sickUnknown} por revisar</div>
-            </button>)}
+            </div>)}
           </div>
         </div>
-        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
           <div className="mt-2 grid grid-cols-4 gap-1.5">
             {[
@@ -1226,7 +1226,7 @@ export default function StaffSchedulePage() {
               <th className="p-2">Fecha afectada</th><th className="p-2">Origen</th><th className="p-2">Acción</th>
               <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
             </tr></thead>
-            <tbody>{history.filter(row=>selectedId===''||row.operator_id===selectedId).map(row=>
+            <tbody>{history.filter(row=>operatorFilter==='ALL'||row.operator_id===operatorFilter).map(row=>
               <tr key={row.id} className="border-b">
                 <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
                 <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
