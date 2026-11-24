@@ -18,9 +18,10 @@ import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
+import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 
-type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
@@ -34,6 +35,7 @@ const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'FESTIVOS',label:'Festivos',mobile:'Festivos'}, {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
+  {id:'HISTORIAL',label:'Historial de cambios',mobile:'Historial'},
   {id:'REPORTES',label:'Reportes y PDF',mobile:'PDF'},
 ]
 const shiftPresets = [
@@ -501,6 +503,24 @@ export default function StaffSchedulePage() {
     setBusy(false)
   }
 
+  async function savePeriod(kind:'VACATION'|'MEDICAL_LEAVE'){
+    if(!hotel?.id||!selectedId)return
+    if(!periodStart||!periodEnd||periodStart>periodEnd){
+      setError('Comprueba las fechas del período.');return
+    }
+    if(!window.confirm('¿Registrar '+(kind==='VACATION'?'vacaciones':'baja')+
+      ' de '+(operators.find(o=>o.id===selectedId)?.display_name??'este trabajador')+
+      ' desde '+asDisplayDate(periodStart)+' hasta '+asDisplayDate(periodEnd)+
+      '? Se reflejará en cuadrante y en el historial.'))return
+    setBusy(true);setError('');setSuccess('')
+    const {data,error:saveError}=await supabase.rpc('staff_set_period',{
+      p_hotel_id:hotel.id,p_operator_id:selectedId,p_start:periodStart,p_end:periodEnd,p_state:kind,
+    })
+    if(saveError)setError(saveError.message)
+    else {setSuccess(data+' fechas actualizadas en cuadrante, '+(kind==='VACATION'?'Vacaciones':'Bajas')+
+      ' e historial.');await reload()}
+    setBusy(false)
+  }
   async function saveVacation(){
     if(!hotel?.id||!selectedId)return
     const e=entitled.trim()===''?null:Number(entitled)
@@ -742,6 +762,11 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
+        <StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
+          start={periodStart} end={periodEnd} busy={busy}
+          onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>
+
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">
@@ -993,6 +1018,11 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
+        <StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
+          start={periodStart} end={periodEnd} busy={busy}
+          onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>
+
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
@@ -1117,6 +1147,35 @@ export default function StaffSchedulePage() {
             </details>)}
           </div>}
         </div>}
+      </section>}
+
+      {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+        <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
+        <p className="mt-1 text-xs text-slate-600">
+          Últimos 200 cambios del año. Incluye altas, cambios y supresiones realizados
+          desde el cuadrante, las fichas de vacaciones y las bajas. No se pueden editar aquí.
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-xs">
+            <thead><tr className="border-b bg-slate-50">
+              <th className="p-2">Cuándo</th><th className="p-2">Operario</th>
+              <th className="p-2">Fecha afectada</th><th className="p-2">Acción</th>
+              <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
+            </tr></thead>
+            <tbody>{history.filter(row=>selectedId===''||row.operator_id===selectedId).map(row=>
+              <tr key={row.id} className="border-b">
+                <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
+                <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
+                <td className="p-2">{asDisplayDate(row.work_date)}</td>
+                <td className="p-2">{row.action}</td>
+                <td className="p-2">{String(row.previous_values?.state??'—')} → {String(row.new_values?.state??'—')}</td>
+                <td className="p-2 font-mono text-[10px]">{row.actor_user_id??'No identificado'}</td>
+              </tr>)}</tbody>
+          </table>
+          {history.length===0&&<p className="p-3 text-xs text-slate-500">
+            Aún no hay cambios nuevos auditados. El histórico anterior no se ha reconstruido artificialmente.
+          </p>}
+        </div>
       </section>}
 
       {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
