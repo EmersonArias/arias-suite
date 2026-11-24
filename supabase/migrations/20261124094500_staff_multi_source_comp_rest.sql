@@ -7,7 +7,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS staff_overtime_schedule_source_unique
 
 -- Actualizar el trigger anterior para que también use el índice compuesto.
 CREATE OR REPLACE FUNCTION public.staff_sync_compensatory_rest()
-RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
 DECLARE earned_minutes integer;
 DECLARE already_consumed integer;
 BEGIN
@@ -57,7 +57,7 @@ BEGIN
     WHERE linked_schedule_entry_id=NEW.id AND source_kind='SCHEDULE';
  END IF;
  RETURN NEW;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.staff_schedule_compensatory_day(
  p_hotel_id uuid, p_operator_id uuid, p_work_date date, p_allocations jsonb
