@@ -73,7 +73,7 @@ function BookHistory({ book, hotelId, hotelName, demo }: { book: BookDefinition;
     setExporting(true)
     try {
       const { buildBookPdf } = await import('./bookPdf')
-      previewPdf(buildBookPdf(book, filtered, hotelName, demo), [demo ? 'PRUEBA' : '', book.code, book.id, from, to].filter(Boolean).join('-') + '.pdf')
+      previewPdf(await buildBookPdf(book, filtered, hotelName, demo), [demo ? 'PRUEBA' : '', book.code, book.id, from, to].filter(Boolean).join('-') + '.pdf')
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'No se pudo generar el PDF.')
     } finally {
