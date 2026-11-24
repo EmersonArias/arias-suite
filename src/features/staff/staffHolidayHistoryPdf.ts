@@ -7,9 +7,9 @@ type HistoryRow={
  new_values:Record<string,unknown>|null
 }
 const display=(date:string)=>date.split('-').reverse().join('/')
-async function pdfBase(title:string,hotelName:string,year:number) {
+async function pdfBase(title:string,hotelName:string,year:number,orientation:'portrait'|'landscape'='landscape') {
  const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
- const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape',compress:true})
+ const doc=new jsPDF({unit:'mm',format:'a4',orientation,compress:true})
  doc.setFontSize(15);doc.text(title+' · '+year,11,15)
  doc.setFontSize(9);doc.text(hotelName+' · '+new Date().toLocaleDateString('es-ES'),11,22)
  return {doc,autoTable}
@@ -21,7 +21,7 @@ export async function exportHolidayAuditPdf(input:{
  const people=input.operators.filter(o=>input.operatorIds.includes(o.id))
  if(!people.length)throw new Error('Selecciona uno o más operarios.')
  const audit=holidayAudit(people,input.days,input.holidays,input.year,input.firstScheduledDates)
- const {doc,autoTable}=await pdfBase('Control de festivos',input.hotelName,input.year)
+ const {doc,autoTable}=await pdfBase('Control de festivos',input.hotelName,input.year,'portrait')
  // Cada trabajador tiene su propia página: el nombre solo aparece en cabecera.
  // El informe simplificado muestra únicamente fecha, denominación y disfrute.
  people.forEach((person,index)=>{
