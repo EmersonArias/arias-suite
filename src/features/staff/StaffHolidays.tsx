@@ -125,19 +125,19 @@ export default function StaffHolidays({
          <thead><tr className="border-b bg-slate-50">
            <th className="p-2">Trabajador</th><th>Turnos festivos previstos</th>
            <th>Trabajos confirmados</th><th>Disfrutes anotados</th>
-           <th>Festivos distintos</th><th>Duplicados</th><th>Diferencia orientativa</th>
+           <th>Festivos distintos</th><th>Sin asignar del calendario</th><th>Duplicados</th><th>Diferencia turnos/disfrutes</th>
          </tr></thead>
          <tbody>{audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
            .map(s=><tr key={s.operator.id} className="border-b">
              <td className="p-2 font-semibold">{s.operator.display_name}</td>
              <td>{s.scheduled}</td><td>{s.confirmed}</td><td>{s.enjoyed}</td>
-             <td>{s.distinctOrigins}</td>
+             <td>{s.distinctOrigins} / {audit.official.length}</td><td className={s.calendarPending?'font-semibold text-amber-800':''}>{s.calendarPending}</td>
              <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{s.duplicateOrigins}</td>
              <td>{s.diff>0?'+'+s.diff:s.diff}</td>
            </tr>)}</tbody>
        </table>
      </div>
-     <p className="mt-2 text-[11px] text-slate-500">La diferencia compara turnos festivos previstos con festivos distintos anotados como disfrutados. Es un indicador para revisar, no el saldo legal de festivos, que depende de días efectivamente trabajados y acuerdos aplicables.</p>
+     <p className="mt-2 text-[11px] text-slate-500">«Sin asignar» indica festivos del calendario que aún no están vinculados a una fecha de disfrute, no necesariamente días que el empleado tenga derecho a recuperar. La diferencia turnos/disfrutes es solo orientativa y no constituye un saldo legal.</p>
    </div>
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold">Detalle por fecha y trabajador</h3>
