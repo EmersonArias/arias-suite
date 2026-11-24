@@ -1,3 +1,4 @@
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf, previewHtml } from '../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, Printer, Search } from 'lucide-react'
@@ -249,7 +250,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
     if(!snapshot||loading||exporting||!unchanged)return
     setExporting(true);setError('')
     try {
-      const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
+      const { jsPDF, autoTable } = await loadPdfLibraries()
       const doc=new jsPDF({orientation:period==='MONTH'?'portrait':'landscape',unit:'mm',format:'a4',compress:true})
       doc.setProperties({title:'Planificador horario · '+periodLabel,subject:'Reporte de turnos'})
       const pageWidth=period==='MONTH'?210:297
