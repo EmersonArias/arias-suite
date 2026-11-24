@@ -22,7 +22,7 @@ GRANT SELECT ON public.staff_schedule_history TO authenticated;
 REVOKE INSERT,UPDATE,DELETE ON public.staff_schedule_history FROM authenticated,anon;
 
 CREATE OR REPLACE FUNCTION public.staff_record_schedule_change()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $audit$
 BEGIN
  IF TG_OP='UPDATE' AND to_jsonb(OLD) - ARRAY['updated_at','changed_by']
       = to_jsonb(NEW) - ARRAY['updated_at','changed_by'] THEN
@@ -37,7 +37,7 @@ BEGIN
    CASE WHEN TG_OP='DELETE' THEN NULL ELSE to_jsonb(NEW) END
  );
  RETURN COALESCE(NEW,OLD);
-END $$;
+END $audit$;
 REVOKE ALL ON FUNCTION public.staff_record_schedule_change() FROM PUBLIC;
 DROP TRIGGER IF EXISTS staff_schedule_change_history ON public.staff_schedule_entries;
 CREATE TRIGGER staff_schedule_change_history
