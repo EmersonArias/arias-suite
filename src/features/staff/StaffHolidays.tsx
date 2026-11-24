@@ -12,6 +12,7 @@ type Props={
  holidays:Array<{holiday_date:string;label:string}>
  onReload:()=>Promise<void>
  onEditDay:(operatorId:string,date:string)=>void
+ readOnly?:boolean
 }
 const dayLabel=(date:string)=>date.split('-').reverse().join('/')
 const kind=(day:StaffDay|null)=> {
@@ -23,7 +24,7 @@ const kind=(day:StaffDay|null)=> {
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
 export default function StaffHolidays({
- hotelId,year,operators,days,holidays,onReload,onEditDay,
+ hotelId,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
@@ -87,7 +88,7 @@ export default function StaffHolidays({
        {unmatched.length} disfrutes no tienen festivo de origen reconocible. Requieren revisión manual.
      </p>}
    </div>}
-   <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+   {!readOnly&&<div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold"><CalendarPlus size={17} className="mr-2 inline"/>Añadir o corregir un festivo del calendario</h3>
      <p className="mt-1 text-xs text-slate-500">Se añade al calendario del hotel, no se asigna automáticamente a ningún trabajador.</p>
      <div className="mt-3 grid gap-2 sm:grid-cols-[160px_1fr_auto] sm:items-end">
@@ -109,7 +110,7 @@ export default function StaffHolidays({
          onClick={()=>{setDate(h.holiday_date);setLabel(h.label)}}
          className="rounded-md border bg-slate-50 px-2 py-1 text-xs">{dayLabel(h.holiday_date)} · {h.label}</button>)}
      </div>
-   </div>
+   </div>}
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-center justify-between gap-2">
        <h3 className="text-sm font-bold">Comparación por trabajador</h3>
