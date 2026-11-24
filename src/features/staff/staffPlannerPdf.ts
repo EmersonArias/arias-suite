@@ -1,3 +1,4 @@
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type {StaffDay,StaffOperator} from './staffModel'
 import {plannedMinutes,stateView} from './staffModel'
@@ -9,7 +10,7 @@ export async function exportPlannerSchedulePdf(input:{
 }){
  const people=input.operators.filter(o=>input.operatorId==='ALL'||o.id===input.operatorId)
  if(!people.length)throw new Error('No hay operarios para este PDF.')
- const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
+ const { jsPDF, autoTable } = await loadPdfLibraries()
  const doc=new jsPDF({format:'a4',orientation:'landscape',unit:'mm',compress:true})
  const heading=input.mode==='FINES'?'Fines de semana':'Cuadrante horario'
  const list=input.days.filter(d=>people.some(p=>p.id===d.operator_id)&&
