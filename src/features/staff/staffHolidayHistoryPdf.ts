@@ -25,7 +25,11 @@ export async function exportHolidayAuditPdf(input:{
  // Cada trabajador tiene su propia página: el nombre solo aparece en cabecera.
  // El informe simplificado muestra únicamente fecha, denominación y disfrute.
  people.forEach((person,index)=>{
-   if(index>0)doc.addPage()
+   if(index>0){
+     doc.addPage()
+     doc.setFontSize(15);doc.text('Control de festivos · '+input.year,11,15)
+     doc.setFontSize(9);doc.text(input.hotelName+' · '+new Date().toLocaleDateString('es-ES'),11,22)
+   }
    const rows=audit.matrix.filter(row=>row.operator.id===person.id)
    doc.setFontSize(12)
    doc.text('Trabajador: '+person.display_name,11,29)
