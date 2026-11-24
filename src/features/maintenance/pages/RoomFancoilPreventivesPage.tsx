@@ -1,9 +1,8 @@
+import { loadPdfLibraries } from '../../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { Download, FileText, X } from 'lucide-react'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
@@ -303,7 +302,7 @@ export default function RoomFancoilPreventivesPage() {
     setNotice('Guardado')
   }
 
-  function exportRoomListPdf() {
+  async function exportRoomListPdf() {
     // Exportar exactamente las mismas habitaciones que muestra el filtro del cuadrante.
     const rows = roomsByFloor
       .flatMap(({ floor, rooms }) => rooms.map((code) => ({
@@ -315,7 +314,8 @@ export default function RoomFancoilPreventivesPage() {
     if (!rows.length) {
       setNotice('No hay preventivos en este filtro para exportar.')
       return
-    }
+    } 
+  const { jsPDF, autoTable } = await loadPdfLibraries()
 
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const filterLabel = filter === 'ALL' ? 'Todos los estados' : STATUS_LABELS[filter]
