@@ -259,7 +259,7 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     try {
       const { buildBookPdf } = await import('../../technicalbooks/bookPdf')
       const printable = selected ? [selected] : records.length ? records : [encodeSample(createEntry(book, { hotelId, userId }), form)]
-      previewPdf(buildBookPdf(book, printable, hotelName, demo), (demo ? 'PRUEBA-' : '') + book.code + '.pdf')
+      previewPdf(await buildBookPdf(book, printable, hotelName, demo), (demo ? 'PRUEBA-' : '') + book.code + '.pdf')
     } catch (e) {
       await showAlert({ title: 'Error al generar el PDF', message: String(e), variant: 'warning' })
     }
