@@ -16,9 +16,10 @@ import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '..
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
+import StaffHolidays from '../StaffHolidays'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 
-type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
@@ -29,7 +30,7 @@ type DayEditor = {
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
-  {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
+  {id:'FESTIVOS',label:'Festivos',mobile:'Festivos'}, {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
   {id:'REPORTES',label:'Reportes y PDF',mobile:'PDF'},
@@ -200,6 +201,12 @@ export default function StaffSchedulePage() {
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
   const usedHolidays=useMemo(()=>new Set(days.filter(d=>d.state==='PUBLIC_HOLIDAY')
     .map(d=>d.operator_id+'|'+(staffHolidayOrigin(d)??''))),[days])
+  const holidayUsageForDay=dayEditor&&dayEditor.state==='PUBLIC_HOLIDAY'
+    ?days.filter(d=>d.operator_id===dayEditor.operator_id&&d.state==='PUBLIC_HOLIDAY'
+       &&staffHolidayOrigin(d)===dayEditor.holiday_source_date):[]
+  const holidayPendingCount=dayEditor?holidays.filter(date=>
+    date.startsWith(dayEditor.work_date.slice(0,4))&&
+    !usedHolidays.has(dayEditor.operator_id+'|'+date)).length:0
   const availableHolidays=dayEditor?holidays.filter(date=>
     date.startsWith(dayEditor.work_date.slice(0,4))&&
     (!usedHolidays.has(dayEditor.operator_id+'|'+date)||date===dayEditor.holiday_source_date)):[]
@@ -598,6 +605,18 @@ export default function StaffSchedulePage() {
         operatorId={calendarFilter}
         onYearChange={setYear}
         onEditDay={openDay}
+      />}
+
+      {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
+        hotelId={hotel.id}
+        year={year}
+        operators={operators}
+        days={days}
+        holidays={holidays.filter(date=>date.startsWith(String(year))).map(date=>({
+          holiday_date:date,label:holidayLabels[date]??'Festivo',
+        }))}
+        onReload={reload}
+        onEditDay={(operatorId,day)=>{setTab('CUADRANTE');openDay(operatorId,day)}}
       />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
@@ -1142,7 +1161,17 @@ export default function StaffSchedulePage() {
                   </option>)}
                 </select>
               </label>
-              <p className="mt-1 text-xs text-amber-900">{availableHolidays.length} festivos disponibles para este trabajador. Se mostrará F y la fecha elegida en el cuadrante.</p>
+              <p className="mt-1 text-xs text-amber-900">
+                <strong>{holidayPendingCount} festivos sin asignar</strong> de este trabajador.
+                {dayEditor.holiday_source_date&&
+                  ' El festivo de este día también figura en el selector para poder editarlo; no es un festivo pendiente adicional.'}
+                {' '}El cuadrante mostrará F y la fecha elegida.
+              </p>
+              {holidayUsageForDay.length>1&&<p role="alert" className="mt-2 rounded-md border border-rose-300 bg-rose-50 p-2 text-xs font-bold text-rose-900">
+                Este festivo aparece {holidayUsageForDay.length} veces para este trabajador:
+                {' '}{holidayUsageForDay.map(d=>asDisplayDate(d.work_date)).join(', ')}.
+                Revisa cuál corresponde antes de guardar.
+              </p>
             </div>}
             {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
               <h3 className="text-sm font-semibold text-sky-950">Repartir horas para descansar la jornada completa</h3>
