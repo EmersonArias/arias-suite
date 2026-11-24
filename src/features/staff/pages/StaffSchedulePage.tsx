@@ -613,7 +613,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}<button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
+          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -683,10 +683,6 @@ export default function StaffSchedulePage() {
         <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
           <div><h2 className="text-sm font-bold">Resumen anual · {year}</h2>
             <p className="text-xs text-slate-500">Horas programadas, vacaciones previstas y saldos pendientes.</p></div>
-          <button type="button" onClick={()=>void exportAnnualPdf()}
-            className="rounded-lg border px-3 py-2 text-xs font-semibold">
-            <Printer size={14} className="mr-1 inline"/>Descargar PDF
-          </button>
         </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
@@ -743,7 +739,6 @@ export default function StaffSchedulePage() {
         {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
-            <button type="button" onClick={()=>void exportSectionPdf('EXTRAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
             {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{n}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{hours(Number(v))}</p></div>)}
@@ -837,10 +832,6 @@ export default function StaffSchedulePage() {
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
-            <button type="button" onClick={()=>void exportSectionPdf('VACACIONES')}
-                className="shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold">
-                <Printer size={14} className="mr-1 inline"/>PDF
-              </button>
               {operatorFilter!=='ALL'&&<button type="button" onClick={()=>setOperatorFilter('ALL')}
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-[11px] font-semibold">
               Ver todos
@@ -1060,7 +1051,6 @@ export default function StaffSchedulePage() {
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
-            <button type="button" onClick={()=>void exportSectionPdf('BAJAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
           </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
             {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
@@ -1184,13 +1174,6 @@ export default function StaffSchedulePage() {
       {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
-          <button type="button" className="rounded-lg border px-3 py-2 text-xs font-semibold"
-            onClick={()=>void exportStaffHistoryPdf({
-              hotelName:hotel?.name??'Hotel',year,operators,history,
-              operatorIds:pdfSelectedOperators.map(p=>p.id),
-            }).catch(e=>setError(e instanceof Error?e.message:'No se pudo generar el PDF'))}>
-            <Printer size={14} className="mr-1 inline"/>PDF
-          </button>
         </div>
         <p className="mt-1 text-xs text-slate-600">
           Últimos 200 cambios del año. Incluye altas, cambios y supresiones realizados
