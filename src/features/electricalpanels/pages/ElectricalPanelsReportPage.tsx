@@ -1,3 +1,4 @@
+import { previewReportPage } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
@@ -134,7 +135,7 @@ export default function ElectricalPanelsReportPage() {
     )
 
   const printReport = () => {
-    window.print()
+    previewReportPage()
   }
 
   return (
