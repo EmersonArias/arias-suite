@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
@@ -360,7 +361,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
         doc.setFontSize(6)
         doc.text(summaryNote,left,293)
         doc.text('Pág. 1/1',right,293,{align:'right'})
-        doc.save(filename)
+        previewPdf(doc, filename)
         return
       }
       const body=weekGroups.flatMap(({start,week})=>[
@@ -405,7 +406,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
         },
       })
       if(dates.length===0){doc.setFontSize(10);doc.text('No hay registros para los filtros seleccionados.',10,37)}
-      doc.save(filename)
+      previewPdf(doc, filename)
     } catch(e) {
       setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error desconocido'))
     } finally {
