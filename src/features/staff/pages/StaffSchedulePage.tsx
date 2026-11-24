@@ -1288,7 +1288,11 @@ export default function StaffSchedulePage() {
         </div>
       </section>}
 
-      {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+      {tab==='NOTAS'&&operatorFilter==='ALL'&&<section className="max-w-3xl rounded-xl bg-white p-3 shadow-sm">
+        <p className="text-sm font-semibold">Observaciones privadas</p>
+        <p className="mt-2 text-xs text-slate-600">Selecciona un operario en el filtro superior para consultar o modificar sus observaciones.</p>
+      </section>}
+      {tab==='NOTAS'&&operatorFilter!=='ALL'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
         <h2 className="text-sm font-bold sm:text-base">Observaciones · {selected?.display_name??'operario'}</h2>
         <textarea value={privateNote} onChange={e=>setPrivateNote(e.target.value)} rows={4} className={baseInput+' mt-2'} placeholder="Observaciones administrativas y organizativas, sin diagnósticos ni información médica innecesaria."/>
         <button disabled={busy||!selected} onClick={()=>void saveNote()} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Guardar observaciones</button>
