@@ -121,7 +121,7 @@ export default function StaffSchedulePage() {
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [firstShiftDates,setFirstShiftDates]=useState<Record<string,string>>({})
-  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
+  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
   const [pdfOperatorIds,setPdfOperatorIds]=useState<string[]|null>(null)
   const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
   const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
@@ -176,7 +176,7 @@ export default function StaffSchedulePage() {
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
       supabase.from('staff_operator_first_shift').select('operator_id,first_shift_date').eq('hotel_id',hotel.id),
-      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,changed_at,actor_user_id,previous_values,new_values')
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,entity_kind,changed_at,actor_user_id,previous_values,new_values')
         .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
         .order('changed_at',{ascending:false}).limit(200),
     ])
@@ -1202,7 +1202,7 @@ export default function StaffSchedulePage() {
           <table className="w-full min-w-[560px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50">
               <th className="p-2">Cuándo</th><th className="p-2">Operario</th>
-              <th className="p-2">Fecha afectada</th><th className="p-2">Acción</th>
+              <th className="p-2">Fecha afectada</th><th className="p-2">Origen</th><th className="p-2">Acción</th>
               <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
             </tr></thead>
             <tbody>{history.filter(row=>selectedId===''||row.operator_id===selectedId).map(row=>
@@ -1210,8 +1210,14 @@ export default function StaffSchedulePage() {
                 <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
                 <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
                 <td className="p-2">{asDisplayDate(row.work_date)}</td>
+                <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??row.entity_kind}</td>
                 <td className="p-2">{row.action}</td>
-                <td className="p-2">{String(row.previous_values?.state??'—')} → {String(row.new_values?.state??'—')}</td>
+                <td className="p-2">
+                  {String(row.previous_values?.state??'—')} → {String(row.new_values?.state??'—')}
+                  <details className="mt-1 max-w-[250px]"><summary className="cursor-pointer text-sky-700">Ver cambios completos</summary>
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-[10px]">{JSON.stringify({anterior:row.previous_values,posterior:row.new_values},null,2)}</pre>
+                  </details>
+                </td>
                 <td className="p-2 font-mono text-[10px]">{row.actor_user_id??'No identificado'}</td>
               </tr>)}</tbody>
           </table>
