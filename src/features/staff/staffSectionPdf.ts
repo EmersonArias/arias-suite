@@ -14,12 +14,14 @@ function consumption(entry:StaffOvertime,ledger:StaffOvertime[]){
 export async function staffSectionPdf(options:{
   section:'EXTRAS'|'VACACIONES'|'BAJAS',
   hotelName:string,year:number,operators:StaffOperator[],days:StaffDay[],
-  overtime:StaffOvertime[],operatorId:string,statusFilter?:string
+  overtime:StaffOvertime[],operatorId:string,operatorIds?:string[],statusFilter?:string
 }) {
   const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
   const doc=new jsPDF({unit:'mm',format:'a4',compress:true})
   const heading=options.section==='EXTRAS'?'Horas extras':options.section==='VACACIONES'?'Vacaciones':'Bajas y ausencias'
-  const people=options.operators.filter(p=>options.operatorId==='ALL'||p.id===options.operatorId)
+  const people=options.operators.filter(p=>options.operatorIds!==undefined
+    ?options.operatorIds.includes(p.id)
+    :options.operatorId==='ALL'||p.id===options.operatorId)
   const names=new Map(options.operators.map(p=>[p.id,p.display_name]))
   const title=heading+' · '+options.year
   doc.setFontSize(16);doc.text(title,14,18)
