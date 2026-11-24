@@ -10,13 +10,29 @@ export type StaffDay = {
   actual_confirmed: boolean; justification: string;
   source_kind: string; source_code: string | null;
   vacation_origin_year: number | null;
+  holiday_source_date: string | null;
+  comp_source_entry_id: string | null;
+  comp_rest_minutes: number | null;
   vacation_taken_confirmed: boolean;
   vacation_confirmed_at: string | null;
   vacation_confirmed_by: string | null;
 };
+/** Referencia histórica (ISO o 08-dic) de un festivo disfrutado. */
+export function staffHolidayOrigin(day:StaffDay): string|null {
+  if(day.state!=='PUBLIC_HOLIDAY')return null
+  if(day.holiday_source_date)return day.holiday_source_date
+  const source=day.source_code??''
+  const iso=source.match(/\d{4}-\d{2}-\d{2}/)
+  if(iso)return iso[0]
+  const named=source.match(/^(\d{2})-(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/i)
+  if(!named)return null
+  const month:Record<string,string>={ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12'}
+  return day.work_date.slice(0,4)+'-'+month[named[2].toLowerCase()]+'-'+named[1]
+}
 export type StaffOvertime = {
   id: string; hotel_id: string; operator_id: string; entry_date: string;
   entry_type: string; minutes: number; reason: string; confirmed: boolean;
+  compensates_entry_id: string | null; linked_schedule_entry_id: string | null;
 };
 export type StaffVacation = {
   id: string; hotel_id: string; operator_id: string; year: number;

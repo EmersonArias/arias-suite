@@ -8,13 +8,14 @@ import { supabase } from '../../../lib/supabase'
 import {
   dateISO, fromISO, hours, isoWeek, minutesInShift, plannedMinutes, staffStateOptions, isSplitShift,
   stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
-  vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, type VacationStage,
+  vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, staffHolidayOrigin, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
 import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
+import { staffSectionPdf } from '../staffSectionPdf'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -22,6 +23,7 @@ type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   justification:string;
   vacation_taken_confirmed:boolean; vacation_origin_year:string;
+  holiday_source_date:string; comp_source_entry_id:string; comp_rest_hours:string;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
@@ -102,6 +104,7 @@ export default function StaffSchedulePage() {
   const [operators,setOperators]=useState<StaffOperator[]>([])
   const [days,setDays]=useState<StaffDay[]>([])
   const [holidays,setHolidays]=useState<string[]>([])
+  const [holidayLabels,setHolidayLabels]=useState<Record<string,string>>({})
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
@@ -152,7 +155,7 @@ export default function StaffSchedulePage() {
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
       supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
-      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotel.id)
+      supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
     ])
     const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error
@@ -160,6 +163,7 @@ export default function StaffSchedulePage() {
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
     setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
+    setHolidayLabels(Object.fromEntries((holidayRows.data??[]).map(row=>[row.holiday_date,row.label])))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
@@ -192,6 +196,19 @@ export default function StaffSchedulePage() {
     return ()=>window.removeEventListener('keydown',onKeyDown)
   },[hoursDetailOperatorId])
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
+  const usedHolidays=useMemo(()=>new Set(days.filter(d=>d.state==='PUBLIC_HOLIDAY')
+    .map(d=>d.operator_id+'|'+(staffHolidayOrigin(d)??''))),[days])
+  const availableHolidays=dayEditor?holidays.filter(date=>
+    date.startsWith(dayEditor.work_date.slice(0,4))&&
+    (!usedHolidays.has(dayEditor.operator_id+'|'+date)||date===dayEditor.holiday_source_date)):[]
+  const earnedEntries=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id&&
+    ['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)).map(e=>{
+       const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&
+         t.linked_schedule_entry_id!==byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id)
+         .reduce((sum,t)=>sum+t.minutes,0)
+       return {...e,remaining:e.minutes-taken}
+    }).filter(e=>e.remaining>0||e.id===dayEditor.comp_source_entry_id):[]
+
   const vacationToday=dateISO(new Date())
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
   const vacationPeople=operators.filter(person=>
@@ -269,7 +286,10 @@ export default function StaffSchedulePage() {
       start_time:start,end_time:end,
       justification:row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
-      vacation_origin_year:row?.vacation_origin_year==null
+      holiday_source_date:row?staffHolidayOrigin(row)??'':'',
+       comp_source_entry_id:row?.comp_source_entry_id??'',
+       comp_rest_hours:row?.comp_rest_minutes?String(row.comp_rest_minutes/60):'8',
+       vacation_origin_year:row?.vacation_origin_year==null
         ? (row?.state==='VACATION_PREVIOUS'?'':workDate.slice(0,4))
         : String(row.vacation_origin_year)
     })
@@ -297,6 +317,17 @@ export default function StaffSchedulePage() {
     }
     const vacationState=dayEditor.state==='VACATION' && vacationOrigin!==null &&
       vacationOrigin<calendarYear ? 'VACATION_PREVIOUS' : dayEditor.state
+    if(dayEditor.state==='PUBLIC_HOLIDAY' &&
+      (!dayEditor.holiday_source_date||!availableHolidays.includes(dayEditor.holiday_source_date))){
+      setDayEditorError('Selecciona uno de los festivos pendientes de este trabajador.');return
+    }
+    if(dayEditor.state==='COMP_REST'){
+      const minutesRest=Math.round(Number(dayEditor.comp_rest_hours)*60)
+      const source=earnedEntries.find(e=>e.id===dayEditor.comp_source_entry_id)
+      if(!source||!Number.isFinite(minutesRest)||minutesRest<=0||minutesRest>source.remaining){
+        setDayEditorError('Selecciona horas generadas pendientes y una cantidad disponible.');return
+      }
+    }
     const minutes=isShift?minutesInShift(start,end):null
     if(isShift && !minutes){
       setDayEditorError('Revisa las horas de entrada y salida del turno.');return
@@ -318,7 +349,15 @@ export default function StaffSchedulePage() {
       actual_minutes:existing?.actual_minutes??null,
       actual_confirmed:existing?.actual_confirmed??false,
       justification:dayEditor.justification,
-      source_kind:'MANUAL',source_code:existing?.source_code??null,
+      source_kind:'MANUAL',
+      source_code:dayEditor.state==='PUBLIC_HOLIDAY'
+        ?'Festivo disfrutado · '+dayEditor.holiday_source_date
+        :dayEditor.state==='COMP_REST'
+          ?'Recuperación horas · '+dayEditor.comp_source_entry_id
+          :existing?.state===dayEditor.state?existing?.source_code??null:null,
+      holiday_source_date:dayEditor.state==='PUBLIC_HOLIDAY'?dayEditor.holiday_source_date:null,
+      comp_source_entry_id:dayEditor.state==='COMP_REST'?dayEditor.comp_source_entry_id:null,
+      comp_rest_minutes:dayEditor.state==='COMP_REST'?Math.round(Number(dayEditor.comp_rest_hours)*60):null,
       vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
       vacation_taken_confirmed:confirmedVacation,
       vacation_confirmed_at:confirmedVacation
@@ -439,6 +478,17 @@ export default function StaffSchedulePage() {
     },{onConflict:'operator_id'})
     if(result.error)setError(result.error.message);else{setSuccess('Observación privada guardada.');await reload()}
     setBusy(false)
+  }
+  async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
+    if(!hotel)return
+    try{
+      setError('')
+      await staffSectionPdf({
+        section,hotelName:hotel.name,year,operators,days,overtime,
+        operatorId:section==='VACACIONES'?vacationOperatorFilter:selectedId,
+        statusFilter:section==='VACACIONES'?vacationStatusFilter:undefined,
+      })
+    }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
   }
   async function saveOvertime(){
     if(!hotel?.id||!selectedId)return
@@ -578,7 +628,10 @@ export default function StaffSchedulePage() {
 
       {tab==='EXTRAS'&&<section className="space-y-2 sm:space-y-4">
         {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
+            <button type="button" onClick={()=>void exportSectionPdf('EXTRAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
+          </div>
           <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
             {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{n}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{hours(Number(v))}</p></div>)}
           </div>
@@ -586,14 +639,27 @@ export default function StaffSchedulePage() {
           <div className={'mt-2 grid grid-cols-2 gap-2 md:mt-4 md:grid-cols-[180px_170px_120px_1fr_auto] md:gap-3 '+(showOvertimeForm?'':'hidden md:grid')}>
             <label className="text-xs">Fecha<input type="date" className={baseInput+' mt-1'} value={overtimeDate} onChange={e=>setOvertimeDate(e.target.value)}/></label>
             <label className="text-xs">Movimiento<select className={baseInput+' mt-1'} value={overtimeType} onChange={e=>setOvertimeType(e.target.value)}>
-              <option value="EARNED">Horas generadas</option><option value="REST_TAKEN">Descanso disfrutado</option><option value="PAID">Abonadas</option><option value="ADJUSTMENT_PLUS">Ajuste positivo</option><option value="ADJUSTMENT_MINUS">Ajuste negativo</option>
+              <option value="EARNED">Horas generadas</option>{/* El descanso se registra desde el cuadrante y se vincula a horas generadas. */}<option value="PAID">Abonadas</option><option value="ADJUSTMENT_PLUS">Ajuste positivo</option><option value="ADJUSTMENT_MINUS">Ajuste negativo</option>
             </select></label>
             <label className="text-xs">Horas<input type="number" min="0.01" step="0.25" className={baseInput+' mt-1'} value={overtimeHours} onChange={e=>setOvertimeHours(e.target.value)} placeholder="2,5"/></label>
             <label className="col-span-2 text-xs md:col-span-1">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
             <button disabled={busy} onClick={()=>void saveOvertime()} className="col-span-2 min-h-9 self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-1">Registrar</button>
           </div>
-          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th></tr></thead><tbody>
-            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td></tr>)}
+          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
+            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td>
+              <td className="px-1">{(()=>{
+                if(e.entry_type==='REST_TAKEN')return 'Disfrutado'
+                if(!['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type))return e.entry_type==='PAID'?'Abonado':'Ajuste'
+                const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&t.entry_type==='REST_TAKEN')
+                  .reduce((sum,t)=>sum+t.minutes,0)
+                return taken===0?'Pendiente':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+              })()}</td>
+              <td className="px-1">{(()=>{
+                if(e.entry_type==='REST_TAKEN')return asDisplayDate(e.entry_date)
+                const dates=overtime.filter(t=>t.compensates_entry_id===e.id&&t.entry_type==='REST_TAKEN')
+                  .map(t=>asDisplayDate(t.entry_date))
+                return dates.length?dates.join(', '):'—'
+              })()}</td></tr>)}
           </tbody></table></div>
         </div>}
       </section>}
@@ -604,7 +670,11 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">
               Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
             </h2>
-            {vacationOperatorFilter!=='ALL'&&<button type="button" onClick={()=>setVacationOperatorFilter('ALL')}
+            <button type="button" onClick={()=>void exportSectionPdf('VACACIONES')}
+                className="shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold">
+                <Printer size={14} className="mr-1 inline"/>PDF
+              </button>
+              {vacationOperatorFilter!=='ALL'&&<button type="button" onClick={()=>setVacationOperatorFilter('ALL')}
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-[11px] font-semibold">
               Ver todos
             </button>}
@@ -772,7 +842,10 @@ export default function StaffSchedulePage() {
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h2 className="mb-2 text-sm font-bold sm:text-base">Bajas · {year}</h2>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
+            <button type="button" onClick={()=>void exportSectionPdf('BAJAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
+          </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
             {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
               className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
@@ -1025,6 +1098,34 @@ export default function StaffSchedulePage() {
               Turno partido: <strong>09:00–13:00 y 15:00–19:00</strong>.
               Pausa de 13:00 a 15:00 no trabajada. <strong>8 h previstas</strong>.
             </p>}
+            {dayEditor.state==='PUBLIC_HOLIDAY'&&<div className="rounded-lg border border-amber-300 bg-amber-50 p-2">
+              <label className="block text-xs font-semibold">Festivo pendiente del trabajador
+                <select className={baseInput+' mt-1'} value={dayEditor.holiday_source_date}
+                  onChange={e=>setDayEditor({...dayEditor,holiday_source_date:e.target.value})}>
+                  <option value="">Escoger festivo…</option>
+                  {availableHolidays.sort().map(date=><option key={date} value={date}>
+                    {asDisplayDate(date)} · {holidayLabels[date]??'Festivo'}
+                  </option>)}
+                </select>
+              </label>
+              <p className="mt-1 text-xs text-amber-900">{availableHolidays.length} festivos disponibles para este trabajador. Se mostrará F y la fecha elegida en el cuadrante.</p>
+            </div>}
+            {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-2">
+              <label className="block text-xs font-semibold">Horas extras pendientes que se van a disfrutar
+                <select className={baseInput+' mt-1'} value={dayEditor.comp_source_entry_id}
+                  onChange={e=>setDayEditor({...dayEditor,comp_source_entry_id:e.target.value})}>
+                  <option value="">Escoger registro de horas…</option>
+                  {earnedEntries.map(e=><option key={e.id} value={e.id}>
+                    {asDisplayDate(e.entry_date)} · {hours(e.remaining)} disponibles · {e.reason}
+                  </option>)}
+                </select>
+              </label>
+              <label className="mt-2 block text-xs font-semibold">Horas que se disfrutan en este día
+                <input className={baseInput+' mt-1'} type="number" min="0.25" step="0.25"
+                  value={dayEditor.comp_rest_hours} onChange={e=>setDayEditor({...dayEditor,comp_rest_hours:e.target.value})}/>
+              </label>
+              <p className="mt-1 text-xs text-sky-900">Al guardar se anotará automáticamente la fecha de disfrute en el registro de horas extras.</p>
+            </div>}
             {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
               <label className="mb-2 block text-xs font-medium">Año al que corresponden las vacaciones
                 <input type="number" inputMode="numeric" min="2000"
