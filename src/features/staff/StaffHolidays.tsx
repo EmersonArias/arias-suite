@@ -3,9 +3,13 @@ import { CalendarPlus, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit } from './staffHolidayAudit'
+import { exportHolidayAuditPdf } from './staffHolidayHistoryPdf'
+import { Printer } from 'lucide-react'
 
 type Props={
  hotelId:string
+ hotelName:string
+ pdfOperatorIds:string[]
  year:number
  operators:StaffOperator[]
  days:StaffDay[]
@@ -24,7 +28,7 @@ const kind=(day:StaffDay|null)=> {
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
 export default function StaffHolidays({
- hotelId,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
+ hotelId,hotelName,pdfOperatorIds,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
@@ -60,6 +64,12 @@ export default function StaffHolidays({
      <div className="flex flex-wrap items-start justify-between gap-2">
        <div><h2 className="text-base font-bold">Festivos · {year}</h2>
          <p className="text-xs text-slate-600">Calendario anual: pendientes en rojo, bajas y vacaciones excluidas, disfrutes y duplicados.</p></div>
+       <button type="button" onClick={()=>void exportHolidayAuditPdf({
+         hotelName,year,operators,days,holidays,operatorIds:pdfOperatorIds,
+       }).catch(e=>setMessage(e instanceof Error?e.message:'Error PDF'))}
+         className="rounded-lg border px-3 py-2 text-xs font-semibold">
+         <Printer size={14} className="mr-1 inline"/>PDF
+       </button>
        <button type="button" onClick={()=>void onReload()} disabled={busy}
          className="rounded-lg border px-3 py-2 text-xs font-semibold"><RefreshCw size={14} className="mr-1 inline"/>Actualizar</button>
      </div>
