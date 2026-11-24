@@ -58,7 +58,7 @@ export default function StaffHolidays({
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-start justify-between gap-2">
        <div><h2 className="text-base font-bold">Festivos · {year}</h2>
-         <p className="text-xs text-slate-600">Calendario anual y control por trabajador: turnos previstos, disfrutes anotados y duplicados.</p></div>
+         <p className="text-xs text-slate-600">Calendario anual: pendientes en rojo, bajas y vacaciones excluidas, disfrutes y duplicados.</p></div>
        <button type="button" onClick={()=>void onReload()} disabled={busy}
          className="rounded-lg border px-3 py-2 text-xs font-semibold"><RefreshCw size={14} className="mr-1 inline"/>Actualizar</button>
      </div>
@@ -125,19 +125,21 @@ export default function StaffHolidays({
          <thead><tr className="border-b bg-slate-50">
            <th className="p-2">Trabajador</th><th>Turnos festivos previstos</th>
            <th>Trabajos confirmados</th><th>Disfrutes anotados</th>
-           <th>Festivos distintos</th><th>Sin asignar del calendario</th><th>Duplicados</th><th>Diferencia turnos/disfrutes</th>
+           <th>Festivos distintos</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th><th>Diferencia turnos/disfrutes</th>
          </tr></thead>
          <tbody>{audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
            .map(s=><tr key={s.operator.id} className="border-b">
              <td className="p-2 font-semibold">{s.operator.display_name}</td>
              <td>{s.scheduled}</td><td>{s.confirmed}</td><td>{s.enjoyed}</td>
-             <td>{s.distinctOrigins} / {audit.official.length}</td><td className={s.calendarPending?'font-semibold text-amber-800':''}>{s.calendarPending}</td>
+             <td>{s.distinctOrigins} / {audit.official.length}</td>
+             <td className="text-slate-600">{s.excludedByLeave}</td>
+             <td className={s.calendarPending?'bg-red-100 font-bold text-red-800':'text-slate-600'}>{s.calendarPending}</td>
              <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{s.duplicateOrigins}</td>
              <td>{s.diff>0?'+'+s.diff:s.diff}</td>
            </tr>)}</tbody>
        </table>
      </div>
-     <p className="mt-2 text-[11px] text-slate-500">«Sin asignar» indica festivos del calendario que aún no están vinculados a una fecha de disfrute, no necesariamente días que el empleado tenga derecho a recuperar. La diferencia turnos/disfrutes es solo orientativa y no constituye un saldo legal.</p>
+     <p className="mt-2 text-[11px] text-slate-500">Los festivos que coinciden con baja o vacaciones quedan excluidos de pendientes automáticamente, salvo asignación expresa del administrador. Pendientes en rojo. La tabla es un control interno, no un cálculo legal automático de derechos.</p>
    </div>
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold">Detalle por fecha y trabajador</h3>
@@ -154,10 +156,15 @@ export default function StaffHolidays({
            </th>
            {visible.map(o=>{
              const data=audit.matrix.find(r=>r.holiday.holiday_date===h.holiday_date&&r.operator.id===o.id)!
-             return <td key={o.id} className="min-w-[145px] p-2">
+             return <td key={o.id} className={'min-w-[145px] p-2 '+(data.pending?'bg-red-50':'')}>
                <button type="button" onClick={()=>onEditDay(o.id,h.holiday_date)}
                  className="block text-left text-[11px] font-medium text-sky-800 underline">
                  {kind(data.scheduled)}</button>
+               {data.excludedByLeave&&<div className="mt-1 rounded bg-slate-100 p-1 text-[11px] font-medium text-slate-600">
+                 Excluido: baja o vacaciones.
+                 {data.enjoyed.length>0&&' Asignación manual registrada.'}
+               </div>}
+               {data.pending&&<span className="mt-1 block rounded bg-red-100 px-2 py-1 text-[11px] font-bold text-red-800">PENDIENTE · SIN ASIGNAR</span>}
                {data.enjoyed.length>0&&<div className={'mt-1 rounded p-1 text-[11px] '+
                    (data.duplicate?'bg-amber-100 text-amber-900':'bg-emerald-50 text-emerald-900')}>
                  {data.duplicate?'DUPLICADO · ':''}Disfrute: {data.enjoyed.map(d=>dayLabel(d.work_date)).join(', ')}
