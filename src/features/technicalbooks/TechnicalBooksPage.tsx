@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ClipboardPlus, FileText, History, Save, CheckCircle2, X, Search, Camera } from 'lucide-react'
@@ -178,7 +179,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   }
   async function exportPdf(rows: BookEntry[]) {
     if (!rows.length) { await alert({ title: 'Sin registros', message: 'Guarda una revisión o cambia los filtros antes de exportar.' }); return }
-    try { const { buildBookPdf } = await import('./bookPdf'); buildBookPdf(book, rows, hotelName, demo).save(`${demo ? 'PRUEBA-' : ''}${book.code}-${book.id}.pdf`) }
+    try { const { buildBookPdf } = await import('./bookPdf'); previewPdf(buildBookPdf(book, rows, hotelName, demo), `${demo ? 'PRUEBA-' : ''}${book.code}-${book.id}.pdf`) }
     catch (e) { await alert({ title: 'No se pudo generar el PDF', message: e instanceof Error ? e.message : 'Comprueba los datos del registro.' }) }
   }
   async function photos(files: FileList | null) {
