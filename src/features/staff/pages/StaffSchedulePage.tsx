@@ -690,6 +690,7 @@ export default function StaffSchedulePage() {
           holiday_date:date,label:holidayLabels[date]??'Festivo',
         }))}
         onReload={reload}
+        readOnly={demo}
         onEditDay={(operatorId,day)=>{if(!demo){setTab('CUADRANTE');openDay(operatorId,day)}}}
       />}
 
