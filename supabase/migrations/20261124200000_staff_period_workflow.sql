@@ -16,6 +16,10 @@ BEGIN
  SELECT join_date INTO v_join FROM public.staff_operators
  WHERE id=p_operator_id AND hotel_id=p_hotel_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Operario ajeno al hotel';END IF;
+ IF v_join IS NULL THEN
+   SELECT MIN(work_date) INTO v_join FROM public.staff_schedule_entries
+   WHERE hotel_id=p_hotel_id AND operator_id=p_operator_id AND state='SHIFT';
+ END IF;
  IF v_join IS NOT NULL AND p_start<v_join THEN
   RAISE EXCEPTION 'El período comienza antes de la incorporación contractual';
  END IF;
