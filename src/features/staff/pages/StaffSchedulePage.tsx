@@ -15,6 +15,7 @@ import {
 import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
+import { staffSectionPdf } from '../staffSectionPdf'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -22,6 +23,7 @@ type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
   justification:string;
   vacation_taken_confirmed:boolean; vacation_origin_year:string;
+  holiday_source_date:string; comp_source_entry_id:string; comp_rest_hours:string;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
@@ -102,6 +104,7 @@ export default function StaffSchedulePage() {
   const [operators,setOperators]=useState<StaffOperator[]>([])
   const [days,setDays]=useState<StaffDay[]>([])
   const [holidays,setHolidays]=useState<string[]>([])
+  const [holidayLabels,setHolidayLabels]=useState<Record<string,string>>({})
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
@@ -152,7 +155,7 @@ export default function StaffSchedulePage() {
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
       supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
-      supabase.from('staff_calendar_holidays').select('holiday_date').eq('hotel_id',hotel.id)
+      supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
     ])
     const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error
@@ -160,6 +163,7 @@ export default function StaffSchedulePage() {
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
     setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
+    setHolidayLabels(Object.fromEntries((holidayRows.data??[]).map(row=>[row.holiday_date,row.label])))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
@@ -192,6 +196,20 @@ export default function StaffSchedulePage() {
     return ()=>window.removeEventListener('keydown',onKeyDown)
   },[hoursDetailOperatorId])
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
+  const usedHolidays=useMemo(()=>new Set(days.filter(d=>d.state==='PUBLIC_HOLIDAY')
+    .map(d=>d.operator_id+'|'+(d.holiday_source_date??d.source_code?.match(/\d{4}-\d{2}-\d{2}/)?.[0]??''))),[days])
+  const availableHolidays=dayEditor?holidays.filter(date=>
+    (date.startsWith(dayEditor.work_date.slice(0,4))||
+      Number(date.slice(0,4))===Number(dayEditor.work_date.slice(0,4))-1)&&
+    (!usedHolidays.has(dayEditor.operator_id+'|'+date)||date===dayEditor.holiday_source_date)):[]
+  const earnedEntries=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id&&
+    ['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)).map(e=>{
+       const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&
+         t.linked_schedule_entry_id!==byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id)
+         .reduce((sum,t)=>sum+t.minutes,0)
+       return {...e,remaining:e.minutes-taken}
+    }).filter(e=>e.remaining>0||e.id===dayEditor.comp_source_entry_id):[]
+
   const vacationToday=dateISO(new Date())
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
   const vacationPeople=operators.filter(person=>
@@ -269,7 +287,10 @@ export default function StaffSchedulePage() {
       start_time:start,end_time:end,
       justification:row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
-      vacation_origin_year:row?.vacation_origin_year==null
+      holiday_source_date:row?.holiday_source_date??row?.source_code?.match(/\d{4}-\d{2}-\d{2}/)?.[0]??'',
+       comp_source_entry_id:row?.comp_source_entry_id??'',
+       comp_rest_hours:row?.comp_rest_minutes?String(row.comp_rest_minutes/60):'8',
+       vacation_origin_year:row?.vacation_origin_year==null
         ? (row?.state==='VACATION_PREVIOUS'?'':workDate.slice(0,4))
         : String(row.vacation_origin_year)
     })
@@ -297,6 +318,17 @@ export default function StaffSchedulePage() {
     }
     const vacationState=dayEditor.state==='VACATION' && vacationOrigin!==null &&
       vacationOrigin<calendarYear ? 'VACATION_PREVIOUS' : dayEditor.state
+    if(dayEditor.state==='PUBLIC_HOLIDAY' &&
+      (!dayEditor.holiday_source_date||!availableHolidays.includes(dayEditor.holiday_source_date))){
+      setDayEditorError('Selecciona uno de los festivos pendientes de este trabajador.');return
+    }
+    if(dayEditor.state==='COMP_REST'){
+      const minutesRest=Math.round(Number(dayEditor.comp_rest_hours)*60)
+      const source=earnedEntries.find(e=>e.id===dayEditor.comp_source_entry_id)
+      if(!source||!Number.isFinite(minutesRest)||minutesRest<=0||minutesRest>source.remaining){
+        setDayEditorError('Selecciona horas generadas pendientes y una cantidad disponible.');return
+      }
+    }
     const minutes=isShift?minutesInShift(start,end):null
     if(isShift && !minutes){
       setDayEditorError('Revisa las horas de entrada y salida del turno.');return
@@ -318,7 +350,15 @@ export default function StaffSchedulePage() {
       actual_minutes:existing?.actual_minutes??null,
       actual_confirmed:existing?.actual_confirmed??false,
       justification:dayEditor.justification,
-      source_kind:'MANUAL',source_code:existing?.source_code??null,
+      source_kind:'MANUAL',
+      source_code:dayEditor.state==='PUBLIC_HOLIDAY'
+        ?'Festivo disfrutado · '+dayEditor.holiday_source_date
+        :dayEditor.state==='COMP_REST'
+          ?'Recuperación horas · '+dayEditor.comp_source_entry_id
+          :existing?.state===dayEditor.state?existing?.source_code??null:null,
+      holiday_source_date:dayEditor.state==='PUBLIC_HOLIDAY'?dayEditor.holiday_source_date:null,
+      comp_source_entry_id:dayEditor.state==='COMP_REST'?dayEditor.comp_source_entry_id:null,
+      comp_rest_minutes:dayEditor.state==='COMP_REST'?Math.round(Number(dayEditor.comp_rest_hours)*60):null,
       vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
       vacation_taken_confirmed:confirmedVacation,
       vacation_confirmed_at:confirmedVacation
