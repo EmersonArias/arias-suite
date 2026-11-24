@@ -10,6 +10,9 @@ export type StaffDay = {
   actual_confirmed: boolean; justification: string;
   source_kind: string; source_code: string | null;
   vacation_origin_year: number | null;
+  holiday_source_date: string | null;
+  comp_source_entry_id: string | null;
+  comp_rest_minutes: number | null;
   vacation_taken_confirmed: boolean;
   vacation_confirmed_at: string | null;
   vacation_confirmed_by: string | null;
@@ -17,6 +20,7 @@ export type StaffDay = {
 export type StaffOvertime = {
   id: string; hotel_id: string; operator_id: string; entry_date: string;
   entry_type: string; minutes: number; reason: string; confirmed: boolean;
+  compensates_entry_id: string | null; linked_schedule_entry_id: string | null;
 };
 export type StaffVacation = {
   id: string; hotel_id: string; operator_id: string; year: number;
