@@ -7,30 +7,48 @@ type HistoryRow={
  new_values:Record<string,unknown>|null
 }
 const display=(date:string)=>date.split('-').reverse().join('/')
-async function pdfBase(title:string,hotelName:string,year:number) {
+async function pdfBase(title:string,hotelName:string,year:number,orientation:'portrait'|'landscape'='landscape') {
  const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
- const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape',compress:true})
+ const doc=new jsPDF({unit:'mm',format:'a4',orientation,compress:true})
  doc.setFontSize(15);doc.text(title+' · '+year,11,15)
  doc.setFontSize(9);doc.text(hotelName+' · '+new Date().toLocaleDateString('es-ES'),11,22)
  return {doc,autoTable}
 }
 export async function exportHolidayAuditPdf(input:{
  hotelName:string;year:number;operators:StaffOperator[];days:StaffDay[];
- holidays:HolidayItem[];operatorIds:string[]
+ holidays:HolidayItem[];operatorIds:string[];firstScheduledDates:Record<string,string>
 }){
  const people=input.operators.filter(o=>input.operatorIds.includes(o.id))
  if(!people.length)throw new Error('Selecciona uno o más operarios.')
- const audit=holidayAudit(people,input.days,input.holidays,input.year)
- const {doc,autoTable}=await pdfBase('Control de festivos',input.hotelName,input.year)
- const body=audit.matrix.map(r=>[
-  display(r.holiday.holiday_date),r.holiday.label,r.operator.display_name,
-  r.scheduled?.state??'Sin registrar',
-  r.enjoyed.map(d=>display(d.work_date)).join(', ')||'—',
-  r.duplicate?'DUPLICADO':r.excludedByLeave?'EXCLUIDO baja/vacaciones':r.pending?'PENDIENTE':'Registrado',
- ])
- autoTable(doc,{head:[['Festivo','Denominación','Trabajador','Estado del día','Disfrutado el','Situación']],
-  body,theme:'grid',startY:28,styles:{fontSize:8,cellPadding:2},
-  headStyles:{fillColor:[32,70,92]},margin:{left:10,right:10}})
+ const audit=holidayAudit(people,input.days,input.holidays,input.year,input.firstScheduledDates)
+ const {doc,autoTable}=await pdfBase('Control de festivos',input.hotelName,input.year,'portrait')
+ // Cada trabajador tiene su propia página: el nombre solo aparece en cabecera.
+ // El informe simplificado muestra únicamente fecha, denominación y disfrute.
+ people.forEach((person,index)=>{
+   if(index>0){
+     doc.addPage()
+     doc.setFontSize(15);doc.text('Control de festivos · '+input.year,11,15)
+     doc.setFontSize(9);doc.text(input.hotelName+' · '+new Date().toLocaleDateString('es-ES'),11,22)
+   }
+   const rows=audit.matrix.filter(row=>row.operator.id===person.id)
+   doc.setFontSize(12)
+   doc.text('Trabajador: '+person.display_name,11,29)
+   doc.setFontSize(8)
+   const origin=person.join_date??input.firstScheduledDates[person.id]??null
+   doc.text('Incorporación: '+(origin?display(origin):'Sin fecha registrada')+
+     (!person.join_date&&origin?' (referencia provisional del cuadrante)':''),11,35)
+   autoTable(doc,{
+     head:[['Festivo','Denominación','Disfrutado el']],
+     body:rows.map(row=>[
+       display(row.holiday.holiday_date),row.holiday.label,
+       row.enjoyed.map(d=>display(d.work_date)).join(', ')||
+         (row.beforeJoining?'No corresponde · anterior al alta':
+          row.excludedByLeave?'No corresponde · baja/vacaciones':'—'),
+     ]),
+     theme:'grid',startY:41,styles:{fontSize:9,cellPadding:3},
+     headStyles:{fillColor:[32,70,92]},margin:{left:10,right:10},
+   })
+ })
  doc.save('arias_suite_festivos_'+input.year+'.pdf')
 }
 export async function exportStaffHistoryPdf(input:{

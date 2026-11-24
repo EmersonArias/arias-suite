@@ -10,6 +10,7 @@ type Props={
  hotelId:string
  hotelName:string
  pdfOperatorIds:string[]
+ firstScheduledDates:Record<string,string>
  year:number
  operators:StaffOperator[]
  days:StaffDay[]
@@ -28,14 +29,14 @@ const kind=(day:StaffDay|null)=> {
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
 export default function StaffHolidays({
- hotelId,hotelName,pdfOperatorIds,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
+ hotelId,hotelName,pdfOperatorIds,firstScheduledDates,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
  const [busy,setBusy]=useState(false)
  const [message,setMessage]=useState('')
  const [selected,setSelected]=useState('ALL')
- const audit=useMemo(()=>holidayAudit(operators,days,holidays,year),[operators,days,holidays,year])
+ const audit=useMemo(()=>holidayAudit(operators,days,holidays,year,firstScheduledDates),[operators,days,holidays,year,firstScheduledDates])
  const visible=selected==='ALL'?operators:operators.filter(o=>o.id===selected)
  const dateExists=holidays.some(h=>h.holiday_date===date)
  async function saveHoliday(){
@@ -63,9 +64,9 @@ export default function StaffHolidays({
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-start justify-between gap-2">
        <div><h2 className="text-base font-bold">Festivos · {year}</h2>
-         <p className="text-xs text-slate-600">Calendario anual: pendientes en rojo, bajas y vacaciones excluidas, disfrutes y duplicados.</p></div>
+         <p className="text-xs text-slate-600">Calendario anual: fechas anteriores al alta no corresponden, bajas y vacaciones excluidas; pendientes reales en rojo.</p></div>
        <button type="button" onClick={()=>void exportHolidayAuditPdf({
-         hotelName,year,operators,days,holidays,operatorIds:pdfOperatorIds,
+         hotelName,year,operators,days,holidays,operatorIds:pdfOperatorIds,firstScheduledDates,
        }).catch(e=>setMessage(e instanceof Error?e.message:'Error PDF'))}
          className="rounded-lg border px-3 py-2 text-xs font-semibold">
          <Printer size={14} className="mr-1 inline"/>PDF
@@ -136,13 +137,14 @@ export default function StaffHolidays({
          <thead><tr className="border-b bg-slate-50">
            <th className="p-2">Trabajador</th><th>Turnos festivos previstos</th>
            <th>Trabajos confirmados</th><th>Disfrutes anotados</th>
-           <th>Festivos distintos</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th><th>Diferencia turnos/disfrutes</th>
+           <th>Festivos distintos</th><th>Anteriores al alta</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th><th>Diferencia turnos/disfrutes</th>
          </tr></thead>
          <tbody>{audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
            .map(s=><tr key={s.operator.id} className="border-b">
              <td className="p-2 font-semibold">{s.operator.display_name}</td>
              <td>{s.scheduled}</td><td>{s.confirmed}</td><td>{s.enjoyed}</td>
-             <td>{s.distinctOrigins} / {audit.official.length}</td>
+             <td>{s.distinctOrigins} / {Math.max(0,audit.official.length-s.beforeJoining)}</td>
+             <td className="text-slate-600">{s.beforeJoining}</td>
              <td className="text-slate-600">{s.excludedByLeave}</td>
              <td className={s.calendarPending?'bg-red-100 font-bold text-red-800':'text-slate-600'}>{s.calendarPending}</td>
              <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{s.duplicateOrigins}</td>
@@ -150,7 +152,7 @@ export default function StaffHolidays({
            </tr>)}</tbody>
        </table>
      </div>
-     <p className="mt-2 text-[11px] text-slate-500">Los festivos que coinciden con baja o vacaciones quedan excluidos de pendientes automáticamente, salvo asignación expresa del administrador. Pendientes en rojo. La tabla es un control interno, no un cálculo legal automático de derechos.</p>
+     <p className="mt-2 text-[11px] text-slate-500">Los festivos anteriores al alta contractual o primer día registrado no corresponden y no figuran como pendientes. Los que coinciden con baja o vacaciones también se excluyen del pendiente automático, salvo asignación manual. Pendientes reales en rojo. La tabla es un control interno, no un cálculo legal automático de derechos.</p>
    </div>
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold">Detalle por fecha y trabajador</h3>
@@ -170,7 +172,11 @@ export default function StaffHolidays({
              return <td key={o.id} className={'min-w-[145px] p-2 '+(data.pending?'bg-red-50':'')}>
                <button type="button" onClick={()=>onEditDay(o.id,h.holiday_date)}
                  className="block text-left text-[11px] font-medium text-sky-800 underline">
-                 {kind(data.scheduled)}</button>
+                 {data.beforeJoining?'No corresponde · anterior al alta':kind(data.scheduled)}</button>
+               {data.beforeJoining&&<div className="mt-1 rounded bg-slate-100 p-1 text-[11px] font-semibold text-slate-700">
+                 No corresponde: anterior a la incorporación.
+                 {!o.join_date&&' Primer día registrado (provisional): '+dayLabel(firstScheduledDates[o.id])}
+               </div>}
                {data.excludedByLeave&&<div className="mt-1 rounded bg-slate-100 p-1 text-[11px] font-medium text-slate-600">
                  Excluido: baja o vacaciones.
                  {data.enjoyed.length>0&&' Asignación manual registrada.'}
