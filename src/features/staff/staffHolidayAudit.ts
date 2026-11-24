@@ -23,7 +23,6 @@ export type HolidayWorkerSummary={
  calendarPending:number
  excludedByLeave:number
  beforeJoining:number
- diff:number
 }
 export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:HolidayItem[],year:number,firstScheduledDates:Record<string,string>={}){
  const official=holidays.filter(h=>h.holiday_date.startsWith(String(year)))
@@ -65,7 +64,7 @@ export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:
      && (d.work_date.startsWith(String(year)) ||
        d.work_date.startsWith(String(year+1)))).length
    return {operator,scheduled,confirmed,enjoyed,distinctOrigins,duplicateOrigins,
-     unassigned,calendarPending,excludedByLeave,beforeJoining,diff:scheduled-distinctOrigins}
+     unassigned,calendarPending,excludedByLeave,beforeJoining}
  }).sort((a,b)=>b.scheduled-a.scheduled || a.operator.display_name.localeCompare(b.operator.display_name))
  return {official,matrix,summaries,unresolved}
 }
