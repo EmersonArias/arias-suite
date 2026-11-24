@@ -126,6 +126,7 @@ export default function StaffSchedulePage() {
   const [weeklyHours,setWeeklyHours]=useState('40')
   const [rotation,setRotation]=useState<'NORMAL'|'EXCEPTIONAL'|'NONE'>('NORMAL')
   const [userId,setUserId]=useState('')
+  const [joinDate,setJoinDate]=useState('')
   const [overtimeDate,setOvertimeDate]=useState(dateISO(new Date()))
   const [overtimeType,setOvertimeType]=useState('EARNED')
   const [overtimeHours,setOvertimeHours]=useState('')
@@ -407,6 +408,7 @@ export default function StaffSchedulePage() {
     setWeeklyHours(operator?.weekly_target_minutes==null?'':String(operator.weekly_target_minutes/60))
     setRotation(operator?.rotation_type??'NORMAL')
     setUserId(operator?.linked_user_id??'')
+    setJoinDate(operator?.join_date??'')
     setShowOperatorForm(true)
   }
   async function saveOperator(){
@@ -416,10 +418,12 @@ export default function StaffSchedulePage() {
     }
     const minutes=weeklyHours.trim()===''?null:Math.round(Number(weeklyHours)*60)
     if(minutes!==null&&(!Number.isFinite(minutes)||minutes<0||minutes>6000)){setError('Jornada semanal no válida.');return}
+    if(joinDate && !/^\d{4}-\d{2}-\d{2}$/.test(joinDate)){setError('Fecha de alta no válida.');return}
     setBusy(true);setError('')
     const payload={hotel_id:hotel.id,display_name:name.trim(),
       weekly_target_minutes:minutes,rotation_type:rotation,
-      linked_user_id:userId.trim()||null,updated_at:new Date().toISOString()}
+      linked_user_id:userId.trim()||null,join_date:joinDate||null,
+      updated_at:new Date().toISOString()}
     const result=editingOperatorId
       ?await supabase.from('staff_operators').update(payload).eq('id',editingOperatorId).eq('hotel_id',hotel.id)
       :await supabase.from('staff_operators').insert(payload)
@@ -1163,6 +1167,13 @@ export default function StaffSchedulePage() {
             <label className="block text-xs font-medium">Jornada objetivo semanal (horas)<input type="number" min="0" max="100" step="0.25" className={baseInput+' mt-1'} value={weeklyHours} onChange={e=>setWeeklyHours(e.target.value)}/></label>
             <label className="block text-xs font-medium">Participación en fines de semana<select className={baseInput+' mt-1'} value={rotation} onChange={e=>setRotation(e.target.value as typeof rotation)}>
               <option value="NORMAL">Rotación habitual</option><option value="EXCEPTIONAL">Cobertura excepcional</option><option value="NONE">Fuera de rotación</option></select></label>
+            <label className="block text-xs font-medium">Fecha de alta contractual
+              <input type="date" className={baseInput+' mt-1'} value={joinDate}
+                onChange={e=>setJoinDate(e.target.value)}/>
+              <span className="mt-1 block text-[11px] text-slate-500">
+                Necesaria para calcular vacaciones devengadas. No se deduce del primer turno.
+              </span>
+            </label>
             <label className="block text-xs font-medium">ID de cuenta Arias Suite (opcional)<input className={baseInput+' mt-1'} value={userId} onChange={e=>setUserId(e.target.value)} placeholder="UUID · para acceso personal"/></label>
           </div>
           <div className="mt-5 flex flex-wrap justify-between gap-2">
