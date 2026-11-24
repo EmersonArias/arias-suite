@@ -17,6 +17,7 @@ export type HolidayWorkerSummary={
  distinctOrigins:number
  duplicateOrigins:number
  unassigned:number
+ calendarPending:number
  diff:number
 }
 export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:HolidayItem[],year:number){
@@ -49,7 +50,7 @@ export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:
      && (d.work_date.startsWith(String(year)) ||
        d.work_date.startsWith(String(year+1)))).length
    return {operator,scheduled,confirmed,enjoyed,distinctOrigins,duplicateOrigins,
-     unassigned,diff:scheduled-distinctOrigins}
+     unassigned,calendarPending:Math.max(0,official.length-distinctOrigins),diff:scheduled-distinctOrigins}
  }).sort((a,b)=>b.scheduled-a.scheduled || a.operator.display_name.localeCompare(b.operator.display_name))
  return {official,matrix,summaries,unresolved}
 }
