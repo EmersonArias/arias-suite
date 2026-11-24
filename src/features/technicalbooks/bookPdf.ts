@@ -1,12 +1,12 @@
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { answerText, entryFields, frequencyLabels, fieldLabel } from './bookModel.ts'
 import type { BookDefinition, BookEntry } from './types.ts'
 
 const printable = (value: string) => value.replaceAll('√', 'Comprobación').replaceAll('ᵒ', '°')
 
-export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string, demo = true) {
-  if (!entries.length) throw new Error('No hay registros para exportar.')
+export async function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string, demo = true) {
+  if (!entries.length) throw new Error('No hay registros para exportar.') 
+  const { jsPDF, autoTable } = await loadPdfLibraries()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   entries.forEach((entry, index) => {
     // Keep the control labels and source version recorded with each inspection.
