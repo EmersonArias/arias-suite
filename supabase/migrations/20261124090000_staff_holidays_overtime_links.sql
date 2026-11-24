@@ -35,6 +35,11 @@ RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
 DECLARE earned_minutes integer;
 DECLARE already_consumed integer;
 BEGIN
+ IF NEW.state='PUBLIC_HOLIDAY' AND NEW.holiday_source_date IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM public.staff_calendar_holidays h
+      WHERE h.hotel_id=NEW.hotel_id AND h.holiday_date=NEW.holiday_source_date) THEN
+   RAISE EXCEPTION 'El festivo seleccionado no existe en el calendario del hotel';
+ END IF;
  IF NEW.state='COMP_REST' AND NEW.comp_source_entry_id IS NOT NULL THEN
    IF NEW.comp_rest_minutes IS NULL OR NEW.comp_rest_minutes<=0 THEN
       RAISE EXCEPTION 'Indica las horas de recuperación';
