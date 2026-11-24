@@ -8,6 +8,8 @@ export type HolidayAuditRow={
  scheduled:StaffDay|null
  enjoyed:StaffDay[]
  duplicate:boolean
+ excludedByLeave:boolean
+ pending:boolean
 }
 export type HolidayWorkerSummary={
  operator:StaffOperator
@@ -18,6 +20,7 @@ export type HolidayWorkerSummary={
  duplicateOrigins:number
  unassigned:number
  calendarPending:number
+ excludedByLeave:number
  diff:number
 }
 export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:HolidayItem[],year:number){
@@ -35,8 +38,13 @@ export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:
  }
  const matrix:HolidayAuditRow[]=official.flatMap(holiday=>operators.map(operator=>{
    const enjoyed=enjoyments.get(operator.id+'|'+holiday.holiday_date)??[]
-   return {holiday,operator,scheduled:schedule.get(operator.id+'|'+holiday.holiday_date)??null,
-     enjoyed,duplicate:enjoyed.length>1}
+   const scheduled=schedule.get(operator.id+'|'+holiday.holiday_date)??null
+   const excludedByLeave=scheduled!==null &&
+     ['MEDICAL_LEAVE','VACATION','VACATION_PREVIOUS'].includes(scheduled.state)
+   // An explicit recorded enjoyment is retained even when leave or vacation overlaps.
+   const pending=!excludedByLeave && enjoyed.length===0
+   return {holiday,operator,scheduled,enjoyed,duplicate:enjoyed.length>1,
+     excludedByLeave,pending}
  }))
  const summaries:HolidayWorkerSummary[]=operators.map(operator=>{
    const rows=matrix.filter(row=>row.operator.id===operator.id)
@@ -46,11 +54,13 @@ export function holidayAudit(operators:StaffOperator[],days:StaffDay[],holidays:
    const enjoyed=rows.reduce((n,row)=>n+row.enjoyed.length,0)
    const distinctOrigins=rows.filter(row=>row.enjoyed.length>0).length
    const duplicateOrigins=rows.reduce((n,row)=>n+Math.max(0,row.enjoyed.length-1),0)
+   const excludedByLeave=rows.filter(row=>row.excludedByLeave).length
+   const calendarPending=rows.filter(row=>row.pending).length
    const unassigned=unresolved.filter(d=>d.operator_id===operator.id
      && (d.work_date.startsWith(String(year)) ||
        d.work_date.startsWith(String(year+1)))).length
    return {operator,scheduled,confirmed,enjoyed,distinctOrigins,duplicateOrigins,
-     unassigned,calendarPending:Math.max(0,official.length-distinctOrigins),diff:scheduled-distinctOrigins}
+     unassigned,calendarPending,excludedByLeave,diff:scheduled-distinctOrigins}
  }).sort((a,b)=>b.scheduled-a.scheduled || a.operator.display_name.localeCompare(b.operator.display_name))
  return {official,matrix,summaries,unresolved}
 }
