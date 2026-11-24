@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffDay, StaffOperator, StaffOvertime } from './staffModel'
 import { vacationStage } from './staffModel'
 
@@ -70,5 +71,5 @@ export async function staffSectionPdf(options:{
     headStyles:{fillColor:[28,64,87]},margin:{left:11,right:11,bottom:16},
     didDrawPage:()=>{doc.setFontSize(8);doc.text('Arias Suite · Informe interno',12,290)}
   })
-  doc.save('arias_suite_'+options.section.toLowerCase()+'_'+options.year+'.pdf')
+  previewPdf(doc, 'arias_suite_'+options.section.toLowerCase()+'_'+options.year+'.pdf')
 }
