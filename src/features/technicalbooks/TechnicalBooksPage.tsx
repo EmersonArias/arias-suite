@@ -179,7 +179,7 @@ function BookForm({ book, scope, hotelName }: { book: BookDefinition; scope: Sco
   }
   async function exportPdf(rows: BookEntry[]) {
     if (!rows.length) { await alert({ title: 'Sin registros', message: 'Guarda una revisión o cambia los filtros antes de exportar.' }); return }
-    try { const { buildBookPdf } = await import('./bookPdf'); previewPdf(buildBookPdf(book, rows, hotelName, demo), `${demo ? 'PRUEBA-' : ''}${book.code}-${book.id}.pdf`) }
+    try { const { buildBookPdf } = await import('./bookPdf'); previewPdf(await buildBookPdf(book, rows, hotelName, demo), `${demo ? 'PRUEBA-' : ''}${book.code}-${book.id}.pdf`) }
     catch (e) { await alert({ title: 'No se pudo generar el PDF', message: e instanceof Error ? e.message : 'Comprueba los datos del registro.' }) }
   }
   async function photos(files: FileList | null) {
