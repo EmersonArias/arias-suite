@@ -16,6 +16,7 @@ import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '..
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
+import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -495,6 +496,14 @@ export default function StaffSchedulePage() {
     if(result.error)setError(result.error.message);else{setSuccess('Observación privada guardada.');await reload()}
     setBusy(false)
   }
+  async function exportAnnualPdf(){
+    if(!hotel)return
+    try{
+      setError('')
+      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary})
+    }catch(e){setError('No se pudo generar el PDF anual: '+
+      (e instanceof Error?e.message:'Error desconocido'))}
+  }
   async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
     if(!hotel)return
     try{
@@ -592,6 +601,14 @@ export default function StaffSchedulePage() {
       />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
+          <div><h2 className="text-sm font-bold">Resumen anual · {year}</h2>
+            <p className="text-xs text-slate-500">Horas programadas, vacaciones previstas y saldos pendientes.</p></div>
+          <button type="button" onClick={()=>void exportAnnualPdf()}
+            className="rounded-lg border px-3 py-2 text-xs font-semibold">
+            <Printer size={14} className="mr-1 inline"/>Descargar PDF
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
             ['Operarios activos',String(operators.filter(o=>o.active).length)],
@@ -604,7 +621,8 @@ export default function StaffSchedulePage() {
             <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
               {[['Previstas',hours(s.planned)],['Turnos',String(s.shifts)],['F. semana',String(s.total)],
-              ['Vacaciones',s.vacation+' d'],['Baja',s.sick+' d'],['H. extra',hours(s.cumulativeBalance)]].map(([label,value])=>
+              ['Vacaciones previstas',s.vacation+' d'],['Baja',s.sick+' d'],
+               ['H. extra pendientes',hours(Math.max(0,s.cumulativeBalance))]].map(([label,value])=>
                 label==='Previstas'
                 ? <button type="button" key={label} onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                     title={'Ver horas previstas por mes de '+s.operator.display_name}
@@ -618,14 +636,14 @@ export default function StaffSchedulePage() {
           </div>)}
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
-          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
+          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                 className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
                 {hours(s.planned)}
-              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
+              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(Math.max(0,s.cumulativeBalance))}</td></tr>)}
           </tbody></table>
         </div>
       </section>}
