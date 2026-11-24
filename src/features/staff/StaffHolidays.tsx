@@ -148,7 +148,6 @@ export default function StaffHolidays({
              <td className="text-slate-600">{s.excludedByLeave}</td>
              <td className={s.calendarPending?'bg-red-100 font-bold text-red-800':'text-slate-600'}>{s.calendarPending}</td>
              <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{s.duplicateOrigins}</td>
-             <td>{s.diff>0?'+'+s.diff:s.diff}</td>
            </tr>)}</tbody>
        </table>
      </div>
