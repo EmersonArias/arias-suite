@@ -557,6 +557,7 @@ export default function StaffSchedulePage() {
   }
   async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
     if(!hotel)return
+    if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario para el PDF.');return}
     try{
       setError('')
       await staffSectionPdf({
@@ -633,6 +634,33 @@ export default function StaffSchedulePage() {
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
+
+      {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS'].includes(tab)&&
+        <section className="rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-bold">Trabajadores incluidos en el PDF</h3>
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>setPdfOperatorIds(null)}
+                className="rounded-lg border px-2 py-1 text-xs">Todos</button>
+              <button type="button" onClick={()=>setPdfOperatorIds([])}
+                className="rounded-lg border px-2 py-1 text-xs">Limpiar</button>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">{operators.map(p=>
+            <label key={p.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+              <input type="checkbox" checked={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
+                onChange={e=>setPdfOperatorIds(prev=>{
+                  const all=prev??operators.map(o=>o.id)
+                  return e.target.checked?[...new Set([...all,p.id])]:all.filter(id=>id!==p.id)
+                })}/>
+              {p.display_name}
+            </label>)}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Seleccionados: {pdfSelectedOperators.length} de {operators.length}. Los PDF de esta sección
+            y del resumen anual usarán esta misma selección.
+          </p>
+        </section>}
 
       {tab==='REPORTES'&&hotel?.id&&<StaffReport
         hotelId={hotel.id}
