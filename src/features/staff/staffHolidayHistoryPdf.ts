@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit, type HolidayItem } from './staffHolidayAudit'
 
@@ -49,7 +50,7 @@ export async function exportHolidayAuditPdf(input:{
      headStyles:{fillColor:[32,70,92]},margin:{left:10,right:10},
    })
  })
- doc.save('arias_suite_festivos_'+input.year+'.pdf')
+ previewPdf(doc, 'arias_suite_festivos_'+input.year+'.pdf')
 }
 export async function exportStaffHistoryPdf(input:{
  hotelName:string;year:number;operators:StaffOperator[];
@@ -67,5 +68,5 @@ export async function exportStaffHistoryPdf(input:{
   ]),theme:'grid',startY:28,styles:{fontSize:7.5,cellPadding:2},
   headStyles:{fillColor:[32,70,92]},margin:{left:9,right:9}})
  doc.setFontSize(8);doc.text('Historial limitado a los últimos 200 cambios cargados del año.',10,200)
- doc.save('arias_suite_historial_'+input.year+'.pdf')
+ previewPdf(doc, 'arias_suite_historial_'+input.year+'.pdf')
 }
