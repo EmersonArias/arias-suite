@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronRight, Download, Printer } from 'lucide-react'
@@ -72,7 +73,7 @@ function BookHistory({ book, hotelId, hotelName, demo }: { book: BookDefinition;
     setExporting(true)
     try {
       const { buildBookPdf } = await import('./bookPdf')
-      buildBookPdf(book, filtered, hotelName, demo).save([demo ? 'PRUEBA' : '', book.code, book.id, from, to].filter(Boolean).join('-') + '.pdf')
+      previewPdf(buildBookPdf(book, filtered, hotelName, demo), [demo ? 'PRUEBA' : '', book.code, book.id, from, to].filter(Boolean).join('-') + '.pdf')
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'No se pudo generar el PDF.')
     } finally {
