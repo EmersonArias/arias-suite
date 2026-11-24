@@ -1,3 +1,4 @@
+import { previewPdf } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { Download, FileText, X } from 'lucide-react'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
@@ -351,7 +352,7 @@ export default function RoomFancoilPreventivesPage() {
       },
     })
 
-    pdf.save(`preventivos-fancoils-listado-${filter === 'ALL' ? 'todos' : filter.toLowerCase()}-${localDate()}.pdf`)
+    previewPdf(pdf, `preventivos-fancoils-listado-${filter === 'ALL' ? 'todos' : filter.toLowerCase()}-${localDate()}.pdf`)
     setNotice('PDF de preventivos descargado.')
   }
 
