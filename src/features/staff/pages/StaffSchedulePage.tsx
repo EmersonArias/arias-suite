@@ -286,7 +286,7 @@ export default function StaffSchedulePage() {
       start_time:start,end_time:end,
       justification:row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
-      holiday_source_date:row?.holiday_source_date??row?.source_code?.match(/\d{4}-\d{2}-\d{2}/)?.[0]??'',
+      holiday_source_date:row?staffHolidayOrigin(row)??'':'',
        comp_source_entry_id:row?.comp_source_entry_id??'',
        comp_rest_hours:row?.comp_rest_minutes?String(row.comp_rest_minutes/60):'8',
        vacation_origin_year:row?.vacation_origin_year==null
