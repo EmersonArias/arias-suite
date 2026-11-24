@@ -16,6 +16,7 @@ import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '..
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
+import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 
 type PageTab = 'CUADRANTE' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -24,6 +25,7 @@ type DayEditor = {
   justification:string;
   vacation_taken_confirmed:boolean; vacation_origin_year:string;
   holiday_source_date:string; comp_source_entry_id:string; comp_rest_hours:string;
+  comp_allocations: Record<string,number>; target_minutes:number;
 }
 const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'CUADRANTE',label:'Cuadrante',mobile:'Turnos'}, {id:'ANUAL',label:'Resumen anual',mobile:'Resumen'},
@@ -207,7 +209,9 @@ export default function StaffSchedulePage() {
          t.linked_schedule_entry_id!==byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id)
          .reduce((sum,t)=>sum+t.minutes,0)
        return {...e,remaining:e.minutes-taken}
-    }).filter(e=>e.remaining>0||e.id===dayEditor.comp_source_entry_id):[]
+    }).filter(e=>e.remaining>0||dayEditor.comp_allocations[e.id]>0):[]
+  const restAllocated=dayEditor?Object.values(dayEditor.comp_allocations).reduce((a,b)=>a+b,0):0
+  const restRemaining=dayEditor?dayEditor.target_minutes-restAllocated:0
 
   const vacationToday=dateISO(new Date())
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
@@ -288,6 +292,10 @@ export default function StaffSchedulePage() {
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
       holiday_source_date:row?staffHolidayOrigin(row)??'':'',
        comp_source_entry_id:row?.comp_source_entry_id??'',
+       comp_allocations:Object.fromEntries(overtime.filter(e=>e.linked_schedule_entry_id===row?.id
+         &&e.compensates_entry_id&&e.entry_type==='REST_TAKEN').map(e=>[e.compensates_entry_id!,e.minutes])),
+       target_minutes:row?.state==='COMP_REST'?(row.comp_rest_minutes??480):
+         row?.state==='SHIFT'?(row.planned_minutes??480):480,
        comp_rest_hours:row?.comp_rest_minutes?String(row.comp_rest_minutes/60):'8',
        vacation_origin_year:row?.vacation_origin_year==null
         ? (row?.state==='VACATION_PREVIOUS'?'':workDate.slice(0,4))
@@ -322,11 +330,22 @@ export default function StaffSchedulePage() {
       setDayEditorError('Selecciona uno de los festivos pendientes de este trabajador.');return
     }
     if(dayEditor.state==='COMP_REST'){
-      const minutesRest=Math.round(Number(dayEditor.comp_rest_hours)*60)
-      const source=earnedEntries.find(e=>e.id===dayEditor.comp_source_entry_id)
-      if(!source||!Number.isFinite(minutesRest)||minutesRest<=0||minutesRest>source.remaining){
-        setDayEditorError('Selecciona horas generadas pendientes y una cantidad disponible.');return
+      if(restRemaining!==0||restAllocated<=0||
+        Object.entries(dayEditor.comp_allocations).some(([id,n])=>n<=0||
+          !earnedEntries.some(e=>e.id===id&&e.remaining>=n))){
+        setDayEditorError('Debes cubrir '+hours(dayEditor.target_minutes)+
+          ' con los saldos pendientes. Quedan '+hours(Math.max(0,restRemaining))+' por escoger.');return
       }
+      setBusy(true);setError('');setDayEditorError('')
+      const result=await supabase.rpc('staff_schedule_compensatory_day',{
+        p_hotel_id:hotel.id,p_operator_id:dayEditor.operator_id,
+        p_work_date:dayEditor.work_date,
+        p_allocations:Object.entries(dayEditor.comp_allocations).filter(([,n])=>n>0)
+          .map(([sourceId,minutes])=>({sourceId,minutes})),
+      })
+      if(result.error)setDayEditorError(result.error.message)
+      else {setDayEditor(null);setSuccess('Descanso registrado: '+hours(restAllocated)+' compensadas.');await reload()}
+      setBusy(false);return
     }
     const minutes=isShift?minutesInShift(start,end):null
     if(isShift && !minutes){
@@ -352,12 +371,10 @@ export default function StaffSchedulePage() {
       source_kind:'MANUAL',
       source_code:dayEditor.state==='PUBLIC_HOLIDAY'
         ?'Festivo disfrutado · '+dayEditor.holiday_source_date
-        :dayEditor.state==='COMP_REST'
-          ?'Recuperación horas · '+dayEditor.comp_source_entry_id
-          :existing?.state===dayEditor.state?existing?.source_code??null:null,
+        :existing?.state===dayEditor.state?existing?.source_code??null:null,
       holiday_source_date:dayEditor.state==='PUBLIC_HOLIDAY'?dayEditor.holiday_source_date:null,
-      comp_source_entry_id:dayEditor.state==='COMP_REST'?dayEditor.comp_source_entry_id:null,
-      comp_rest_minutes:dayEditor.state==='COMP_REST'?Math.round(Number(dayEditor.comp_rest_hours)*60):null,
+      comp_source_entry_id:null,
+      comp_rest_minutes:null,
       vacation_origin_year:isVacationState(dayEditor.state)?vacationOrigin:null,
       vacation_taken_confirmed:confirmedVacation,
       vacation_confirmed_at:confirmedVacation
@@ -479,6 +496,14 @@ export default function StaffSchedulePage() {
     if(result.error)setError(result.error.message);else{setSuccess('Observación privada guardada.');await reload()}
     setBusy(false)
   }
+  async function exportAnnualPdf(){
+    if(!hotel)return
+    try{
+      setError('')
+      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary})
+    }catch(e){setError('No se pudo generar el PDF anual: '+
+      (e instanceof Error?e.message:'Error desconocido'))}
+  }
   async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
     if(!hotel)return
     try{
@@ -576,6 +601,14 @@ export default function StaffSchedulePage() {
       />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
+          <div><h2 className="text-sm font-bold">Resumen anual · {year}</h2>
+            <p className="text-xs text-slate-500">Horas programadas, vacaciones previstas y saldos pendientes.</p></div>
+          <button type="button" onClick={()=>void exportAnnualPdf()}
+            className="rounded-lg border px-3 py-2 text-xs font-semibold">
+            <Printer size={14} className="mr-1 inline"/>Descargar PDF
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
             ['Operarios activos',String(operators.filter(o=>o.active).length)],
@@ -588,7 +621,8 @@ export default function StaffSchedulePage() {
             <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
               {[['Previstas',hours(s.planned)],['Turnos',String(s.shifts)],['F. semana',String(s.total)],
-              ['Vacaciones',s.vacation+' d'],['Baja',s.sick+' d'],['H. extra',hours(s.cumulativeBalance)]].map(([label,value])=>
+              ['Vacaciones previstas',s.vacation+' d'],['Baja',s.sick+' d'],
+               ['H. extra pendientes',hours(Math.max(0,s.cumulativeBalance))]].map(([label,value])=>
                 label==='Previstas'
                 ? <button type="button" key={label} onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                     title={'Ver horas previstas por mes de '+s.operator.display_name}
@@ -602,14 +636,14 @@ export default function StaffSchedulePage() {
           </div>)}
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
-          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Saldo acumulado de horas extra</th></tr></thead><tbody>
+          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
             {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                 className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
                 {hours(s.planned)}
-              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(s.cumulativeBalance)}</td></tr>)}
+              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(Math.max(0,s.cumulativeBalance))}</td></tr>)}
           </tbody></table>
         </div>
       </section>}
@@ -1110,21 +1144,52 @@ export default function StaffSchedulePage() {
               </label>
               <p className="mt-1 text-xs text-amber-900">{availableHolidays.length} festivos disponibles para este trabajador. Se mostrará F y la fecha elegida en el cuadrante.</p>
             </div>}
-            {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-2">
-              <label className="block text-xs font-semibold">Horas extras pendientes que se van a disfrutar
-                <select className={baseInput+' mt-1'} value={dayEditor.comp_source_entry_id}
-                  onChange={e=>setDayEditor({...dayEditor,comp_source_entry_id:e.target.value})}>
-                  <option value="">Escoger registro de horas…</option>
-                  {earnedEntries.map(e=><option key={e.id} value={e.id}>
-                    {asDisplayDate(e.entry_date)} · {hours(e.remaining)} disponibles · {e.reason}
-                  </option>)}
-                </select>
-              </label>
-              <label className="mt-2 block text-xs font-semibold">Horas que se disfrutan en este día
-                <input className={baseInput+' mt-1'} type="number" min="0.25" step="0.25"
-                  value={dayEditor.comp_rest_hours} onChange={e=>setDayEditor({...dayEditor,comp_rest_hours:e.target.value})}/>
-              </label>
-              <p className="mt-1 text-xs text-sky-900">Al guardar se anotará automáticamente la fecha de disfrute en el registro de horas extras.</p>
+            {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
+              <h3 className="text-sm font-semibold text-sky-950">Repartir horas para descansar la jornada completa</h3>
+              <p className="mt-1 text-xs text-sky-900">Jornada a compensar: <strong>{hours(dayEditor.target_minutes)}</strong>.
+                Selecciona uno o varios registros pendientes. Solo se descontará la parte necesaria de cada uno.</p>
+              <div className="mt-3 space-y-2">
+                {earnedEntries.map(entry=>{
+                  const chosen=dayEditor.comp_allocations[entry.id]??0
+                  const available=Math.max(0,entry.remaining-chosen)
+                  return <div key={entry.id} className="rounded-lg border border-sky-200 bg-white p-2">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span><strong>{asDisplayDate(entry.entry_date)}</strong> · {entry.reason}</span>
+                      <span className="shrink-0 font-semibold">{hours(entry.remaining)} disponibles</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button type="button" disabled={restRemaining<=0||available<=0}
+                        onClick={()=>{
+                          const use=Math.min(restRemaining,available)
+                          if(use<=0)return
+                          setDayEditor(prev=>prev?{...prev,comp_allocations:{
+                            ...prev.comp_allocations,[entry.id]:(prev.comp_allocations[entry.id]??0)+use,
+                          }}:prev)
+                        }}
+                        className="rounded-md bg-sky-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                        Añadir {hours(Math.min(Math.max(restRemaining,0),available))}
+                      </button>
+                      {chosen>0&&<span className="text-xs font-semibold text-sky-950">Seleccionadas: {hours(chosen)}</span>}
+                      {chosen>0&&<button type="button" className="ml-auto rounded-md border px-2 py-1 text-xs"
+                        onClick={()=>setDayEditor(prev=>{
+                          if(!prev)return prev
+                          const next={...prev.comp_allocations};delete next[entry.id]
+                          return {...prev,comp_allocations:next}
+                        })}>Quitar</button>}
+                    </div>
+                  </div>
+                })}
+                {earnedEntries.length===0&&<p className="text-xs text-amber-800">
+                  No hay horas generadas identificadas disponibles para elegir.</p>}
+              </div>
+              <div role="status" aria-live="polite" className={'mt-3 rounded-lg p-3 text-xs font-semibold '+
+                (restRemaining===0?'bg-emerald-100 text-emerald-950':'bg-amber-100 text-amber-950')}>
+                Has seleccionado {hours(restAllocated)} de {hours(dayEditor.target_minutes)}.
+                {restRemaining>0?' Faltan '+hours(restRemaining)+'; escoge horas de otro día.':
+                  restRemaining===0?' Jornada cubierta. Puedes guardar.':' Has excedido la jornada.'}
+              </div>
+              <p className="mt-2 text-xs text-sky-950">Ejemplo: si hay 10 h disponibles y necesitas 8 h,
+                se descuentan 8 h y quedan 2 h para otro día.</p>
             </div>}
             {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
               <label className="mb-2 block text-xs font-medium">Año al que corresponden las vacaciones
@@ -1150,7 +1215,7 @@ export default function StaffSchedulePage() {
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
           </div>
           {dayEditorError&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{dayEditorError}</p>}
-          <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
+          <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy||(dayEditor.state==='COMP_REST'&&restRemaining!==0)} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
         </section>
       </div>}
     </div>
