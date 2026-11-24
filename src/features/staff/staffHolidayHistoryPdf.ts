@@ -2,7 +2,7 @@ import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit, type HolidayItem } from './staffHolidayAudit'
 
 type HistoryRow={
- id:string;operator_id:string;work_date:string;action:string;changed_at:string;
+ id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;
  actor_user_id:string|null;previous_values:Record<string,unknown>|null;
  new_values:Record<string,unknown>|null
 }
@@ -41,10 +41,10 @@ export async function exportStaffHistoryPdf(input:{
  if(!included.size)throw new Error('Selecciona uno o más operarios.')
  const names=new Map(input.operators.map(o=>[o.id,o.display_name]))
  const {doc,autoTable}=await pdfBase('Historial de cambios de jornadas',input.hotelName,input.year)
- autoTable(doc,{head:[['Fecha del cambio','Operario','Día','Acción','Estado anterior','Estado nuevo','Usuario']],
+ autoTable(doc,{head:[['Fecha del cambio','Operario','Día','Origen','Acción','Anterior','Nuevo','Usuario']],
   body:input.history.filter(row=>included.has(row.operator_id)).map(row=>[
     new Date(row.changed_at).toLocaleString('es-ES'),names.get(row.operator_id)??'—',
-    display(row.work_date),row.action,String(row.previous_values?.state??'—'),
+    display(row.work_date),row.entity_kind,row.action,String(row.previous_values?.state??'—'),
     String(row.new_values?.state??'—'),row.actor_user_id??'No identificado',
   ]),theme:'grid',startY:28,styles:{fontSize:7.5,cellPadding:2},
   headStyles:{fillColor:[32,70,92]},margin:{left:9,right:9}})
