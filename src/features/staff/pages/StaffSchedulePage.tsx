@@ -1171,7 +1171,7 @@ export default function StaffSchedulePage() {
                 Este festivo aparece {holidayUsageForDay.length} veces para este trabajador:
                 {' '}{holidayUsageForDay.map(d=>asDisplayDate(d.work_date)).join(', ')}.
                 Revisa cuál corresponde antes de guardar.
-              </p>
+              </p>}
             </div>}
             {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
               <h3 className="text-sm font-semibold text-sky-950">Repartir horas para descansar la jornada completa</h3>
