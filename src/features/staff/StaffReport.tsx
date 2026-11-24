@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileDown, FileText, Printer, Search } from 'lucide-react'
+import { FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
   vacationStage, vacationCode, isSplitShift, plannedMinutes, matchesStaffState, staffReportDaysForOperator, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
@@ -234,8 +234,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
   const stateLabel=statusOptions.find(o=>o.value===snapshot?.status)?.label??'Todos los estados'
   const periodLabel=snapshot ? shortDate(snapshot.start)+(snapshot.start===snapshot.end?'':' – '+shortDate(snapshot.end)):''
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
-  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status &&
-    (operatorId!=='MULTI'||JSON.stringify([...snapshot.operatorIds??[]].sort())===JSON.stringify([...selectedOperatorIds].sort()))
+  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end &&
+    snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
     ['SHIFT','Horario (9–13/15–19: 8 h)'],['REST','D Descanso'],['VACATION','V Programadas'],
     ['VACATION_PREVIOUS','A25 Vac. de 2025 / A26 de 2026'],['MEDICAL_LEAVE','B Baja'],
