@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type {StaffDay,StaffOperator} from './staffModel'
 import {plannedMinutes,stateView} from './staffModel'
 
@@ -29,5 +30,5 @@ export async function exportPlannerSchedulePdf(input:{
    headStyles:{fillColor:[30,55,75]},
    didDrawPage:({pageNumber})=>{doc.setFontSize(8);doc.text('Arias Suite · '+heading+' · Página '+pageNumber,10,200)},
  })
- doc.save('arias_suite_'+input.mode.toLowerCase()+'_'+input.year+'.pdf')
+ previewPdf(doc, 'arias_suite_'+input.mode.toLowerCase()+'_'+input.year+'.pdf')
 }
