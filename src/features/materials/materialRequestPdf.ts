@@ -1,5 +1,4 @@
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 
 export type MaterialPdfRequest = {
   request_number: string; department: string; cause: string; requester_name: string
@@ -11,7 +10,8 @@ export type MaterialPdfLine = {
   provider_name: string | null; purchase_url: string | null
 }
 
-export function buildMaterialRequestPdf(request: MaterialPdfRequest, lines: MaterialPdfLine[], hotelName: string) {
+export async function buildMaterialRequestPdf(request: MaterialPdfRequest, lines: MaterialPdfLine[], hotelName: string) { 
+  const { jsPDF, autoTable } = await loadPdfLibraries()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const width = doc.internal.pageSize.getWidth()
   const bottom = doc.internal.pageSize.getHeight() - 27
