@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
-import { Plus, Printer, RefreshCw, UserRoundCog, Pencil, X } from 'lucide-react'
+import { Plus, Printer, RefreshCw, UserRoundCog, Pencil, X, Settings2 } from 'lucide-react'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
@@ -16,6 +16,7 @@ import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '..
 import StaffCalendar from '../StaffCalendar'
 import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
+import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 
@@ -94,6 +95,9 @@ export default function StaffSchedulePage() {
   const [calendarFilter,setCalendarFilter]=useState('ALL')
   const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
+  const [showVacationSettings,setShowVacationSettings]=useState(false)
+  const [showCollectiveAgreement,setShowCollectiveAgreement]=useState(false)
+  const [agreementSnapshotDate,setAgreementSnapshotDate]=useState<string|null>(null)
   const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
   const [checkedAbsenceIds,setCheckedAbsenceIds]=useState<string[]>([])
   const [bulkAbsenceStatus,setBulkAbsenceStatus]=useState<'DOCUMENTED'|'PENDING'|'UNJUSTIFIED'|'UNKNOWN'>('DOCUMENTED')
@@ -221,6 +225,9 @@ export default function StaffSchedulePage() {
   const restRemaining=dayEditor?dayEditor.target_minutes-restAllocated:0
 
   const vacationToday=dateISO(new Date())
+  const comparisonCutoff=agreementSnapshotDate??vacationToday
+  const formatVacationDays=(value:number|null)=>value===null?'—':
+    value.toLocaleString('es-ES',{maximumFractionDigits:2})+' d'
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
   const vacationPeople=operators.filter(person=>
     (vacationOperatorFilter==='ALL'||vacationOperatorFilter===person.id) &&
@@ -723,6 +730,11 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">
               Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
             </h2>
+            <button type="button" onClick={()=>setShowVacationSettings(prev=>!prev)}
+              aria-expanded={showVacationSettings}
+              className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
+              <Settings2 size={14} className="mr-1 inline"/>Configuración
+            </button>
             <button type="button" onClick={()=>void exportSectionPdf('VACACIONES')}
                 className="shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold">
                 <Printer size={14} className="mr-1 inline"/>PDF
@@ -732,6 +744,24 @@ export default function StaffSchedulePage() {
               Ver todos
             </button>}
           </div>
+          {showVacationSettings&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-xs font-bold">Configuración · Vacaciones</h3>
+            <p className="mt-1 text-xs text-slate-600">Referencia actualmente aprobada por dirección:
+              <strong> 30 días naturales al año</strong>.
+              El convenio (31 días) se muestra solo como comparativa, sin alterar los saldos aprobados.
+            </p>
+            <button type="button" onClick={()=>{
+              if(showCollectiveAgreement){setShowCollectiveAgreement(false);setAgreementSnapshotDate(null)}
+              else {setShowCollectiveAgreement(true);setAgreementSnapshotDate(dateISO(new Date()))}
+            }} className="mt-2 rounded-lg border border-sky-600 bg-white px-3 py-2 text-xs font-semibold text-sky-900">
+              {showCollectiveAgreement?'Ocultar convenio':
+                'Aplicar convenio de hostelería (comparar 31 días)'}
+            </button>
+            {showCollectiveAgreement&&<p className="mt-2 text-xs text-sky-950">
+              Escenario de 31 días calculado hasta <strong>{asDisplayDate(comparisonCutoff)}</strong>,
+              fecha de activación de la comparativa. No equivale a aprobación.
+            </p>}
+          </div>}
           <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
           <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
             {([
@@ -750,6 +780,55 @@ export default function StaffSchedulePage() {
           <p className="mt-2 text-[10px] text-slate-500">
             Los contadores son del año {year}. «Por confirmar» no significa disfrutadas.
             Los períodos que continúan en enero muestran ambos años.
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-white p-3 shadow-sm">
+          <h3 className="text-sm font-bold">Vacaciones correspondientes · {year}</h3>
+          <p className="mt-1 text-xs text-slate-600">
+            Días naturales devengados según los 30 días aprobados; el escenario de 31 días
+            aparece al activar la comparativa del convenio.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead><tr className="border-b bg-slate-50">
+                <th className="p-2">Trabajador</th>
+                <th className="p-2">Fecha de alta</th>
+                <th className="p-2">Aprobadas (año completo)</th>
+                <th className="p-2">Devengadas hasta hoy (30 días)</th>
+                {showCollectiveAgreement&&<>
+                  <th className="p-2">Convenio (año completo)</th>
+                  <th className="p-2">Convenio devengadas hasta {asDisplayDate(comparisonCutoff)} (31 días)</th>
+                </>}
+              </tr></thead>
+              <tbody>{operators.filter(person=>
+                vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
+                .map(person=>{
+                  const approved=accruedVacationDays(30,year,vacationToday,person.join_date)
+                  const comparison=showCollectiveAgreement
+                    ?accruedVacationDays(31,year,comparisonCutoff,person.join_date):null
+                  return <tr key={person.id} className="border-b align-top">
+                    <td className="p-2 font-semibold">{person.display_name}</td>
+                    <td className="p-2">{person.join_date?asDisplayDate(person.join_date):
+                      <span className="font-semibold text-amber-800">Sin informar</span>}</td>
+                    <td className="p-2">30 d</td>
+                    <td className="p-2">{formatVacationDays(approved)}
+                      {approved===null&&<span className="block text-[10px] text-amber-800">Pendiente fecha de alta</span>}
+                    </td>
+                    {showCollectiveAgreement&&<>
+                      <td className="p-2">31 d</td>
+                      <td className="p-2">{formatVacationDays(comparison)}
+                        {comparison===null&&<span className="block text-[10px] text-amber-800">Pendiente fecha de alta</span>}
+                      </td>
+                    </>}
+                  </tr>
+                })}</tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            No se deduce la fecha contractual del primer turno.
+            Estos valores son devengo proporcional, no días restantes tras vacaciones disfrutadas.
+            Las asignaciones, ajustes y días arrastrados siguen independientes.
           </p>
         </div>
 
