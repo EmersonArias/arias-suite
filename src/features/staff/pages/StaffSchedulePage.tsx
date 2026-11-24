@@ -21,6 +21,7 @@ import StaffHolidays from '../StaffHolidays'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
+import { exportStaffHistoryPdf } from '../staffHolidayHistoryPdf'
 
 type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -637,7 +638,7 @@ export default function StaffSchedulePage() {
         {tabs.filter(t=>!demo||!['NOTAS','HISTORIAL'].includes(t.id)).map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
 
-      {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS'].includes(tab)&&
+      {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS','FESTIVOS','HISTORIAL'].includes(tab)&&
         <section className="rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold">Trabajadores incluidos en el PDF</h3>
@@ -683,6 +684,8 @@ export default function StaffSchedulePage() {
 
       {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
         hotelId={hotel.id}
+        hotelName={hotel.name??'Hotel'}
+        pdfOperatorIds={pdfSelectedOperators.map(p=>p.id)}
         year={year}
         operators={operators}
         days={days}
@@ -1181,7 +1184,16 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
-        <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs font-semibold"
+            onClick={()=>void exportStaffHistoryPdf({
+              hotelName:hotel?.name??'Hotel',year,operators,history,
+              operatorIds:pdfSelectedOperators.map(p=>p.id),
+            }).catch(e=>setError(e instanceof Error?e.message:'No se pudo generar el PDF'))}>
+            <Printer size={14} className="mr-1 inline"/>PDF
+          </button>
+        </div>
         <p className="mt-1 text-xs text-slate-600">
           Últimos 200 cambios del año. Incluye altas, cambios y supresiones realizados
           desde el cuadrante, las fichas de vacaciones y las bajas. No se pueden editar aquí.
