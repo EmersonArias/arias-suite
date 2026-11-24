@@ -102,7 +102,6 @@ export default function StaffSchedulePage() {
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
   const [showVacationSettings,setShowVacationSettings]=useState(false)
   const [agreementOperatorIds,setAgreementOperatorIds]=useState<string[]|null>(null)
-  const [agreementSnapshotDate,setAgreementSnapshotDate]=useState<string|null>(null)
   const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
   const [checkedAbsenceIds,setCheckedAbsenceIds]=useState<string[]>([])
   const [bulkAbsenceStatus,setBulkAbsenceStatus]=useState<'DOCUMENTED'|'PENDING'|'UNJUSTIFIED'|'UNKNOWN'>('DOCUMENTED')
@@ -255,7 +254,6 @@ export default function StaffSchedulePage() {
     }
     return first
   },[days,year])
-  const comparisonCutoff=agreementSnapshotDate??vacationToday
   const agreementOperators=agreementOperatorIds===null?operators:
     operators.filter(p=>agreementOperatorIds.includes(p.id))
   const formatVacationDays=(value:number|null)=>value===null?'—':
@@ -821,7 +819,7 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">
               Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
             </h2>
-            <button type="button" onClick={()=>{setAgreementSnapshotDate(dateISO(new Date()));setShowVacationSettings(true)}} aria-haspopup="dialog"
+            <button type="button" onClick={()=>setShowVacationSettings(true)} aria-haspopup="dialog"
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
