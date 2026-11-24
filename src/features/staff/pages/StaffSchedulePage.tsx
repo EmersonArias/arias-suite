@@ -912,10 +912,6 @@ export default function StaffSchedulePage() {
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
-              {operatorFilter!=='ALL'&&<button type="button" onClick={()=>setOperatorFilter('ALL')}
-              className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-[11px] font-semibold">
-              Ver todos
-            </button>}
           </div>
           <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
           <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
