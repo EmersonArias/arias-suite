@@ -19,6 +19,7 @@ import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
 import StaffToggleButton from '../StaffToggleButton'
+import { auditCompensatoryRest } from '../staffOvertimeAudit'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
@@ -194,6 +195,7 @@ export default function StaffSchedulePage() {
   }
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
+  const restAudit=selectedId?auditCompensatoryRest(days,overtime,selectedId,year):null
   const pdfSelectedOperators=pdfOperatorIds===null?operators:operators.filter(o=>pdfOperatorIds.includes(o.id))
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
@@ -787,14 +789,20 @@ export default function StaffSchedulePage() {
             <label className="col-span-2 text-xs md:col-span-1">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
             <button disabled={busy} onClick={()=>void saveOvertime()} className="col-span-2 min-h-9 self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-1">Registrar</button>
           </div>
-          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
+          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Origen de las horas</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
             {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td>
               <td className="px-1">{(()=>{
                 if(e.entry_type==='REST_TAKEN')return 'Disfrutado'
                 if(!['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type))return e.entry_type==='PAID'?'Abonado':'Ajuste'
                 const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&t.entry_type==='REST_TAKEN')
                   .reduce((sum,t)=>sum+t.minutes,0)
-                return taken===0?'Pendiente':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+                return taken===0?'Sin disfrute vinculado':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+              })()}</td>
+              <td className="px-1">{(()=>{
+                if(e.entry_type!=='REST_TAKEN')return '—'
+                const origin=overtime.find(item=>item.id===e.compensates_entry_id)
+                return origin?asDisplayDate(origin.entry_date)+' · '+hours(e.minutes):
+                  'Sin origen vinculado (histórico)'
               })()}</td>
               <td className="px-1">{(()=>{
                 if(e.entry_type==='REST_TAKEN')return asDisplayDate(e.entry_date)
@@ -803,6 +811,45 @@ export default function StaffSchedulePage() {
                 return dates.length?dates.join(', '):'—'
               })()}</td></tr>)}
           </tbody></table></div>
+          {restAudit&&<div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+            <h3 className="text-sm font-bold text-sky-950">Recuperaciones registradas en el cuadrante · {year}</h3>
+            <p className="mt-1 text-xs text-sky-900">
+              La fecha del descanso y las horas de origen se obtienen del mismo movimiento
+              que descuentan Horas extras, Resumen anual y PDF. Los registros históricos
+              no vinculados no se descuentan otra vez.
+            </p>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[440px] text-left text-xs">
+                <thead><tr className="border-b border-sky-200">
+                  <th className="p-2">Descanso</th><th className="p-2">Horas recuperadas</th>
+                  <th className="p-2">Horas generadas el</th><th className="p-2">Vinculación</th>
+                </tr></thead>
+                <tbody>{restAudit.restDays.map(day=>{
+                  const applied=restAudit.movementsByDay.get(day.id)??[]
+                  const past=restAudit.unlinked.find(item=>item.day.id===day.id)
+                  return <tr key={day.id} className="border-b border-sky-100">
+                    <td className="p-2">{asDisplayDate(day.work_date)}</td>
+                    <td className="p-2">{applied.length?hours(applied.reduce((n,e)=>n+e.minutes,0)):'Por comprobar'}</td>
+                    <td className="p-2">{applied.length?applied.map(e=>{
+                      const origin=e.compensates_entry_id?restAudit.earnedById.get(e.compensates_entry_id):null
+                      return origin?asDisplayDate(origin.entry_date)+' ('+hours(e.minutes)+')':'Origen sin localizar'
+                    }).join(' + '):'Sin origen identificado'}</td>
+                    <td className={'p-2 '+(past?'font-semibold text-amber-900':'text-emerald-800')}>
+                      {past?past.historicalMovements.length?'Movimiento antiguo sin enlace':'Pendiente de vincular':'Vinculado'}
+                    </td>
+                  </tr>
+                })}
+                </tbody>
+              </table>
+              {restAudit.restDays.length===0&&<p className="p-2 text-xs text-slate-600">Sin descansos de recuperación en el cuadrante de este año.</p>}
+            </div>
+            {restAudit.unlinked.length>0&&<p role="status" className="mt-2 text-xs font-semibold text-amber-900">
+              {restAudit.unlinked.length} días históricos sin origen vinculado; no se descuentan nuevamente.
+              Deben conciliarse con los movimientos anteriores antes de asignarles una fecha de origen.
+            </p>}
+            {restAudit.issues.length>0&&<p role="alert" className="mt-1 text-xs text-rose-800">
+              Hay {restAudit.issues.length} movimientos vinculados con discrepancias por revisar.</p>}
+          </div>}
         </div>}
       </section>}
 
