@@ -23,7 +23,8 @@ import { auditCompensatoryRest } from '../staffOvertimeAudit'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
-import { exportStaffHistoryPdf } from '../staffHolidayHistoryPdf'
+import { exportStaffHistoryPdf,exportHolidayAuditPdf } from '../staffHolidayHistoryPdf'
+import { exportPlannerSchedulePdf } from '../staffPlannerPdf'
 
 type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -99,8 +100,8 @@ export default function StaffSchedulePage() {
   const {session}=useAuth()
   const demo=isDemoUser(session?.user.id)
   const [year,setYear]=useState(new Date().getFullYear())
-  const [calendarFilter,setCalendarFilter]=useState('ALL')
-  const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
+  const [operatorFilter,setOperatorFilter]=useState('ALL')
+  const [reportPdfRequest,setReportPdfRequest]=useState(0)
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
   const [showVacationSettings,setShowVacationSettings]=useState(false)
   const [agreementOperatorIds,setAgreementOperatorIds]=useState<string[]|null>(null)
@@ -123,7 +124,6 @@ export default function StaffSchedulePage() {
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [firstScheduledDates,setFirstShiftDates]=useState<Record<string,string>>({})
   const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
-  const [pdfOperatorIds,setPdfOperatorIds]=useState<string[]|null>(null)
   const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
   const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
   const [selectedId,setSelectedId]=useState('')
@@ -196,10 +196,11 @@ export default function StaffSchedulePage() {
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
   const restAudit=selectedId?auditCompensatoryRest(days,overtime,selectedId,year):null
-  const pdfSelectedOperators=pdfOperatorIds===null?operators:operators.filter(o=>pdfOperatorIds.includes(o.id))
+  const filteredOperators=operatorFilter==='ALL'?operators:operators.filter(o=>o.id===operatorFilter)
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
   })),[operators,days,overtime,year])
+  const filteredSummary=summary.filter(s=>operatorFilter==='ALL'||s.operator.id===operatorFilter)
   const selectedSummary=summary.find(s=>s.operator.id===selectedId)??null
   const hoursDetailOperator=operators.find(o=>o.id===hoursDetailOperatorId)??null
   const hoursMonthly=useMemo(()=>Array.from({length:12},(_,i)=>{
@@ -263,10 +264,10 @@ export default function StaffSchedulePage() {
     value.toLocaleString('es-ES',{maximumFractionDigits:2})+' d'
   const vacationYearDays=days.filter(d=>d.work_date.startsWith(String(year)) && isVacationState(d.state))
   const vacationPeople=operators.filter(person=>
-    (vacationOperatorFilter==='ALL'||vacationOperatorFilter===person.id) &&
-    (vacationOperatorFilter!=='ALL'||vacationYearDays.some(d=>d.operator_id===person.id)))
+    (operatorFilter==='ALL'||operatorFilter===person.id) &&
+    (operatorFilter!=='ALL'||vacationYearDays.some(d=>d.operator_id===person.id)))
   const vacationScopedDays=vacationYearDays.filter(d=>
-    vacationOperatorFilter==='ALL'||d.operator_id===vacationOperatorFilter)
+    operatorFilter==='ALL'||d.operator_id===operatorFilter)
   const vacationCounts={
     ALL:vacationScopedDays.length,
     TAKEN:vacationScopedDays.filter(d=>vacationStage(d,vacationToday)==='TAKEN').length,
@@ -301,7 +302,7 @@ export default function StaffSchedulePage() {
 
   useEffect(()=>{
     setCheckedVacationIds([])
-  },[year,vacationOperatorFilter,vacationStatusFilter,hotel?.id])
+  },[year,operatorFilter,vacationStatusFilter,hotel?.id])
   useEffect(()=>{
     setCheckedAbsenceIds([])
   },[year,selectedId,hotel?.id])
@@ -568,23 +569,55 @@ export default function StaffSchedulePage() {
     if(!hotel)return
     try{
       setError('')
-      if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario.');return}
-      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary.filter(s=>pdfSelectedOperators.some(o=>o.id===s.operator.id))})
+      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:filteredSummary})
     }catch(e){setError('No se pudo generar el PDF anual: '+
       (e instanceof Error?e.message:'Error desconocido'))}
   }
   async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
     if(!hotel)return
-    if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario para el PDF.');return}
     try{
       setError('')
       await staffSectionPdf({
         section,hotelName:hotel.name,year,operators,days,overtime,
-        operatorId:'ALL',operatorIds:pdfSelectedOperators.map(o=>o.id),
+        operatorId:operatorFilter,
         statusFilter:section==='VACACIONES'?vacationStatusFilter:undefined,
       })
     }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
   }
+  async function exportCurrentPdf(){
+    if(!hotel?.id)return
+    setError('')
+    try{
+      switch(tab){
+        case 'ANUAL':await exportAnnualPdf();break
+        case 'FESTIVOS':
+          await exportHolidayAuditPdf({
+            hotelName:hotel.name??'Hotel',year,operators,days,
+            holidays:holidays.filter(date=>date.startsWith(String(year))).map(date=>({
+              holiday_date:date,label:holidayLabels[date]??'Festivo',
+            })),operatorIds:filteredOperators.map(o=>o.id),firstScheduledDates,
+          })
+          break
+        case 'EXTRAS':await exportSectionPdf('EXTRAS');break
+        case 'VACACIONES':await exportSectionPdf('VACACIONES');break
+        case 'AUSENCIAS':await exportSectionPdf('BAJAS');break
+        case 'HISTORIAL':
+          await exportStaffHistoryPdf({hotelName:hotel.name??'Hotel',year,operators,history,
+            operatorIds:filteredOperators.map(o=>o.id)})
+          break
+        case 'CUADRANTE':
+        case 'FINES':
+          await exportPlannerSchedulePdf({hotelName:hotel.name??'Hotel',year,operators,days,
+            mode:tab,operatorId:operatorFilter})
+          break
+        case 'REPORTES':setReportPdfRequest(value=>value+1);break
+        case 'NOTAS':setError('Las observaciones privadas no tienen exportación PDF habilitada por motivos de confidencialidad.');break
+      }
+    }catch(e){
+      setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error desconocido'))
+    }
+  }
+
   async function saveOvertime(){
     if(!hotel?.id||!selectedId)return
     const minutes=Math.round(Number(overtimeHours)*60)
@@ -615,7 +648,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}<button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
+          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -627,61 +660,38 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <label className="min-w-0 flex-1 text-[10px] font-semibold text-slate-600 sm:max-w-xs sm:text-xs">Operario
-          <select value={tab==='CUADRANTE'?calendarFilter:tab==='VACACIONES'?vacationOperatorFilter:selectedId}
-            onChange={e=>{
-              if(tab==='CUADRANTE'){
-                setCalendarFilter(e.target.value)
-                if(e.target.value!=='ALL') setSelectedId(e.target.value)
-              } else if(tab==='VACACIONES'){
-                setVacationOperatorFilter(e.target.value)
-                if(e.target.value!=='ALL') setSelectedId(e.target.value)
-              } else {
-                setSelectedId(e.target.value)
-              }
+          <select value={operatorFilter} onChange={e=>{
+              const value=e.target.value
+              setOperatorFilter(value)
+              if(value!=='ALL')setSelectedId(value)
             }}
             className={baseInput+' mt-0.5 sm:mt-1'}>
-            {(tab==='CUADRANTE'||tab==='VACACIONES')&&<option value="ALL">Todos los operarios</option>}
+            <option value="ALL">Todos los operarios</option>
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}{o.active?'':' · inactivo'}</option>)}
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
+          <button type="button" aria-label="Descargar PDF de la sección para el operario seleccionado"
+            title="Descargar PDF con el operario elegido arriba"
+            onClick={()=>void exportCurrentPdf()} disabled={busy}
+            className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <Printer size={15}/>PDF
+          </button>
           {!demo&&<button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>}
-          {!demo&&selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {!demo&&selected&&operatorFilter!=='ALL'&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
         {tabs.filter(t=>!demo||!['NOTAS','HISTORIAL'].includes(t.id)).map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
 
-      {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS','FESTIVOS','HISTORIAL'].includes(tab)&&
-        <section className="rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-bold">Trabajadores incluidos en el PDF</h3>
-            <div className="flex gap-2">
-              <button type="button" onClick={()=>setPdfOperatorIds(null)}
-                className="rounded-lg border px-2 py-1 text-xs">Todos</button>
-              <button type="button" onClick={()=>setPdfOperatorIds([])}
-                className="rounded-lg border px-2 py-1 text-xs">Limpiar</button>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">{operators.map(p=>
-            <StaffToggleButton key={p.id} selected={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
-              onClick={()=>setPdfOperatorIds(prev=>{
-                const all=prev??operators.map(o=>o.id)
-                return all.includes(p.id)?all.filter(id=>id!==p.id):[...all,p.id]
-              })}>{p.display_name}</StaffToggleButton>)}
-          </div>
-          <p className="mt-2 text-[11px] text-slate-500">
-            Seleccionados: {pdfSelectedOperators.length} de {operators.length}. Los PDF de esta sección
-            y del resumen anual usarán esta misma selección.
-          </p>
-        </section>}
-
       {tab==='REPORTES'&&hotel?.id&&<StaffReport
         hotelId={hotel.id}
         hotelName={hotel.name??'Hotel'}
         operators={operators}
         initialYear={year}
+        selectedOperatorId={operatorFilter}
+        pdfRequest={reportPdfRequest}
       />}
 
       {tab==='CUADRANTE'&&<StaffCalendar
@@ -689,15 +699,14 @@ export default function StaffSchedulePage() {
         operators={operators}
         days={days}
         holidays={holidays}
-        operatorId={calendarFilter}
+        operatorId={operatorFilter}
         onYearChange={setYear}
         onEditDay={(operatorId,day)=>{if(!demo)openDay(operatorId,day)}}
       />}
 
       {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
         hotelId={hotel.id}
-        hotelName={hotel.name??'Hotel'}
-        pdfOperatorIds={pdfSelectedOperators.map(p=>p.id)}
+        operatorId={operatorFilter}
         firstScheduledDates={firstScheduledDates}
         year={year}
         operators={operators}
@@ -714,20 +723,16 @@ export default function StaffSchedulePage() {
         <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
           <div><h2 className="text-sm font-bold">Resumen anual · {year}</h2>
             <p className="text-xs text-slate-500">Horas programadas, vacaciones previstas y saldos pendientes.</p></div>
-          <button type="button" onClick={()=>void exportAnnualPdf()}
-            className="rounded-lg border px-3 py-2 text-xs font-semibold">
-            <Printer size={14} className="mr-1 inline"/>Descargar PDF
-          </button>
         </div>
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           {[
-            ['Operarios activos',String(operators.filter(o=>o.active).length)],
-            ['Turnos previstos',String(summary.reduce((v,s)=>v+s.shifts,0))],
-            ['Fines de semana previstos',String(summary.reduce((v,s)=>v+s.total,0))],
+            ['Operarios activos',String(filteredOperators.filter(o=>o.active).length)],
+            ['Turnos previstos',String(filteredSummary.reduce((v,s)=>v+s.shifts,0))],
+            ['Fines de semana previstos',String(filteredSummary.reduce((v,s)=>v+s.total,0))],
           ].map(([label,value])=><div key={label} className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{label}</p><p className="mt-0.5 text-lg font-bold sm:mt-1 sm:text-2xl">{value}</p></div>)}
         </div>
         <div className="space-y-1.5 md:hidden">
-          {summary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
+          {filteredSummary.map(s=><div key={s.operator.id} className="rounded-xl bg-white px-3 py-2 shadow-sm">
             <div className="mb-1 text-sm font-bold">{s.operator.display_name}</div>
             <div className="grid grid-cols-3 gap-1.5 text-center">
               {[['Previstas',hours(s.planned)],['Turnos',String(s.shifts)],['F. semana',String(s.total)],
@@ -747,7 +752,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
           <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
-            {summary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
+            {filteredSummary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
@@ -760,7 +765,7 @@ export default function StaffSchedulePage() {
 
       {tab==='FINES'&&<section className="rounded-xl bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
         <h2 className="mb-2 text-sm font-bold sm:text-lg">Fines de semana · {year}</h2>
-        <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">{summary.map(s=><details key={s.operator.id} className="group rounded-lg border px-3 py-2 sm:rounded-xl sm:p-3">
+        <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">{filteredSummary.map(s=><details key={s.operator.id} className="group rounded-lg border px-3 py-2 sm:rounded-xl sm:p-3">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
             <span className="min-w-0 truncate text-sm font-semibold">{s.operator.display_name}</span>
             <span className="shrink-0 text-sm font-bold">{num(s.total)} <span className="text-xs font-normal text-slate-500">sem.</span> <span className="text-slate-400">⌄</span></span>
@@ -771,10 +776,49 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='EXTRAS'&&<section className="space-y-2 sm:space-y-4">
-        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        {operatorFilter==='ALL'&&<div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+          <h2 className="text-sm font-bold">Horas extras · Todos los operarios</h2>
+          <p className="mt-1 text-xs text-slate-600">
+            Movimientos del libro de horas. Para añadir o corregir un movimiento, elige un operario arriba.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[550px] text-left text-xs">
+              <thead><tr className="border-b bg-slate-50">
+                <th className="p-2">Operario</th><th>Generadas</th><th>Disfrutadas</th>
+                <th>Abonadas</th><th>Saldo acumulado</th>
+              </tr></thead>
+              <tbody>{filteredSummary.map(item=><tr key={item.operator.id} className="border-b">
+                <td className="p-2 font-semibold">{item.operator.display_name}</td>
+                <td>{hours(item.earned)}</td><td>{hours(item.compensated)}</td>
+                <td>{hours(item.paid)}</td><td>{hours(item.cumulativeBalance)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <h3 className="mt-4 text-xs font-bold">Movimientos y fechas</h3>
+          <div className="mt-2 max-h-96 overflow-auto">
+            <table className="w-full min-w-[620px] text-left text-xs">
+              <thead><tr className="border-b bg-slate-50">
+                <th className="p-2">Operario</th><th>Fecha</th><th>Movimiento</th>
+                <th>Horas</th><th>Origen</th><th>Disfrutado el</th>
+              </tr></thead>
+              <tbody>{overtime.filter(entry=>entry.entry_date.startsWith(String(year)))
+                .sort((a,b)=>a.entry_date.localeCompare(b.entry_date)).map(entry=>{
+                  const origin=entry.compensates_entry_id
+                    ?overtime.find(row=>row.id===entry.compensates_entry_id):null
+                  return <tr key={entry.id} className="border-b">
+                    <td className="p-2">{operators.find(p=>p.id===entry.operator_id)?.display_name??'—'}</td>
+                    <td>{asDisplayDate(entry.entry_date)}</td>
+                    <td>{entry.entry_type}</td><td>{hours(entry.minutes)}</td>
+                    <td>{origin?asDisplayDate(origin.entry_date):'—'}</td>
+                    <td>{entry.entry_type==='REST_TAKEN'?asDisplayDate(entry.entry_date):'—'}</td>
+                  </tr>
+                })}</tbody>
+            </table>
+          </div>
+        </div>}
+        {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
-            <button type="button" onClick={()=>void exportSectionPdf('EXTRAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
             {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{n}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{hours(Number(v))}</p></div>)}
@@ -854,7 +898,7 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
-        {!demo&&<StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
+        {!demo&&operatorFilter!=='ALL'&&<StaffPeriodEditor kind="VACATION" operators={filteredOperators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
           onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>}
@@ -862,20 +906,12 @@ export default function StaffSchedulePage() {
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">
-              Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
+              Vacaciones · {year}{operatorFilter==='ALL'?' · Todos los operarios':''}
             </h2>
             <button type="button" onClick={()=>setShowVacationSettings(true)} aria-haspopup="dialog"
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
-            <button type="button" onClick={()=>void exportSectionPdf('VACACIONES')}
-                className="shrink-0 rounded-lg border px-2 py-1.5 text-xs font-semibold">
-                <Printer size={14} className="mr-1 inline"/>PDF
-              </button>
-              {vacationOperatorFilter!=='ALL'&&<button type="button" onClick={()=>setVacationOperatorFilter('ALL')}
-              className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-[11px] font-semibold">
-              Ver todos
-            </button>}
           </div>
           <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
           <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
@@ -915,7 +951,7 @@ export default function StaffSchedulePage() {
                 <th className="p-2">Vacaciones pendientes de disfrutar</th>
               </tr></thead>
               <tbody>{operators.filter(person=>
-                vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
+                operatorFilter==='ALL'||person.id===operatorFilter)
                 .map(person=>{
                   const first=firstDayOfSelectedYear[person.id]??null
                   const entitlement=accruedVacationDays(30,year,year+'-12-31',first)
@@ -979,7 +1015,7 @@ export default function StaffSchedulePage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold">{group.person.display_name}</h3>
                 <button type="button" className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold"
-                  onClick={()=>{setSelectedId(group.person.id);setVacationOperatorFilter(group.person.id)}}>
+                  onClick={()=>{setSelectedId(group.person.id);setOperatorFilter(group.person.id)}}>
                   Ver solo este operario
                 </button>
               </div>
@@ -1062,7 +1098,7 @@ export default function StaffSchedulePage() {
           </p>}
         </div>
 
-        {vacationOperatorFilter!=='ALL'&&selected&&selected.id===vacationOperatorFilter&&
+        {operatorFilter!=='ALL'&&selected&&selected.id===operatorFilter&&
           <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
             <details>
               <summary className="cursor-pointer text-xs font-semibold">
@@ -1083,7 +1119,7 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
-        {!demo&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
+        {!demo&&operatorFilter!=='ALL'&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={filteredOperators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
           onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>}
@@ -1091,18 +1127,17 @@ export default function StaffSchedulePage() {
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
-            <button type="button" onClick={()=>void exportSectionPdf('BAJAS')} className="rounded-lg border px-3 py-2 text-xs font-semibold"><Printer size={14} className="mr-1 inline"/>PDF</button>
           </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-3">
-            {summary.map(s=><button type="button" key={s.operator.id} onClick={()=>setSelectedId(s.operator.id)}
-              className={'rounded-lg border p-2 text-left '+(selectedId===s.operator.id?'border-sky-400 bg-sky-50':'border-slate-200')}>
+            {filteredSummary.map(s=><div key={s.operator.id}
+              className="rounded-lg border border-slate-200 p-2 text-left">
               <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
               <div className="mt-1 text-xl font-bold">{s.sick} <span className="text-xs font-normal">días</span></div>
               <div className="mt-0.5 text-[10px] text-slate-500">{s.sickDocumented} justif. · {s.sickUnjustified} no justif. · {s.sickUnknown} por revisar</div>
-            </button>)}
+            </div>)}
           </div>
         </div>
-        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
           <div className="mt-2 grid grid-cols-4 gap-1.5">
             {[
@@ -1215,13 +1250,6 @@ export default function StaffSchedulePage() {
       {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
-          <button type="button" className="rounded-lg border px-3 py-2 text-xs font-semibold"
-            onClick={()=>void exportStaffHistoryPdf({
-              hotelName:hotel?.name??'Hotel',year,operators,history,
-              operatorIds:pdfSelectedOperators.map(p=>p.id),
-            }).catch(e=>setError(e instanceof Error?e.message:'No se pudo generar el PDF'))}>
-            <Printer size={14} className="mr-1 inline"/>PDF
-          </button>
         </div>
         <p className="mt-1 text-xs text-slate-600">
           Últimos 200 cambios del año. Incluye altas, cambios y supresiones realizados
@@ -1234,7 +1262,7 @@ export default function StaffSchedulePage() {
               <th className="p-2">Fecha afectada</th><th className="p-2">Origen</th><th className="p-2">Acción</th>
               <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
             </tr></thead>
-            <tbody>{history.filter(row=>selectedId===''||row.operator_id===selectedId).map(row=>
+            <tbody>{history.filter(row=>operatorFilter==='ALL'||row.operator_id===operatorFilter).map(row=>
               <tr key={row.id} className="border-b">
                 <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
                 <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
@@ -1256,7 +1284,11 @@ export default function StaffSchedulePage() {
         </div>
       </section>}
 
-      {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+      {tab==='NOTAS'&&operatorFilter==='ALL'&&<section className="max-w-3xl rounded-xl bg-white p-3 shadow-sm">
+        <p className="text-sm font-semibold">Observaciones privadas</p>
+        <p className="mt-2 text-xs text-slate-600">Selecciona un operario en el filtro superior para consultar o modificar sus observaciones.</p>
+      </section>}
+      {tab==='NOTAS'&&operatorFilter!=='ALL'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
         <h2 className="text-sm font-bold sm:text-base">Observaciones · {selected?.display_name??'operario'}</h2>
         <textarea value={privateNote} onChange={e=>setPrivateNote(e.target.value)} rows={4} className={baseInput+' mt-2'} placeholder="Observaciones administrativas y organizativas, sin diagnósticos ni información médica innecesaria."/>
         <button disabled={busy||!selected} onClick={()=>void saveNote()} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Guardar observaciones</button>

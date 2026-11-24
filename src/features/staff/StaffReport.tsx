@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import StaffToggleButton from './StaffToggleButton'
-import { FileDown, FileText, Printer, Search } from 'lucide-react'
+import { FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
   vacationStage, vacationCode, isSplitShift, plannedMinutes, matchesStaffState, staffReportDaysForOperator, type StaffDay, type StaffOperator } from './staffModel'
 import { loadAllStaffDays } from './staffData'
@@ -120,8 +119,10 @@ type Props = {
   hotelName: string
   operators: StaffOperator[]
   initialYear: number
+  selectedOperatorId:string
+  pdfRequest:number
 }
-export default function StaffReport({hotelId,hotelName,operators,initialYear}:Props){
+export default function StaffReport({hotelId,hotelName,operators,initialYear,selectedOperatorId,pdfRequest}:Props){
   const now=dateISO(new Date())
   const initialMonth=String(initialYear)+(now.slice(0,4)===String(initialYear)?now.slice(4,7):'-01')
   const [period,setPeriod]=useState<PeriodType>('MONTH')
@@ -132,8 +133,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const [endDate,setEndDate]=useState(monthEnd(initialMonth))
   const [startMonth,setStartMonth]=useState(initialMonth)
   const [endMonth,setEndMonth]=useState(initialMonth)
-  const [operatorId,setOperatorId]=useState('ALL')
-  const [selectedOperatorIds,setSelectedOperatorIds]=useState<string[]>([])
+  const operatorId=selectedOperatorId
   const [status,setStatus]=useState('ALL')
   const [snapshot,setSnapshot]=useState<ReportSnapshot|null>(null)
   const [loading,setLoading]=useState(false)
@@ -174,11 +174,11 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     ]).then(([result,holidayResult])=>{
       if(!alive)return
       if(result.error||holidayResult.error)setError((result.error||holidayResult.error)!.message)
-      else setSnapshot({start,end,operatorId:'ALL',status:'ALL',days:result.data,
+      else setSnapshot({start,end,operatorId:selectedOperatorId,status:'ALL',days:result.data,
         holidayDates:(holidayResult.data??[]).map(h=>h.holiday_date)})
     })
     return ()=>{alive=false}
-  },[hotelId,initialMonth])
+  },[hotelId,initialMonth,selectedOperatorId])
 
   const displayedOperators=useMemo(()=>snapshot?.operatorId==='ALL'
     ? operators
@@ -234,8 +234,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const stateLabel=statusOptions.find(o=>o.value===snapshot?.status)?.label??'Todos los estados'
   const periodLabel=snapshot ? shortDate(snapshot.start)+(snapshot.start===snapshot.end?'':' – '+shortDate(snapshot.end)):''
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
-  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status &&
-    (operatorId!=='MULTI'||JSON.stringify([...snapshot.operatorIds??[]].sort())===JSON.stringify([...selectedOperatorIds].sort()))
+  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end &&
+    snapshot.operatorId===operatorId && snapshot.status===status
   const statusLegend=[
     ['SHIFT','Horario (9–13/15–19: 8 h)'],['REST','D Descanso'],['VACATION','V Programadas'],
     ['VACATION_PREVIOUS','A25 Vac. de 2025 / A26 de 2026'],['MEDICAL_LEAVE','B Baja'],
@@ -413,6 +413,12 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
     }
   }
 
+  useEffect(()=>{
+    if(pdfRequest>0) void exportPdf()
+    // The action comes exclusively from the single PDF button beside the global filter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[pdfRequest])
+
   function printReport(){
     if(!snapshot||loading||!unchanged)return
     const page=window.open('','_blank')
@@ -558,32 +564,6 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
             <input className={input+' mt-1'} type="month" value={endMonth} onChange={e=>setEndMonth(e.target.value)}/>
           </label>
         </>}
-        <label className="text-[11px] font-semibold text-slate-600">Operario
-          <select className={input+' mt-1'} value={operatorId} onChange={e=>setOperatorId(e.target.value)}>
-            <option value="ALL">Todos</option>
-            <option value="MULTI">Elegir varios trabajadores…</option>
-            {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}</option>)}
-          </select>
-        </label>
-        {operatorId==='MULTI'&&<div className="col-span-full rounded-xl border bg-slate-50 p-3">
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <strong>Selecciona los trabajadores del reporte ({selectedOperatorIds.length})</strong>
-            <div className="flex gap-2">
-              <button type="button" onClick={()=>setSelectedOperatorIds(operators.map(o=>o.id))}
-                className="rounded border px-2 py-1">Todos</button>
-              <button type="button" onClick={()=>setSelectedOperatorIds([])}
-                className="rounded border px-2 py-1">Limpiar</button>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {operators.map(o=><StaffToggleButton key={o.id}
-              selected={selectedOperatorIds.includes(o.id)}
-              onClick={()=>setSelectedOperatorIds(prev=>prev.includes(o.id)?
-                prev.filter(id=>id!==o.id):[...prev,o.id])}>
-              {o.display_name}
-            </StaffToggleButton>)}
-          </div>
-        </div>}
         <label className="text-[11px] font-semibold text-slate-600">Mostrar
           <select className={input+' mt-1'} value={status} onChange={e=>setStatus(e.target.value)}>
             {statusOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
@@ -592,8 +572,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <button type="button" disabled={loading} onClick={()=>{
-            if(operatorId==='MULTI'&&selectedOperatorIds.length===0){setError('Selecciona al menos un trabajador.');return}
-            void generate({...range,operatorId,operatorIds:operatorId==='MULTI'?[...selectedOperatorIds]:undefined,status})
+            void generate({...range,operatorId,status})
           }}
           className="flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
           <Search size={15}/>{loading?'Generando…':'Ver reporte'}
@@ -601,10 +580,6 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         <button type="button" disabled={!snapshot||loading||!unchanged} onClick={printReport}
           className="flex min-h-9 items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-semibold disabled:opacity-40">
           <Printer size={15}/> Imprimir
-        </button>
-        <button type="button" disabled={!snapshot||loading||exporting||!unchanged} onClick={()=>void exportPdf()}
-          className="flex min-h-9 items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-semibold disabled:opacity-40">
-          <FileDown size={15}/>{exporting?'PDF…':'Descargar PDF'}
         </button>
       </div>
       {!unchanged&&snapshot&&<p className="mt-2 text-xs text-amber-700">Has cambiado los filtros. Pulsa «Ver reporte» para actualizarlos.</p>}

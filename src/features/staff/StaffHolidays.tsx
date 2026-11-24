@@ -3,13 +3,10 @@ import { CalendarPlus, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit } from './staffHolidayAudit'
-import { exportHolidayAuditPdf } from './staffHolidayHistoryPdf'
-import { Printer } from 'lucide-react'
 
 type Props={
  hotelId:string
- hotelName:string
- pdfOperatorIds:string[]
+ operatorId:string
  firstScheduledDates:Record<string,string>
  year:number
  operators:StaffOperator[]
@@ -29,15 +26,14 @@ const kind=(day:StaffDay|null)=> {
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
 export default function StaffHolidays({
- hotelId,hotelName,pdfOperatorIds,firstScheduledDates,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
+ hotelId,operatorId,firstScheduledDates,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
  const [busy,setBusy]=useState(false)
  const [message,setMessage]=useState('')
- const [selected,setSelected]=useState('ALL')
  const audit=useMemo(()=>holidayAudit(operators,days,holidays,year,firstScheduledDates),[operators,days,holidays,year,firstScheduledDates])
- const visible=selected==='ALL'?operators:operators.filter(o=>o.id===selected)
+ const visible=operatorId==='ALL'?operators:operators.filter(o=>o.id===operatorId)
  const dateExists=holidays.some(h=>h.holiday_date===date)
  async function saveHoliday(){
    if(!hotelId||!date.startsWith(String(year))||!label.trim()){
@@ -56,29 +52,24 @@ export default function StaffHolidays({
      setLabel('');await onReload()}
    setBusy(false)
  }
- const duplicates=audit.matrix.filter(r=>r.duplicate)
- const unmatched=audit.unresolved.filter(d=>d.work_date.startsWith(String(year))||
-   d.work_date.startsWith(String(year+1)))
- const pendingCount=audit.summaries.reduce((n,s)=>n+s.duplicateOrigins,0)
+ const duplicates=audit.matrix.filter(r=>r.duplicate&&visible.some(o=>o.id===r.operator.id))
+ const unmatched=audit.unresolved.filter(d=>(d.work_date.startsWith(String(year))||
+   d.work_date.startsWith(String(year+1)))&&visible.some(o=>o.id===d.operator_id))
+ const filteredSummary=audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
+ const pendingCount=filteredSummary.reduce((n,s)=>n+s.duplicateOrigins,0)
  return <section className="space-y-3">
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-start justify-between gap-2">
        <div><h2 className="text-base font-bold">Festivos · {year}</h2>
          <p className="text-xs text-slate-600">Calendario anual: fechas anteriores al alta no corresponden, bajas y vacaciones excluidas; pendientes reales en rojo.</p></div>
-       <button type="button" onClick={()=>void exportHolidayAuditPdf({
-         hotelName,year,operators,days,holidays,operatorIds:pdfOperatorIds,firstScheduledDates,
-       }).catch(e=>setMessage(e instanceof Error?e.message:'Error PDF'))}
-         className="rounded-lg border px-3 py-2 text-xs font-semibold">
-         <Printer size={14} className="mr-1 inline"/>PDF
-       </button>
        <button type="button" onClick={()=>void onReload()} disabled={busy}
          className="rounded-lg border px-3 py-2 text-xs font-semibold"><RefreshCw size={14} className="mr-1 inline"/>Actualizar</button>
      </div>
      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
        {[
          ['Festivos del calendario',String(audit.official.length)],
-         ['Turnos previstos en festivos',String(audit.summaries.reduce((n,s)=>n+s.scheduled,0))],
-         ['Disfrutes anotados',String(audit.summaries.reduce((n,s)=>n+s.enjoyed,0))],
+         ['Turnos previstos en festivos',String(filteredSummary.reduce((n,s)=>n+s.scheduled,0))],
+         ['Disfrutes anotados',String(filteredSummary.reduce((n,s)=>n+s.enjoyed,0))],
          ['Disfrutes duplicados',String(pendingCount)],
        ].map(([heading,value])=><div key={heading} className="rounded-lg bg-slate-50 p-2">
          <div className="text-[11px] text-slate-500">{heading}</div>
@@ -125,12 +116,6 @@ export default function StaffHolidays({
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-center justify-between gap-2">
        <h3 className="text-sm font-bold">Turnos festivos y festivos disfrutados por trabajador</h3>
-       <label className="text-xs">Mostrar
-         <select value={selected} onChange={e=>setSelected(e.target.value)}
-           className="ml-2 rounded-lg border px-2 py-1">
-           <option value="ALL">Todos</option>
-           {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}</option>)}
-         </select></label>
      </div>
      <div className="mt-2 overflow-x-auto">
        <table className="w-full min-w-[620px] text-left text-xs">
