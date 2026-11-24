@@ -18,6 +18,7 @@ import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
+import StaffToggleButton from '../StaffToggleButton'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
@@ -662,14 +663,11 @@ export default function StaffSchedulePage() {
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">{operators.map(p=>
-            <label key={p.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
-              <input type="checkbox" checked={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
-                onChange={e=>setPdfOperatorIds(prev=>{
-                  const all=prev??operators.map(o=>o.id)
-                  return e.target.checked?[...new Set([...all,p.id])]:all.filter(id=>id!==p.id)
-                })}/>
-              {p.display_name}
-            </label>)}
+            <StaffToggleButton key={p.id} selected={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
+              onClick={()=>setPdfOperatorIds(prev=>{
+                const all=prev??operators.map(o=>o.id)
+                return all.includes(p.id)?all.filter(id=>id!==p.id):[...all,p.id]
+              })}>{p.display_name}</StaffToggleButton>)}
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             Seleccionados: {pdfSelectedOperators.length} de {operators.length}. Los PDF de esta sección
@@ -978,28 +976,26 @@ export default function StaffSchedulePage() {
                       Período continuo · {period.rows.length} días · {splitLabel}
                     </p>}
                     {period.visibleDays.some(day=>vacationStage(day,vacationToday)==='UNVERIFIED')&&
-                      <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold">
-                        <input type="checkbox" disabled={busy}
-                          checked={period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED')
-                            .every(d=>checkedVacationIds.includes(d.id))}
-                          onChange={()=>togglePeriodSelection(period.visibleDays.filter(
-                            d=>vacationStage(d,vacationToday)==='UNVERIFIED'),'VACATION')}/>
-                        Seleccionar días pendientes de este período
-                      </label>}
+                      <StaffToggleButton disabled={busy}
+                        selected={period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED')
+                          .every(d=>checkedVacationIds.includes(d.id))}
+                        onClick={()=>togglePeriodSelection(period.visibleDays.filter(
+                          d=>vacationStage(d,vacationToday)==='UNVERIFIED'),'VACATION')}
+                        className="mt-2">Seleccionar días pendientes de este período</StaffToggleButton>}
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {period.visibleDays.map(day=>{
                         const eligible=vacationStage(day,vacationToday)==='UNVERIFIED'
                         return <div key={day.id} className={'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 '+vacationTone(day,vacationToday)}>
-                          <label className={'inline-flex items-center gap-1 '+(eligible?'cursor-pointer':'cursor-not-allowed')}
-                            title={vacationStageLabel(vacationStage(day,vacationToday))}>
-                            <input type="checkbox" checked={eligible&&checkedVacationIds.includes(day.id)}
-                              disabled={busy||!eligible} aria-label={'Seleccionar vacaciones del '+asDisplayDate(day.work_date)}
-                              onChange={e=>toggleChecked(day.id,e.target.checked,'VACATION')}/>
-                            <span className="text-[11px] font-semibold">{asDisplayDate(day.work_date).slice(0,5)}</span>
-                            {vacationFromPriorYear(day)&&<span className="text-[9px] font-bold">
-                              {vacationOriginYear(day)??'año ?'}
-                            </span>}
-                          </label>
+                          <StaffToggleButton
+                            title={vacationStageLabel(vacationStage(day,vacationToday))}
+                            selected={eligible&&checkedVacationIds.includes(day.id)}
+                            disabled={busy||!eligible}
+                            onClick={()=>toggleChecked(day.id,!checkedVacationIds.includes(day.id),'VACATION')}
+                            className="!min-h-6 !px-1 !py-0.5">
+                            {asDisplayDate(day.work_date).slice(0,5)}
+                            {vacationFromPriorYear(day)&&<span className="ml-1 text-[9px] font-bold">
+                              {vacationOriginYear(day)??'año ?'}</span>}
+                          </StaffToggleButton>
                           <button type="button" title={'Editar '+asDisplayDate(day.work_date)}
                             aria-label={'Editar vacaciones del '+asDisplayDate(day.work_date)}
                             onClick={()=>openDay(day.operator_id,day.work_date)}
@@ -1119,20 +1115,19 @@ export default function StaffSchedulePage() {
                 <span className="min-w-0">{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
                 <span className="shrink-0 font-semibold">{p.rows.length} d · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</span>
               </summary>
-              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
-                <input type="checkbox" disabled={busy}
-                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
-                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
-                Seleccionar período completo
-              </label>
+              <StaffToggleButton disabled={busy}
+                selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
+                className="mt-2">Seleccionar período completo</StaffToggleButton>
               <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
                 <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
-                  <label className="inline-flex cursor-pointer items-center gap-1">
-                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
-                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
-                      aria-label={'Seleccionar baja del '+asDisplayDate(d.work_date)}/>
-                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
-                  </label>
+                  <StaffToggleButton disabled={busy}
+                    selected={checkedAbsenceIds.includes(d.id)}
+                    onClick={()=>toggleChecked(d.id,!checkedAbsenceIds.includes(d.id),'ABSENCE')}
+                    title={'Seleccionar baja del '+asDisplayDate(d.work_date)}
+                    className="!min-h-6 !px-2 !py-0.5">
+                    {asDisplayDate(d.work_date).slice(0,5)}
+                  </StaffToggleButton>
                   <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
                     className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
                     aria-label={'Editar baja del '+asDisplayDate(d.work_date)}>
@@ -1146,20 +1141,19 @@ export default function StaffSchedulePage() {
             <h4 className="text-xs font-bold">Otras ausencias</h4>
             {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
               <summary className="cursor-pointer text-xs">{stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
-              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
-                <input type="checkbox" disabled={busy}
-                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
-                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
-                Seleccionar período completo
-              </label>
+              <StaffToggleButton disabled={busy}
+                selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
+                className="mt-2">Seleccionar período completo</StaffToggleButton>
               <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
                 <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
-                  <label className="inline-flex cursor-pointer items-center gap-1">
-                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
-                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
-                      aria-label={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}/>
-                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
-                  </label>
+                  <StaffToggleButton disabled={busy}
+                    selected={checkedAbsenceIds.includes(d.id)}
+                    onClick={()=>toggleChecked(d.id,!checkedAbsenceIds.includes(d.id),'ABSENCE')}
+                    title={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}
+                    className="!min-h-6 !px-2 !py-0.5">
+                    {asDisplayDate(d.work_date).slice(0,5)}
+                  </StaffToggleButton>
                   <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
                     className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
                     aria-label={'Editar ausencia del '+asDisplayDate(d.work_date)}>
@@ -1316,13 +1310,14 @@ export default function StaffSchedulePage() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">{operators.map(person=>
-              <label key={person.id} className="inline-flex items-center gap-2 rounded-lg border bg-white p-2 text-xs">
-                <input type="checkbox" checked={agreementOperatorIds===null||agreementOperatorIds.includes(person.id)}
-                  onChange={e=>setAgreementOperatorIds(previous=>{
-                    const current=previous??operators.map(p=>p.id)
-                    return e.target.checked?[...new Set([...current,person.id])]:current.filter(id=>id!==person.id)
-                  })}/>{person.display_name}
-              </label>)}</div>
+              <StaffToggleButton key={person.id}
+                selected={agreementOperatorIds===null||agreementOperatorIds.includes(person.id)}
+                onClick={()=>setAgreementOperatorIds(previous=>{
+                  const current=previous??operators.map(p=>p.id)
+                  return current.includes(person.id)?current.filter(id=>id!==person.id):
+                    [...current,person.id]
+                })}>{person.display_name}</StaffToggleButton>)}
+            </div>
           </div>
           <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[540px] text-left text-xs">
             <thead><tr className="border-b bg-slate-100">
@@ -1486,12 +1481,11 @@ export default function StaffSchedulePage() {
               <p className="mb-2 text-[11px] text-emerald-900">
                 Ejemplo: disfrutadas en enero de 2027 pero correspondientes a 2026.
               </p>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={dayEditor.vacation_taken_confirmed}
-                  disabled={dayEditor.work_date>dateISO(new Date())}
-                  onChange={e=>setDayEditor({...dayEditor,vacation_taken_confirmed:e.target.checked})}/>
+              <StaffToggleButton selected={dayEditor.vacation_taken_confirmed}
+                disabled={dayEditor.work_date>dateISO(new Date())}
+                onClick={()=>setDayEditor({...dayEditor,vacation_taken_confirmed:!dayEditor.vacation_taken_confirmed})}>
                 Confirmar vacaciones disfrutadas
-              </label>
+              </StaffToggleButton>
               <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
             </div>}
             {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
