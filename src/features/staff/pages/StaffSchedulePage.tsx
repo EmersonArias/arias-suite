@@ -20,6 +20,7 @@ import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
+import { isDemoUser } from '../../../core/access/demoReadOnly'
 
 type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
@@ -93,6 +94,7 @@ export default function StaffSchedulePage() {
   const navigate=useNavigate()
   const {hotel,isPlatformAdmin}=useHotelScope()
   const {session}=useAuth()
+  const demo=isDemoUser(session?.user.id)
   const [year,setYear]=useState(new Date().getFullYear())
   const [calendarFilter,setCalendarFilter]=useState('ALL')
   const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
@@ -150,11 +152,11 @@ export default function StaffSchedulePage() {
     void supabase.rpc('has_hotel_permission',{target_hotel_id:hotel.id,permission_code:'maintenance.configure'})
       .then(({data,error:checkError})=>{
         if(!mounted)return
-        setAllowed(isPlatformAdmin || (!checkError && data===true))
+        setAllowed(demo || isPlatformAdmin || (!checkError && data===true))
         setChecking(false)
       })
     return ()=>{mounted=false}
-  },[hotel?.id,isPlatformAdmin])
+  },[hotel?.id,isPlatformAdmin,demo])
 
   async function reload(){
     if(!hotel?.id||!allowed)return
@@ -169,11 +171,11 @@ export default function StaffSchedulePage() {
       supabase.from('staff_overtime_ledger').select('*').eq('hotel_id',hotel.id)
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
-      supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
       supabase.from('staff_operator_first_shift').select('operator_id,first_shift_date').eq('hotel_id',hotel.id),
-      supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,changed_at,actor_user_id,previous_values,new_values')
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,changed_at,actor_user_id,previous_values,new_values')
         .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
         .order('changed_at',{ascending:false}).limit(200),
     ])
@@ -597,7 +599,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          <button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button><button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
+          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}<button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -627,12 +629,12 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
-          <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {!demo&&<button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>}
+          {!demo&&selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
+        {tabs.filter(t=>!demo||!['NOTAS','HISTORIAL'].includes(t.id)).map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
 
       {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS'].includes(tab)&&
@@ -676,7 +678,7 @@ export default function StaffSchedulePage() {
         holidays={holidays}
         operatorId={calendarFilter}
         onYearChange={setYear}
-        onEditDay={openDay}
+        onEditDay={(operatorId,day)=>{if(!demo)openDay(operatorId,day)}}
       />}
 
       {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
@@ -688,7 +690,7 @@ export default function StaffSchedulePage() {
           holiday_date:date,label:holidayLabels[date]??'Festivo',
         }))}
         onReload={reload}
-        onEditDay={(operatorId,day)=>{setTab('CUADRANTE');openDay(operatorId,day)}}
+        onEditDay={(operatorId,day)=>{if(!demo){setTab('CUADRANTE');openDay(operatorId,day)}}}
       />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
@@ -790,10 +792,10 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
-        <StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
+        {!demo&&<StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
-          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>}
 
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
@@ -1046,10 +1048,10 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
-        <StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
+        {!demo&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
           start={periodStart} end={periodEnd} busy={busy}
           onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
-          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>}
 
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
