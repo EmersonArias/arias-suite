@@ -29,7 +29,7 @@ export async function staffSectionPdf(options:{
   let head:string[]=[]
   let body:string[][]=[]
   if(options.section==='EXTRAS'){
-    head=['Trabajador','Fecha','Tipo','Horas','Motivo','Estado','Disfrutado el']
+    head=['Trabajador','Fecha','Tipo','Horas','Motivo','Estado','Origen horas','Disfrutado el']
     body=options.overtime.filter(e=>people.some(p=>p.id===e.operator_id)&&
        (e.entry_date.startsWith(String(options.year))||
         options.overtime.some(x=>x.compensates_entry_id===e.id&&x.entry_date.startsWith(String(options.year)))))
@@ -41,9 +41,14 @@ export async function staffSectionPdf(options:{
          :e.entry_type==='REST_TAKEN'?'Disfrutado':e.entry_type==='PAID'?'Abonado':'Ajuste'
        const dates=source?consumed.dates.map(display).join(', '):
          e.entry_type==='REST_TAKEN'?display(e.entry_date):'—'
+       const sourceRecord=e.compensates_entry_id
+         ?options.overtime.find(row=>row.id===e.compensates_entry_id):null
+       const origin=e.entry_type==='REST_TAKEN'
+         ?sourceRecord?display(sourceRecord.entry_date)+' · '+time(e.minutes):'Sin origen vinculado'
+         :'—'
        return [names.get(e.operator_id)||'—',display(e.entry_date),
          ({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste -'} as Record<string,string>)[e.entry_type]||e.entry_type,
-         time(e.minutes),e.reason,state,dates||'—']
+         time(e.minutes),e.reason,state,origin,dates||'—']
      })
   }else{
     head=['Trabajador','Fecha','Estado','Detalle']
