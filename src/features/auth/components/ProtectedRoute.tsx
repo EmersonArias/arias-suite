@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthProvider'
 import { ariasAuth } from '../../../core/auth/authService'
 import { ariasAccess } from '../../../core/access/accessService'
+import { isDemoUser } from '../../../core/access/demoReadOnly'
 
 export default function ProtectedRoute() {
   const { session, loading } = useAuth()
@@ -78,6 +79,10 @@ export default function ProtectedRoute() {
       </main>
     )
   }
+
+  // PRUEBA solo puede navegar por el planificador: no exponer el resto del menú ni rutas directas.
+  if(isDemoUser(session.user.id) && location.pathname!=='/planificador-horario')
+    return <Navigate to="/planificador-horario" replace />
 
   return <Outlet />
 }
