@@ -1,3 +1,4 @@
+import { previewReportPage } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Printer } from 'lucide-react'
@@ -100,7 +101,7 @@ export default function ApparatusRegistryReportPage() {
   }, [records, scope, selectedId, search, plant, active])
 
   function printReport() {
-    window.print()
+    previewReportPage()
   }
 
   return (
