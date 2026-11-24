@@ -18,13 +18,11 @@ ALTER TABLE public.staff_schedule_history ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS staff_schedule_history_select ON public.staff_schedule_history;
 CREATE POLICY staff_schedule_history_select ON public.staff_schedule_history FOR SELECT TO authenticated
  USING (public.is_platform_admin() OR public.has_hotel_permission(hotel_id,'maintenance.configure'));
-DROP POLICY IF EXISTS staff_schedule_history_insert ON public.staff_schedule_history;
-CREATE POLICY staff_schedule_history_insert ON public.staff_schedule_history FOR INSERT TO authenticated
- WITH CHECK (public.is_platform_admin() OR public.has_hotel_permission(hotel_id,'maintenance.configure'));
-GRANT SELECT, INSERT ON public.staff_schedule_history TO authenticated;
+GRANT SELECT ON public.staff_schedule_history TO authenticated;
+REVOKE INSERT,UPDATE,DELETE ON public.staff_schedule_history FROM authenticated,anon;
 
 CREATE OR REPLACE FUNCTION public.staff_record_schedule_change()
-RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
 BEGIN
  IF TG_OP='UPDATE' AND to_jsonb(OLD) - ARRAY['updated_at','changed_by']
       = to_jsonb(NEW) - ARRAY['updated_at','changed_by'] THEN
@@ -40,6 +38,7 @@ BEGIN
  );
  RETURN COALESCE(NEW,OLD);
 END $$;
+REVOKE ALL ON FUNCTION public.staff_record_schedule_change() FROM PUBLIC;
 DROP TRIGGER IF EXISTS staff_schedule_change_history ON public.staff_schedule_entries;
 CREATE TRIGGER staff_schedule_change_history
  AFTER INSERT OR UPDATE OR DELETE ON public.staff_schedule_entries
