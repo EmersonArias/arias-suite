@@ -18,6 +18,7 @@ import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
+import StaffToggleButton from '../StaffToggleButton'
 import { auditCompensatoryRest } from '../staffOvertimeAudit'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
@@ -705,7 +706,6 @@ export default function StaffSchedulePage() {
 
       {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
         hotelId={hotel.id}
-        hotelName={hotel.name??'Hotel'}
         operatorId={operatorFilter}
         firstScheduledDates={firstScheduledDates}
         year={year}
