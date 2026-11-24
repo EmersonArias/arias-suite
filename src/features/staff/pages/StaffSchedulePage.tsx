@@ -18,6 +18,8 @@ import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
+import StaffToggleButton from '../StaffToggleButton'
+import { auditCompensatoryRest } from '../staffOvertimeAudit'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
@@ -193,6 +195,7 @@ export default function StaffSchedulePage() {
   }
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
+  const restAudit=selectedId?auditCompensatoryRest(days,overtime,selectedId,year):null
   const pdfSelectedOperators=pdfOperatorIds===null?operators:operators.filter(o=>pdfOperatorIds.includes(o.id))
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
@@ -662,14 +665,11 @@ export default function StaffSchedulePage() {
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">{operators.map(p=>
-            <label key={p.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
-              <input type="checkbox" checked={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
-                onChange={e=>setPdfOperatorIds(prev=>{
-                  const all=prev??operators.map(o=>o.id)
-                  return e.target.checked?[...new Set([...all,p.id])]:all.filter(id=>id!==p.id)
-                })}/>
-              {p.display_name}
-            </label>)}
+            <StaffToggleButton key={p.id} selected={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
+              onClick={()=>setPdfOperatorIds(prev=>{
+                const all=prev??operators.map(o=>o.id)
+                return all.includes(p.id)?all.filter(id=>id!==p.id):[...all,p.id]
+              })}>{p.display_name}</StaffToggleButton>)}
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             Seleccionados: {pdfSelectedOperators.length} de {operators.length}. Los PDF de esta sección
@@ -789,14 +789,20 @@ export default function StaffSchedulePage() {
             <label className="col-span-2 text-xs md:col-span-1">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
             <button disabled={busy} onClick={()=>void saveOvertime()} className="col-span-2 min-h-9 self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-1">Registrar</button>
           </div>
-          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
+          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Origen de las horas</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
             {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td>
               <td className="px-1">{(()=>{
                 if(e.entry_type==='REST_TAKEN')return 'Disfrutado'
                 if(!['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type))return e.entry_type==='PAID'?'Abonado':'Ajuste'
                 const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&t.entry_type==='REST_TAKEN')
                   .reduce((sum,t)=>sum+t.minutes,0)
-                return taken===0?'Pendiente':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+                return taken===0?'Sin disfrute vinculado':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+              })()}</td>
+              <td className="px-1">{(()=>{
+                if(e.entry_type!=='REST_TAKEN')return '—'
+                const origin=overtime.find(item=>item.id===e.compensates_entry_id)
+                return origin?asDisplayDate(origin.entry_date)+' · '+hours(e.minutes):
+                  'Sin origen vinculado (histórico)'
               })()}</td>
               <td className="px-1">{(()=>{
                 if(e.entry_type==='REST_TAKEN')return asDisplayDate(e.entry_date)
@@ -805,6 +811,45 @@ export default function StaffSchedulePage() {
                 return dates.length?dates.join(', '):'—'
               })()}</td></tr>)}
           </tbody></table></div>
+          {restAudit&&<div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+            <h3 className="text-sm font-bold text-sky-950">Recuperaciones registradas en el cuadrante · {year}</h3>
+            <p className="mt-1 text-xs text-sky-900">
+              La fecha del descanso y las horas de origen se obtienen del mismo movimiento
+              que descuentan Horas extras, Resumen anual y PDF. Los registros históricos
+              no vinculados no se descuentan otra vez.
+            </p>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[440px] text-left text-xs">
+                <thead><tr className="border-b border-sky-200">
+                  <th className="p-2">Descanso</th><th className="p-2">Horas recuperadas</th>
+                  <th className="p-2">Horas generadas el</th><th className="p-2">Vinculación</th>
+                </tr></thead>
+                <tbody>{restAudit.restDays.map(day=>{
+                  const applied=restAudit.movementsByDay.get(day.id)??[]
+                  const past=restAudit.unlinked.find(item=>item.day.id===day.id)
+                  return <tr key={day.id} className="border-b border-sky-100">
+                    <td className="p-2">{asDisplayDate(day.work_date)}</td>
+                    <td className="p-2">{applied.length?hours(applied.reduce((n,e)=>n+e.minutes,0)):'Por comprobar'}</td>
+                    <td className="p-2">{applied.length?applied.map(e=>{
+                      const origin=e.compensates_entry_id?restAudit.earnedById.get(e.compensates_entry_id):null
+                      return origin?asDisplayDate(origin.entry_date)+' ('+hours(e.minutes)+')':'Origen sin localizar'
+                    }).join(' + '):'Sin origen identificado'}</td>
+                    <td className={'p-2 '+(past?'font-semibold text-amber-900':'text-emerald-800')}>
+                      {past?past.historicalMovements.length?'Movimiento antiguo sin enlace':'Pendiente de vincular':'Vinculado'}
+                    </td>
+                  </tr>
+                })}
+                </tbody>
+              </table>
+              {restAudit.restDays.length===0&&<p className="p-2 text-xs text-slate-600">Sin descansos de recuperación en el cuadrante de este año.</p>}
+            </div>
+            {restAudit.unlinked.length>0&&<p role="status" className="mt-2 text-xs font-semibold text-amber-900">
+              {restAudit.unlinked.length} días históricos sin origen vinculado; no se descuentan nuevamente.
+              Deben conciliarse con los movimientos anteriores antes de asignarles una fecha de origen.
+            </p>}
+            {restAudit.issues.length>0&&<p role="alert" className="mt-1 text-xs text-rose-800">
+              Hay {restAudit.issues.length} movimientos vinculados con discrepancias por revisar.</p>}
+          </div>}
         </div>}
       </section>}
 
@@ -978,28 +1023,26 @@ export default function StaffSchedulePage() {
                       Período continuo · {period.rows.length} días · {splitLabel}
                     </p>}
                     {period.visibleDays.some(day=>vacationStage(day,vacationToday)==='UNVERIFIED')&&
-                      <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold">
-                        <input type="checkbox" disabled={busy}
-                          checked={period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED')
-                            .every(d=>checkedVacationIds.includes(d.id))}
-                          onChange={()=>togglePeriodSelection(period.visibleDays.filter(
-                            d=>vacationStage(d,vacationToday)==='UNVERIFIED'),'VACATION')}/>
-                        Seleccionar días pendientes de este período
-                      </label>}
+                      <StaffToggleButton disabled={busy}
+                        selected={period.visibleDays.filter(d=>vacationStage(d,vacationToday)==='UNVERIFIED')
+                          .every(d=>checkedVacationIds.includes(d.id))}
+                        onClick={()=>togglePeriodSelection(period.visibleDays.filter(
+                          d=>vacationStage(d,vacationToday)==='UNVERIFIED'),'VACATION')}
+                        className="mt-2">Seleccionar días pendientes de este período</StaffToggleButton>}
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {period.visibleDays.map(day=>{
                         const eligible=vacationStage(day,vacationToday)==='UNVERIFIED'
                         return <div key={day.id} className={'inline-flex items-center gap-1 rounded-md border px-1.5 py-1 '+vacationTone(day,vacationToday)}>
-                          <label className={'inline-flex items-center gap-1 '+(eligible?'cursor-pointer':'cursor-not-allowed')}
-                            title={vacationStageLabel(vacationStage(day,vacationToday))}>
-                            <input type="checkbox" checked={eligible&&checkedVacationIds.includes(day.id)}
-                              disabled={busy||!eligible} aria-label={'Seleccionar vacaciones del '+asDisplayDate(day.work_date)}
-                              onChange={e=>toggleChecked(day.id,e.target.checked,'VACATION')}/>
-                            <span className="text-[11px] font-semibold">{asDisplayDate(day.work_date).slice(0,5)}</span>
-                            {vacationFromPriorYear(day)&&<span className="text-[9px] font-bold">
-                              {vacationOriginYear(day)??'año ?'}
-                            </span>}
-                          </label>
+                          <StaffToggleButton
+                            title={vacationStageLabel(vacationStage(day,vacationToday))}
+                            selected={eligible&&checkedVacationIds.includes(day.id)}
+                            disabled={busy||!eligible}
+                            onClick={()=>toggleChecked(day.id,!checkedVacationIds.includes(day.id),'VACATION')}
+                            className="!min-h-6 !px-1 !py-0.5">
+                            {asDisplayDate(day.work_date).slice(0,5)}
+                            {vacationFromPriorYear(day)&&<span className="ml-1 text-[9px] font-bold">
+                              {vacationOriginYear(day)??'año ?'}</span>}
+                          </StaffToggleButton>
                           <button type="button" title={'Editar '+asDisplayDate(day.work_date)}
                             aria-label={'Editar vacaciones del '+asDisplayDate(day.work_date)}
                             onClick={()=>openDay(day.operator_id,day.work_date)}
@@ -1119,20 +1162,19 @@ export default function StaffSchedulePage() {
                 <span className="min-w-0">{asDisplayDate(p.start)}{p.start!==p.end?' – '+asDisplayDate(p.end):''}</span>
                 <span className="shrink-0 font-semibold">{p.rows.length} d · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</span>
               </summary>
-              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
-                <input type="checkbox" disabled={busy}
-                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
-                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
-                Seleccionar período completo
-              </label>
+              <StaffToggleButton disabled={busy}
+                selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
+                className="mt-2">Seleccionar período completo</StaffToggleButton>
               <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
                 <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
-                  <label className="inline-flex cursor-pointer items-center gap-1">
-                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
-                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
-                      aria-label={'Seleccionar baja del '+asDisplayDate(d.work_date)}/>
-                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
-                  </label>
+                  <StaffToggleButton disabled={busy}
+                    selected={checkedAbsenceIds.includes(d.id)}
+                    onClick={()=>toggleChecked(d.id,!checkedAbsenceIds.includes(d.id),'ABSENCE')}
+                    title={'Seleccionar baja del '+asDisplayDate(d.work_date)}
+                    className="!min-h-6 !px-2 !py-0.5">
+                    {asDisplayDate(d.work_date).slice(0,5)}
+                  </StaffToggleButton>
                   <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
                     className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
                     aria-label={'Editar baja del '+asDisplayDate(d.work_date)}>
@@ -1146,20 +1188,19 @@ export default function StaffSchedulePage() {
             <h4 className="text-xs font-bold">Otras ausencias</h4>
             {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
               <summary className="cursor-pointer text-xs">{stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
-              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold">
-                <input type="checkbox" disabled={busy}
-                  checked={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
-                  onChange={()=>togglePeriodSelection(p.rows,'ABSENCE')}/>
-                Seleccionar período completo
-              </label>
+              <StaffToggleButton disabled={busy}
+                selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
+                onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
+                className="mt-2">Seleccionar período completo</StaffToggleButton>
               <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
                 <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
-                  <label className="inline-flex cursor-pointer items-center gap-1">
-                    <input type="checkbox" disabled={busy} checked={checkedAbsenceIds.includes(d.id)}
-                      onChange={e=>toggleChecked(d.id,e.target.checked,'ABSENCE')}
-                      aria-label={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}/>
-                    <span className="text-[11px]">{asDisplayDate(d.work_date).slice(0,5)}</span>
-                  </label>
+                  <StaffToggleButton disabled={busy}
+                    selected={checkedAbsenceIds.includes(d.id)}
+                    onClick={()=>toggleChecked(d.id,!checkedAbsenceIds.includes(d.id),'ABSENCE')}
+                    title={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}
+                    className="!min-h-6 !px-2 !py-0.5">
+                    {asDisplayDate(d.work_date).slice(0,5)}
+                  </StaffToggleButton>
                   <button type="button" onClick={()=>openDay(d.operator_id,d.work_date)}
                     className="rounded border p-1" title={'Editar '+asDisplayDate(d.work_date)}
                     aria-label={'Editar ausencia del '+asDisplayDate(d.work_date)}>
@@ -1316,13 +1357,14 @@ export default function StaffSchedulePage() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">{operators.map(person=>
-              <label key={person.id} className="inline-flex items-center gap-2 rounded-lg border bg-white p-2 text-xs">
-                <input type="checkbox" checked={agreementOperatorIds===null||agreementOperatorIds.includes(person.id)}
-                  onChange={e=>setAgreementOperatorIds(previous=>{
-                    const current=previous??operators.map(p=>p.id)
-                    return e.target.checked?[...new Set([...current,person.id])]:current.filter(id=>id!==person.id)
-                  })}/>{person.display_name}
-              </label>)}</div>
+              <StaffToggleButton key={person.id}
+                selected={agreementOperatorIds===null||agreementOperatorIds.includes(person.id)}
+                onClick={()=>setAgreementOperatorIds(previous=>{
+                  const current=previous??operators.map(p=>p.id)
+                  return current.includes(person.id)?current.filter(id=>id!==person.id):
+                    [...current,person.id]
+                })}>{person.display_name}</StaffToggleButton>)}
+            </div>
           </div>
           <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[540px] text-left text-xs">
             <thead><tr className="border-b bg-slate-100">
@@ -1486,12 +1528,11 @@ export default function StaffSchedulePage() {
               <p className="mb-2 text-[11px] text-emerald-900">
                 Ejemplo: disfrutadas en enero de 2027 pero correspondientes a 2026.
               </p>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={dayEditor.vacation_taken_confirmed}
-                  disabled={dayEditor.work_date>dateISO(new Date())}
-                  onChange={e=>setDayEditor({...dayEditor,vacation_taken_confirmed:e.target.checked})}/>
+              <StaffToggleButton selected={dayEditor.vacation_taken_confirmed}
+                disabled={dayEditor.work_date>dateISO(new Date())}
+                onClick={()=>setDayEditor({...dayEditor,vacation_taken_confirmed:!dayEditor.vacation_taken_confirmed})}>
                 Confirmar vacaciones disfrutadas
-              </label>
+              </StaffToggleButton>
               <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
             </div>}
             {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
