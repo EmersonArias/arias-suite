@@ -102,7 +102,6 @@ export default function StaffSchedulePage() {
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
   const [showVacationSettings,setShowVacationSettings]=useState(false)
   const [agreementOperatorIds,setAgreementOperatorIds]=useState<string[]|null>(null)
-  const [agreementSnapshotDate,setAgreementSnapshotDate]=useState<string|null>(null)
   const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
   const [checkedAbsenceIds,setCheckedAbsenceIds]=useState<string[]>([])
   const [bulkAbsenceStatus,setBulkAbsenceStatus]=useState<'DOCUMENTED'|'PENDING'|'UNJUSTIFIED'|'UNKNOWN'>('DOCUMENTED')
@@ -243,7 +242,18 @@ export default function StaffSchedulePage() {
   const restRemaining=dayEditor?dayEditor.target_minutes-restAllocated:0
 
   const vacationToday=dateISO(new Date())
-  const comparisonCutoff=agreementSnapshotDate??vacationToday
+  // Each calendar year starts on that worker's first registered day in that year's
+  // schedule, including REST, PUBLIC_HOLIDAY, VACATION or any other state.
+  const firstDayOfSelectedYear=useMemo(()=>{
+    const first:Record<string,string>={}
+    const prefix=String(year)+'-'
+    for(const d of days){
+      if(!d.work_date.startsWith(prefix))continue
+      if(!first[d.operator_id]||d.work_date<first[d.operator_id])
+        first[d.operator_id]=d.work_date
+    }
+    return first
+  },[days,year])
   const agreementOperators=agreementOperatorIds===null?operators:
     operators.filter(p=>agreementOperatorIds.includes(p.id))
   const formatVacationDays=(value:number|null)=>value===null?'—':
@@ -809,7 +819,7 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">
               Vacaciones · {year}{vacationOperatorFilter==='ALL'?' · Todos los operarios':''}
             </h2>
-            <button type="button" onClick={()=>{setAgreementSnapshotDate(dateISO(new Date()));setShowVacationSettings(true)}} aria-haspopup="dialog"
+            <button type="button" onClick={()=>setShowVacationSettings(true)} aria-haspopup="dialog"
               className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
@@ -846,39 +856,46 @@ export default function StaffSchedulePage() {
         <div className="rounded-xl bg-white p-3 shadow-sm">
           <h3 className="text-sm font-bold">Vacaciones correspondientes · {year}</h3>
           <p className="mt-1 text-xs text-slate-600">
-            Días naturales devengados sobre los 30 días aprobados, hasta el día de hoy: {asDisplayDate(vacationToday)}.
+            Vacaciones hasta el 31 de diciembre, calculadas sobre 30 días naturales anuales
+            desde el primer día registrado en el cuadrante de {year}, sea turno, descanso o festivo.
+            Solo se descuentan las vacaciones de {year} confirmadas como disfrutadas hasta {asDisplayDate(vacationToday)}.
           </p>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[600px] text-left text-xs">
+            <table className="w-full min-w-[670px] text-left text-xs">
               <thead><tr className="border-b bg-slate-50">
                 <th className="p-2">Trabajador</th>
-                <th className="p-2">Fecha de alta</th>
-                <th className="p-2">Aprobadas (año completo)</th>
-                <th className="p-2">Devengadas hasta hoy (30 días)</th>
+                <th className="p-2">Primer día del cuadrante</th>
+                <th className="p-2">Vacaciones hasta 31 de diciembre</th>
+                <th className="p-2">Vacaciones disfrutadas hasta hoy</th>
+                <th className="p-2">Vacaciones pendientes de disfrutar</th>
               </tr></thead>
               <tbody>{operators.filter(person=>
                 vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
                 .map(person=>{
-                  const effectiveStart=person.join_date??firstScheduledDates[person.id]??null
-                  const approved=accruedVacationDays(30,year,vacationToday,effectiveStart)
+                  const first=firstDayOfSelectedYear[person.id]??null
+                  const entitlement=accruedVacationDays(30,year,year+'-12-31',first)
+                  // Do not mix previously carried-over vacations with this year's entitlement.
+                  // A past vacation is considered taken only when explicitly confirmed.
+                  const confirmed=days.filter(day=>day.operator_id===person.id &&
+                    day.work_date.startsWith(String(year)) && day.work_date<=vacationToday &&
+                    day.state==='VACATION' && day.vacation_taken_confirmed &&
+                    (day.vacation_origin_year===null||day.vacation_origin_year===year)).length
+                  const remaining=entitlement===null?null:Math.max(0,Math.round((entitlement-confirmed)*100)/100)
                   return <tr key={person.id} className="border-b align-top">
                     <td className="p-2 font-semibold">{person.display_name}</td>
-                    <td className="p-2">{person.join_date?asDisplayDate(person.join_date):
-                      effectiveStart?<span className="font-semibold text-sky-800">
-                        {asDisplayDate(effectiveStart)} · primer día del cuadrante (provisional)
-                      </span>:<span className="font-semibold text-amber-800">Sin referencia</span>}</td>
-                    <td className="p-2">30 d</td>
-                    <td className="p-2">{formatVacationDays(approved)}
-                      {approved===null&&<span className="block text-[10px] text-amber-800">Pendiente fecha de alta</span>}
-                    </td>
+                    <td className="p-2">{first?asDisplayDate(first):
+                      <span className="font-semibold text-amber-800">Sin días en el cuadrante de {year}</span>}</td>
+                    <td className="p-2 font-semibold">{formatVacationDays(entitlement)}</td>
+                    <td className="p-2">{confirmed} d</td>
+                    <td className="p-2 font-bold">{formatVacationDays(remaining)}</td>
                   </tr>
                 })}</tbody>
             </table>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Si no consta fecha contractual se utiliza provisionalmente el primer día registrado en el cuadrante; no se presenta como alta confirmada.
-            Estos valores son devengo proporcional, no días restantes tras vacaciones disfrutadas.
-            Las asignaciones, ajustes y días arrastrados siguen independientes.
+            Los días de vacaciones aún programados o pendientes de confirmar no se contabilizan
+            como disfrutados. Las vacaciones arrastradas de años anteriores tampoco se descuentan
+            del derecho anual mostrado. Los decimales se mantienen sin redondear a días completos.
           </p>
         </div>
 
@@ -1283,8 +1300,7 @@ export default function StaffSchedulePage() {
           className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><h2 id="agreement-title" className="text-base font-bold">Vacaciones según convenio</h2>
-              <p className="mt-1 text-xs text-slate-600">Comparación informativa hasta
-                { ' '}{asDisplayDate(comparisonCutoff)} · {year}. Los 30 días aprobados por dirección no cambian.</p>
+              <p className="mt-1 text-xs text-slate-600">Comparación informativa hasta el 31/12/{year}. Los 30 días aprobados por dirección no cambian.</p>
             </div>
             <button type="button" onClick={()=>setShowVacationSettings(false)}
               className="rounded-lg border px-3 py-2 text-xs font-semibold">Cerrar</button>
@@ -1310,26 +1326,24 @@ export default function StaffSchedulePage() {
           </div>
           <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[540px] text-left text-xs">
             <thead><tr className="border-b bg-slate-100">
-              <th className="p-2">Operario</th><th className="p-2">Incorporación</th>
+              <th className="p-2">Operario</th><th className="p-2">Primer día del cuadrante</th>
               <th className="p-2">Devengadas · 30 días</th>
               <th className="p-2">Devengadas · 31 días convenio</th>
             </tr></thead>
             <tbody>{agreementOperators.map(person=>{
-              const origin=person.join_date??firstScheduledDates[person.id]??null
+              const origin=firstDayOfSelectedYear[person.id]??null
               return <tr key={person.id} className="border-b">
                 <td className="p-2 font-semibold">{person.display_name}</td>
-                <td className="p-2">{origin?asDisplayDate(origin):'Sin referencia'}
-                  {!person.join_date&&origin&&<span className="block text-[10px] text-amber-800">Primer día del cuadrante · provisional</span>}
-                </td>
-                <td className="p-2">{formatVacationDays(accruedVacationDays(30,year,comparisonCutoff,origin))}</td>
-                <td className="p-2 font-semibold text-sky-900">{formatVacationDays(accruedVacationDays(31,year,comparisonCutoff,origin))}</td>
+                <td className="p-2">{origin?asDisplayDate(origin):'Sin días en el año'}</td>
+                <td className="p-2">{formatVacationDays(accruedVacationDays(30,year,year+'-12-31',origin))}</td>
+                <td className="p-2 font-semibold text-sky-900">{formatVacationDays(accruedVacationDays(31,year,year+'-12-31',origin))}</td>
               </tr>
             })}</tbody>
           </table>
           {agreementOperators.length===0&&<p className="p-3 text-xs text-slate-500">Selecciona los operarios que quieras consultar.</p>}
           </div>
           <p className="mt-3 text-xs text-slate-500">Comparativa de devengo, no saldo disponible.
-            Si falta fecha de alta, el primer día del cuadrante es provisional.
+            Se toma el primer día registrado en el cuadrante del año mostrado, aunque sea descanso o festivo.
             Activar la comparación no aprueba 31 días ni modifica registros.</p>
         </section>
       </div>}
