@@ -583,6 +583,40 @@ export default function StaffSchedulePage() {
       })
     }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
   }
+  async function exportCurrentPdf(){
+    if(!hotel?.id)return
+    setError('')
+    try{
+      switch(tab){
+        case 'ANUAL':await exportAnnualPdf();break
+        case 'FESTIVOS':
+          await exportHolidayAuditPdf({
+            hotelName:hotel.name??'Hotel',year,operators,days,
+            holidays:holidays.filter(date=>date.startsWith(String(year))).map(date=>({
+              holiday_date:date,label:holidayLabels[date]??'Festivo',
+            })),operatorIds:filteredOperators.map(o=>o.id),firstScheduledDates,
+          })
+          break
+        case 'EXTRAS':await exportSectionPdf('EXTRAS');break
+        case 'VACACIONES':await exportSectionPdf('VACACIONES');break
+        case 'AUSENCIAS':await exportSectionPdf('BAJAS');break
+        case 'HISTORIAL':
+          await exportStaffHistoryPdf({hotelName:hotel.name??'Hotel',year,operators,history,
+            operatorIds:filteredOperators.map(o=>o.id)})
+          break
+        case 'CUADRANTE':
+        case 'FINES':
+          await exportPlannerSchedulePdf({hotelName:hotel.name??'Hotel',year,operators,days,
+            mode:tab,operatorId:operatorFilter})
+          break
+        case 'REPORTES':setReportPdfRequest(value=>value+1);break
+        case 'NOTAS':setError('Las observaciones privadas no tienen exportación PDF habilitada por motivos de confidencialidad.');break
+      }
+    }catch(e){
+      setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error desconocido'))
+    }
+  }
+
   async function saveOvertime(){
     if(!hotel?.id||!selectedId)return
     const minutes=Math.round(Number(overtimeHours)*60)
@@ -636,6 +670,12 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
+          <button type="button" aria-label="Descargar PDF de la sección para el operario seleccionado"
+            title="Descargar PDF con el operario elegido arriba"
+            onClick={()=>void exportCurrentPdf()} disabled={busy}
+            className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <Printer size={15}/>PDF
+          </button>
           {!demo&&<button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>}
           {!demo&&selected&&operatorFilter!=='ALL'&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
