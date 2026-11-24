@@ -120,7 +120,7 @@ export default function StaffSchedulePage() {
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
-  const [firstShiftDates,setFirstShiftDates]=useState<Record<string,string>>({})
+  const [firstScheduledDates,setFirstShiftDates]=useState<Record<string,string>>({})
   const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
   const [pdfOperatorIds,setPdfOperatorIds]=useState<string[]|null>(null)
   const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
@@ -162,7 +162,7 @@ export default function StaffSchedulePage() {
   async function reload(){
     if(!hotel?.id||!allowed)return
     setBusy(true);setError('')
-    const [people,entries,extras,years,privateNotes,holidayRows,firstShifts,historyRows]=await Promise.all([
+    const [people,entries,extras,years,privateNotes,holidayRows,firstScheduled,historyRows]=await Promise.all([
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
       loadAllStaffDays({
         hotelId:hotel.id,
@@ -175,19 +175,19 @@ export default function StaffSchedulePage() {
       demo?Promise.resolve({data:[],error:null}):supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
-      supabase.from('staff_operator_first_shift').select('operator_id,first_shift_date').eq('hotel_id',hotel.id),
+      supabase.from('staff_operator_first_day').select('operator_id,first_scheduled_date').eq('hotel_id',hotel.id),
       demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,entity_kind,changed_at,actor_user_id,previous_values,new_values')
         .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
         .order('changed_at',{ascending:false}).limit(200),
     ])
-    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error||firstShifts.error||historyRows.error
+    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error||firstScheduled.error||historyRows.error
     if(failure){setError(failure.message);setBusy(false);return}
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
     setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
     setHolidayLabels(Object.fromEntries((holidayRows.data??[]).map(row=>[row.holiday_date,row.label])))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
-    setFirstShiftDates(Object.fromEntries((firstShifts.data??[]).map(row=>[row.operator_id,row.first_shift_date])))
+    setFirstShiftDates(Object.fromEntries((firstScheduled.data??[]).map(row=>[row.operator_id,row.first_scheduled_date])))
     setHistory((historyRows.data??[]) as typeof history)
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
@@ -880,7 +880,7 @@ export default function StaffSchedulePage() {
               <tbody>{operators.filter(person=>
                 vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
                 .map(person=>{
-                  const effectiveStart=person.join_date??firstShiftDates[person.id]??null
+                  const effectiveStart=person.join_date??firstScheduledDates[person.id]??null
                   const approved=accruedVacationDays(30,year,vacationToday,effectiveStart)
                   const comparison=showCollectiveAgreement
                     ?accruedVacationDays(31,year,comparisonCutoff,effectiveStart):null
@@ -888,7 +888,7 @@ export default function StaffSchedulePage() {
                     <td className="p-2 font-semibold">{person.display_name}</td>
                     <td className="p-2">{person.join_date?asDisplayDate(person.join_date):
                       effectiveStart?<span className="font-semibold text-sky-800">
-                        {asDisplayDate(effectiveStart)} · primer turno provisional
+                        {asDisplayDate(effectiveStart)} · primer día del cuadrante (provisional)
                       </span>:<span className="font-semibold text-amber-800">Sin referencia</span>}</td>
                     <td className="p-2">30 d</td>
                     <td className="p-2">{formatVacationDays(approved)}
@@ -905,7 +905,7 @@ export default function StaffSchedulePage() {
             </table>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            Si no consta fecha contractual se usa provisionalmente el primer turno registrado; no se presenta como alta confirmada.
+            Si no consta fecha contractual se utiliza provisionalmente el primer día registrado en el cuadrante; no se presenta como alta confirmada.
             Estos valores son devengo proporcional, no días restantes tras vacaciones disfrutadas.
             Las asignaciones, ajustes y días arrastrados siguen independientes.
           </p>
