@@ -1,3 +1,4 @@
+import { previewPdf } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   AlertTriangle, Archive, ArrowDownToLine, ArrowUpFromLine, Boxes,
@@ -571,7 +572,7 @@ export default function MaterialsInventoryPage() {
   }
 
   function downloadPdf(request: RequestRecord, lines: RequestLine[]) {
-    buildPdf(request, lines).save(request.request_number + '.pdf')
+    previewPdf(buildPdf(request, lines), request.request_number + '.pdf')
   }
 
   function base64Pdf(request: RequestRecord, lines: RequestLine[]) {
