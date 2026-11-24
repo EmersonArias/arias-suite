@@ -115,6 +115,11 @@ export default function StaffSchedulePage() {
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
+  const [firstShiftDates,setFirstShiftDates]=useState<Record<string,string>>({})
+  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
+  const [pdfOperatorIds,setPdfOperatorIds]=useState<string[]|null>(null)
+  const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
+  const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
   const [selectedId,setSelectedId]=useState('')
   const [hoursDetailOperatorId,setHoursDetailOperatorId]=useState<string|null>(null)
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
@@ -152,7 +157,7 @@ export default function StaffSchedulePage() {
   async function reload(){
     if(!hotel?.id||!allowed)return
     setBusy(true);setError('')
-    const [people,entries,extras,years,privateNotes,holidayRows]=await Promise.all([
+    const [people,entries,extras,years,privateNotes,holidayRows,firstShifts,historyRows]=await Promise.all([
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
       loadAllStaffDays({
         hotelId:hotel.id,
@@ -165,19 +170,26 @@ export default function StaffSchedulePage() {
       supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
+      supabase.from('staff_operator_first_shift').select('operator_id,first_shift_date').eq('hotel_id',hotel.id),
+      supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,changed_at,actor_user_id,previous_values,new_values')
+        .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
+        .order('changed_at',{ascending:false}).limit(200),
     ])
-    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error
+    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error||firstShifts.error||historyRows.error
     if(failure){setError(failure.message);setBusy(false);return}
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
     setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
     setHolidayLabels(Object.fromEntries((holidayRows.data??[]).map(row=>[row.holiday_date,row.label])))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
+    setFirstShiftDates(Object.fromEntries((firstShifts.data??[]).map(row=>[row.operator_id,row.first_shift_date])))
+    setHistory((historyRows.data??[]) as typeof history)
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
   }
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
+  const pdfSelectedOperators=pdfOperatorIds===null?operators:operators.filter(o=>pdfOperatorIds.includes(o.id))
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
   })),[operators,days,overtime,year])
@@ -518,7 +530,8 @@ export default function StaffSchedulePage() {
     if(!hotel)return
     try{
       setError('')
-      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary})
+      if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario.');return}
+      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary.filter(s=>pdfSelectedOperators.some(o=>o.id===s.operator.id))})
     }catch(e){setError('No se pudo generar el PDF anual: '+
       (e instanceof Error?e.message:'Error desconocido'))}
   }
@@ -528,7 +541,7 @@ export default function StaffSchedulePage() {
       setError('')
       await staffSectionPdf({
         section,hotelName:hotel.name,year,operators,days,overtime,
-        operatorId:section==='VACACIONES'?vacationOperatorFilter:selectedId,
+        operatorId:'ALL',operatorIds:pdfSelectedOperators.map(o=>o.id),
         statusFilter:section==='VACACIONES'?vacationStatusFilter:undefined,
       })
     }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
@@ -808,13 +821,16 @@ export default function StaffSchedulePage() {
               <tbody>{operators.filter(person=>
                 vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
                 .map(person=>{
-                  const approved=accruedVacationDays(30,year,vacationToday,person.join_date)
+                  const effectiveStart=person.join_date??firstShiftDates[person.id]??null
+                  const approved=accruedVacationDays(30,year,vacationToday,effectiveStart)
                   const comparison=showCollectiveAgreement
-                    ?accruedVacationDays(31,year,comparisonCutoff,person.join_date):null
+                    ?accruedVacationDays(31,year,comparisonCutoff,effectiveStart):null
                   return <tr key={person.id} className="border-b align-top">
                     <td className="p-2 font-semibold">{person.display_name}</td>
                     <td className="p-2">{person.join_date?asDisplayDate(person.join_date):
-                      <span className="font-semibold text-amber-800">Sin informar</span>}</td>
+                      effectiveStart?<span className="font-semibold text-sky-800">
+                        {asDisplayDate(effectiveStart)} · primer turno provisional
+                      </span>:<span className="font-semibold text-amber-800">Sin referencia</span>}</td>
                     <td className="p-2">30 d</td>
                     <td className="p-2">{formatVacationDays(approved)}
                       {approved===null&&<span className="block text-[10px] text-amber-800">Pendiente fecha de alta</span>}
@@ -830,7 +846,7 @@ export default function StaffSchedulePage() {
             </table>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            No se deduce la fecha contractual del primer turno.
+            Si no consta fecha contractual se usa provisionalmente el primer turno registrado; no se presenta como alta confirmada.
             Estos valores son devengo proporcional, no días restantes tras vacaciones disfrutadas.
             Las asignaciones, ajustes y días arrastrados siguen independientes.
           </p>
