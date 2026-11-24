@@ -1,4 +1,4 @@
-import { previewPdf } from '../../shared/components/reports/pdfPreview'
+import { previewPdf, previewHtml } from '../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
@@ -422,8 +422,6 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
 
   function printReport(){
     if(!snapshot||loading||!unchanged)return
-    const page=window.open('','_blank')
-    if(!page){setError('El navegador ha bloqueado la ventana de impresión. Permite ventanas emergentes.');return}
 
     const heading=esc(hotelName)+' · '+esc(periodLabel)
     // Impresión del mes: mismo diseño semanal apilado, en A4 vertical.
@@ -493,8 +491,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
         heading+' · '+esc(stateLabel)+' · '+(snapshot.operatorId==='ALL'?'Todos los operarios':esc(displayedOperators[0]?.display_name??''))+
         '</p><div class="weeks">'+bodyHtml+'</div><div class="legend">'+legendHtml+'</div>'+
         '<p class="foot">9–13 / 15–19: turno partido de 8 horas. '+esc(summaryNote)+'</p>'+
-        '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
-      page.document.open();page.document.write(html);page.document.close()
+        '</body></html>'
+      previewHtml(html)
       return
     }
     const weeklyTables=weekGroups.map(({start,week})=>{
@@ -527,8 +525,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear,sel
       '</style></head><body><h1>PLANIFICADOR HORARIO · DEPARTAMENTO DE MANTENIMIENTO</h1><p>'+heading+' · '+esc(stateLabel)+'</p>'+
       weeklyTables+
       '<div class="footer"><span style="display:inline-block;background:#1d4ed8;color:white;padding:1px 4px;margin-right:8px">Cabecera azul: festivo del calendario</span>'+legendHtml+'</div><p class="notes">'+esc(summary)+'</p><p class="notes">'+esc(summaryNote)+'</p>'+
-      '<script>window.addEventListener("load",function(){window.focus();window.print();});<\/script></body></html>'
-    page.document.open();page.document.write(html);page.document.close()
+      '</body></html>'
+    previewHtml(html)
   }
 
   return <section className="space-y-2 sm:space-y-3">
