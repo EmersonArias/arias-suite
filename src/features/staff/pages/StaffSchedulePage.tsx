@@ -8,7 +8,7 @@ import { supabase } from '../../../lib/supabase'
 import {
   dateISO, fromISO, hours, isoWeek, minutesInShift, plannedMinutes, staffStateOptions, isSplitShift,
   stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
-  vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, type VacationStage,
+  vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, staffHolidayOrigin, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
   type StaffOvertime, type StaffVacation,
 } from '../staffModel'
@@ -197,10 +197,9 @@ export default function StaffSchedulePage() {
   },[hoursDetailOperatorId])
   const byDay=useMemo(()=>new Map(days.map(d=>[d.operator_id+'|'+d.work_date,d])),[days])
   const usedHolidays=useMemo(()=>new Set(days.filter(d=>d.state==='PUBLIC_HOLIDAY')
-    .map(d=>d.operator_id+'|'+(d.holiday_source_date??d.source_code?.match(/\d{4}-\d{2}-\d{2}/)?.[0]??''))),[days])
+    .map(d=>d.operator_id+'|'+(staffHolidayOrigin(d)??''))),[days])
   const availableHolidays=dayEditor?holidays.filter(date=>
-    (date.startsWith(dayEditor.work_date.slice(0,4))||
-      Number(date.slice(0,4))===Number(dayEditor.work_date.slice(0,4))-1)&&
+    date.startsWith(dayEditor.work_date.slice(0,4))&&
     (!usedHolidays.has(dayEditor.operator_id+'|'+date)||date===dayEditor.holiday_source_date)):[]
   const earnedEntries=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id&&
     ['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)).map(e=>{
