@@ -776,7 +776,47 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='EXTRAS'&&<section className="space-y-2 sm:space-y-4">
-        {selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
+        {operatorFilter==='ALL'&&<div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+          <h2 className="text-sm font-bold">Horas extras · Todos los operarios</h2>
+          <p className="mt-1 text-xs text-slate-600">
+            Movimientos del libro de horas. Para añadir o corregir un movimiento, elige un operario arriba.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[550px] text-left text-xs">
+              <thead><tr className="border-b bg-slate-50">
+                <th className="p-2">Operario</th><th>Generadas</th><th>Disfrutadas</th>
+                <th>Abonadas</th><th>Saldo acumulado</th>
+              </tr></thead>
+              <tbody>{filteredSummary.map(item=><tr key={item.operator.id} className="border-b">
+                <td className="p-2 font-semibold">{item.operator.display_name}</td>
+                <td>{hours(item.earned)}</td><td>{hours(item.compensated)}</td>
+                <td>{hours(item.paid)}</td><td>{hours(item.cumulativeBalance)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <h3 className="mt-4 text-xs font-bold">Movimientos y fechas</h3>
+          <div className="mt-2 max-h-96 overflow-auto">
+            <table className="w-full min-w-[620px] text-left text-xs">
+              <thead><tr className="border-b bg-slate-50">
+                <th className="p-2">Operario</th><th>Fecha</th><th>Movimiento</th>
+                <th>Horas</th><th>Origen</th><th>Disfrutado el</th>
+              </tr></thead>
+              <tbody>{overtime.filter(entry=>entry.entry_date.startsWith(String(year)))
+                .sort((a,b)=>a.entry_date.localeCompare(b.entry_date)).map(entry=>{
+                  const origin=entry.compensates_entry_id
+                    ?overtime.find(row=>row.id===entry.compensates_entry_id):null
+                  return <tr key={entry.id} className="border-b">
+                    <td className="p-2">{operators.find(p=>p.id===entry.operator_id)?.display_name??'—'}</td>
+                    <td>{asDisplayDate(entry.entry_date)}</td>
+                    <td>{entry.entry_type}</td><td>{hours(entry.minutes)}</td>
+                    <td>{origin?asDisplayDate(origin.entry_date):'—'}</td>
+                    <td>{entry.entry_type==='REST_TAKEN'?asDisplayDate(entry.entry_date):'—'}</td>
+                  </tr>
+                })}</tbody>
+            </table>
+          </div>
+        </div>}
+        {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
           </div>
