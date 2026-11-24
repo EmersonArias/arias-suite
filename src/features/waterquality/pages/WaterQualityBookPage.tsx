@@ -1,3 +1,4 @@
+import { previewPdf } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -258,7 +259,7 @@ function WaterSamples({ type, hotelId, userId, hotelName }: { type: WaterBookTyp
     try {
       const { buildBookPdf } = await import('../../technicalbooks/bookPdf')
       const printable = selected ? [selected] : records.length ? records : [encodeSample(createEntry(book, { hotelId, userId }), form)]
-      buildBookPdf(book, printable, hotelName, demo).save((demo ? 'PRUEBA-' : '') + book.code + '.pdf')
+      previewPdf(buildBookPdf(book, printable, hotelName, demo), (demo ? 'PRUEBA-' : '') + book.code + '.pdf')
     } catch (e) {
       await showAlert({ title: 'Error al generar el PDF', message: String(e), variant: 'warning' })
     }
