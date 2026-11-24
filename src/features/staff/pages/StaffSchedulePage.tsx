@@ -688,6 +688,7 @@ export default function StaffSchedulePage() {
         hotelId={hotel.id}
         hotelName={hotel.name??'Hotel'}
         pdfOperatorIds={pdfSelectedOperators.map(p=>p.id)}
+        firstScheduledDates={firstScheduledDates}
         year={year}
         operators={operators}
         days={days}
