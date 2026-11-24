@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
 import { useState, useRef } from 'react'
 
 interface Pump {
@@ -25,6 +26,7 @@ const emptyPump: Pump = {
 
 export default function PumpsPage() {
   const navigate = useNavigate()
+  const { confirm, alert: showAlert } = useSystemDialog()
 
   const [editing, setEditing] = useState(false)
 
@@ -72,9 +74,13 @@ export default function PumpsPage() {
     }, 50)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.ref.trim()) {
-      alert('Debe indicar una referencia')
+      await showAlert({
+        title: 'Referencia obligatoria',
+        message: 'Debe indicar una referencia para guardar la bomba.',
+        variant: 'warning',
+      })
       return
     }
 
@@ -109,16 +115,16 @@ export default function PumpsPage() {
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedId) return
 
-    if (
-      !confirm(
-        `¿Eliminar ${form.ref}?`
-      )
-    ) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Eliminar registro',
+      message: `¿Quieres eliminar la bomba ${form.ref}? Esta acción no se puede deshacer.`,
+      variant: 'warning',
+      confirmLabel: 'Eliminar',
+    })
+    if (!confirmed) return
 
     setPumps((current) =>
       current.filter(

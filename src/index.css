@@ -4,3 +4,466 @@ body {
   margin: 0;
   background: #f1f5f9;
 }
+  
+@media print {
+  @page {
+    margin: 14mm 10mm 12mm 10mm;
+  }
+}
+
+.arias-report-page {
+  padding-top: 4mm;
+  padding-bottom: 12mm;
+}
+
+.arias-report-footer {
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: #64748b;
+  text-align: center;
+}
+
+@media print {
+  .arias-report-page {
+    padding-top: 4mm !important;
+    padding-bottom: 12mm !important;
+  }
+
+  .arias-report-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 1.5mm;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    background: #ffffff;
+    font-size: 8px;
+    color: #475569;
+    text-align: center;
+    z-index: 50;
+  }
+
+  .arias-report-footer-line {
+    width: 100%;
+    height: 0.3mm;
+    margin-bottom: 1.5mm;
+    background: #cbd5e1;
+  }
+}
+
+/* Arias Suite — shared compact, captioned Android-style actions */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+a,
+select,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+/* Every shared icon action has the same compact footprint and a black caption. */
+.arias-suite-app .arias-icon-action,
+.arias-suite-app .arias-toolbar-action {
+  display: inline-flex;
+  flex: 0 0 2.75rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1px;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  text-align: center;
+}
+
+.arias-suite-app .arias-icon-action > .arias-action-button,
+.arias-suite-app .arias-icon-action > .arias-icon-button,
+.arias-suite-app .arias-toolbar-action > .arias-action-button,
+.arias-suite-app .arias-toolbar-action > .arias-icon-button {
+  display: inline-flex;
+  flex: 0 0 2.25rem;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem !important;
+  min-width: 2.25rem !important;
+  height: 2.25rem !important;
+  min-height: 2.25rem !important;
+  padding: 0 !important;
+}
+
+.arias-suite-app .arias-action-caption {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  color: #000 !important;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Toolbars stay on one horizontal line; narrow screens may scroll horizontally. */
+.arias-suite-app .arias-grid-toolbar,
+.arias-suite-app .arias-form-actions,
+.arias-suite-app .arias-mobile-header-actions {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: flex-start;
+  gap: 0.125rem !important;
+  min-width: 0;
+}
+
+.arias-suite-app .arias-grid-toolbar {
+  justify-content: flex-start !important;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.arias-suite-app .arias-grid-toolbar::-webkit-scrollbar,
+.arias-suite-app .arias-form-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.arias-suite-app .arias-form-actions {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.arias-suite-app .arias-form-actions > .arias-icon-action,
+.arias-suite-app .arias-form-actions > .arias-action-button,
+.arias-suite-app .arias-form-actions > .arias-icon-button {
+  flex: 0 0 auto;
+}
+.arias-suite-app .arias-form-actions > button {
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  white-space: nowrap;
+}
+
+.arias-suite-app .arias-mobile-header-actions {
+  width: auto !important;
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+/* Compact page rhythm so the main list/grid gets more of the viewport. */
+@media (max-width: 640px) {
+  .arias-suite-app button {
+    touch-action: manipulation;
+  }
+
+  .arias-suite-app input,
+  .arias-suite-app select,
+  .arias-suite-app textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .arias-suite-app textarea {
+    min-height: 96px;
+  }
+
+  .arias-suite-app .arias-page-card {
+    border-radius: 1rem !important;
+  }
+
+  .arias-suite-app .arias-mobile-section {
+    padding: 0.75rem !important;
+  }
+
+  .arias-suite-app .min-h-screen.bg-slate-100 {
+    padding: 0.5rem !important;
+  }
+
+  .arias-suite-app [class*="max-w-7xl"],
+  .arias-suite-app [class*="max-w-6xl"],
+  .arias-suite-app [class*="max-w-5xl"],
+  .arias-suite-app [class*="max-w-4xl"] {
+    min-width: 0;
+  }
+
+  .arias-suite-app table {
+    max-width: none;
+  }
+}
+
+.arias-grid-viewport::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.arias-grid-viewport::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.arias-grid-viewport::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 3px solid #f1f5f9;
+}
+
+.arias-grid-viewport::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+
+/* Equipment registry header: desktop title left, actions at the far right; mobile stays stacked. */
+.arias-suite-app .apparatus-registry-header-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.arias-suite-app .apparatus-registry-title {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.arias-suite-app .apparatus-registry-title-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.arias-suite-app .apparatus-registry-toolbar {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-flow: row nowrap !important;
+  align-items: flex-start;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-width: 0;
+  gap: 0.125rem !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.arias-suite-app .apparatus-registry-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .arias-suite-app .apparatus-registry-header-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0;
+  }
+
+  .arias-suite-app .apparatus-registry-title {
+    min-width: 0;
+  }
+
+  .arias-suite-app .apparatus-registry-title-copy h1 {
+    white-space: nowrap;
+    overflow: visible;
+  }
+
+  .arias-suite-app .apparatus-registry-toolbar {
+    width: auto !important;
+    max-width: 100%;
+    justify-content: flex-end !important;
+    overflow: visible;
+  }
+}
+
+
+/* LED wardrobe: keep actions beside the title on desktop, below it on mobile. */
+.arias-suite-app .room-led-header-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.arias-suite-app .room-led-title {
+  min-width: 0;
+}
+
+.arias-suite-app .room-led-toolbar {
+  justify-content: flex-start !important;
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .arias-suite-app .room-led-header-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0;
+  }
+
+  .arias-suite-app .room-led-toolbar {
+    width: auto !important;
+    max-width: 100%;
+    justify-content: flex-end !important;
+    overflow-x: visible;
+  }
+}
+
+
+/* Scheduled maintenance: desktop actions right of title; keep mobile stacked. */
+.arias-suite-app .maintenance-planning-header-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.arias-suite-app .maintenance-planning-title {
+  min-width: 0;
+}
+
+.arias-suite-app .maintenance-planning-toolbar {
+  width: 100%;
+  justify-content: flex-start !important;
+}
+
+@media (min-width: 900px) {
+  .arias-suite-app .maintenance-planning-header-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0;
+  }
+
+  .arias-suite-app .maintenance-planning-title {
+    min-width: 0;
+  }
+
+  .arias-suite-app .maintenance-planning-title h1 {
+    white-space: nowrap;
+  }
+
+  .arias-suite-app .maintenance-planning-toolbar {
+    width: auto !important;
+    max-width: 100%;
+    justify-content: flex-end !important;
+    overflow-x: visible;
+  }
+}
+
+/* Shared silver/teal controls: relief, gold rim and a pressed state. */
+.arias-suite-app .arias-control-3d {
+  color: #12676b;
+  border: 1px solid #c6b88d;
+  background: radial-gradient(ellipse at 35% 15%, #fff 0%, #f7fafb 35%, #e1e8eb 75%, #c6d0d6 100%);
+  box-shadow: inset 0 2px 2px #fff, inset 0 -2px 3px #9eafb960,
+    0 3px 0 #9caab3, 0 5px 8px #0f172a20;
+  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+}
+.arias-suite-app .arias-control-3d svg {
+  filter: drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #103e4c30);
+}
+.arias-suite-app .arias-control-3d[data-tone="danger"] { color: #b91c1c; }
+.arias-suite-app .arias-control-3d[data-tone="warning"] { color: #925600; }
+.arias-suite-app .arias-control-3d[data-tone="success"] { color: #047857; }
+.arias-suite-app .arias-control-3d[data-tone="primary"] { color: #075985; }
+.arias-suite-app .arias-control-3d:hover:not(:disabled) { filter: brightness(1.04); }
+.arias-suite-app .arias-control-3d:focus-visible { outline: 2px solid #0d9488; outline-offset: 3px; }
+.arias-suite-app .arias-control-3d:active:not(:disabled),
+.arias-suite-app .arias-control-3d[aria-pressed="true"] {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 4px #64748b40, 0 1px 0 #9caab3;
+}
+.arias-suite-app .arias-control-3d:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.arias-suite-app .arias-fullscreen-button { width: 2.5rem; height: 2.5rem; }
+
+/* Consistent compact branding and open headers throughout the app. */
+.arias-suite-app .arias-brand-logo > img {
+  width: auto;
+  height: 4.5rem;
+  min-height: 4.5rem;
+  max-width: 80vw;
+  object-fit: contain;
+}
+.arias-suite-app header:has(.arias-brand-logo) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding-top: .25rem;
+  padding-bottom: .25rem;
+}
+.arias-suite-app header:has(.arias-brand-logo) > div { flex-wrap: wrap; row-gap: .75rem; }
+@media (min-width: 640px) {
+  .arias-suite-app .arias-brand-logo > img { height: 5.5rem; min-height: 5.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arias-suite-app .arias-control-3d { transition: none; }
+}
+@media print {
+  .arias-suite-app .arias-fullscreen-button { display: none !important; }
+  .arias-suite-app .arias-control-3d { box-shadow: none; background: #fff; }
+}
+
+/* Match the visible hotel logo height, preserving its original wide proportions. */
+.arias-suite-app .arias-hotel-brand { width: 22.213rem; max-width: 90vw; height: 4.5rem; }
+@media (min-width: 640px) {
+  .arias-suite-app .arias-hotel-brand { width: 27.149rem; height: 5.5rem; }
+}
+
+/* Area navigation is separate from personal home shortcuts. */
+.suite-sidebar { display: none; }
+.suite-content { min-width: 0; }
+.suite-mobile-bar { position: sticky; top: 0; z-index: 30; display: flex; height: 3rem; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.suite-mobile-dialog { position: fixed; inset: 0 auto 0 0; width: min(88vw, 320px); max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; border: 0; background: #f8fafc; color: #0f172a; }
+.suite-mobile-dialog::backdrop { background: #0f172a66; }
+.suite-area-link { display: flex; min-height: 46px; align-items: center; gap: 10px; border-radius: 12px; padding: 9px 10px; color: #475569; font-size: 12px; font-weight: 600; }
+.suite-area-link:hover { background: #eef2f6; }
+.suite-area-link:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
+.suite-area-active { color: #115e59; background: #e5f2ef; }
+.suite-content .suite-home { height: calc(100dvh - 3rem); }
+@media (min-width: 1024px) {
+  .suite-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; display: block; width: 15rem; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #f8fafc; }
+  .suite-mobile-bar { display: none; }
+  .suite-content { margin-left: 15rem; }
+  .suite-content .suite-home { height: 100dvh; }
+}
+@media print {
+  .suite-sidebar, .suite-mobile-bar, .suite-mobile-dialog, .suite-breadcrumbs { display: none !important; }
+  .suite-content { margin-left: 0 !important; }
+}
+
+.book-action-row { display: flex; align-items: center; flex-wrap: nowrap; gap: .375rem; max-width: 100%; overflow-x: auto; padding: .25rem 0; }
+.book-action-row > *, .book-action-row button, .book-action-row a { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 639px) {
+  .arias-suite-app .book-screen header .arias-brand-logo { display: none; }
+  .book-screen header { padding: .5rem; margin-bottom: .375rem; }
+  .book-action-row button, .book-action-row a { min-height: 2rem; font-size: .75rem; }
+  .book-screen .book-action-row .arias-control-3d { width: 2rem; height: 2rem; }
+}

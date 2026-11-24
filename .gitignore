@@ -24,3 +24,5 @@ yarn-error.log*
 # Sistema operativo
 .DS_Store
 Thumbs.db
+# Supabase CLI local metadata
+supabase/.temp/

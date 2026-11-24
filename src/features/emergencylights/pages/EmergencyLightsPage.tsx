@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useRef, useState } from 'react'
+import { useSystemDialog } from '../../../shared/components/dialogs/SystemDialogProvider'
 
 interface EmergencyLight {
   id: string
@@ -37,6 +38,7 @@ const emptyRecord: EmergencyLight = {
 
 export default function EmergencyLightsPage() {
   const navigate = useNavigate()
+  const { confirm, alert: showAlert } = useSystemDialog()
 
   const [records, setRecords] = useState<EmergencyLight[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -115,11 +117,13 @@ export default function EmergencyLightsPage() {
     }, 50)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.code.trim()) {
-      alert(
-        'Debe indicar un código'
-      )
+      await showAlert({
+        title: 'Código obligatorio',
+        message: 'Debe indicar un código para guardar la luz de emergencia.',
+        variant: 'warning',
+      })
       return
     }
 
@@ -155,16 +159,16 @@ export default function EmergencyLightsPage() {
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedId) return
 
-    if (
-      !confirm(
-        `¿Eliminar ${form.code}?`
-      )
-    ) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Eliminar registro',
+      message: `¿Quieres eliminar ${form.code}? Esta acción no se puede deshacer.`,
+      variant: 'warning',
+      confirmLabel: 'Eliminar',
+    })
+    if (!confirmed) return
 
     setRecords((current) =>
       current.filter(

@@ -1,5 +1,5 @@
 {
-  "name": "arias-pam",
+  "name": "arias-suite",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "local:check": "node scripts/check-local-environment.mjs",
+    "dev:local": "node scripts/check-local-environment.mjs && vite --host 127.0.0.1",
+    "validate:navigation": "node --test scripts/validate-navigation.test.mjs",
+    "validate:books": "node --test scripts/validate-technical-books.test.mjs scripts/validate-technical-books-ui.test.mjs",
+    "validate:activity": "node --test scripts/validate-demo-activity.test.mjs",
+    "validate:access-log": "node --test scripts/validate-access-log.test.mjs",
+    "validate:demo": "node --test scripts/validate-demo-read-only.test.mjs",
+    "validate:modules": "node --test scripts/validate-modules.test.mjs scripts/check-local-environment.test.mjs",
+    "validate:books:database": "node scripts/validate-technical-books-database.test.mjs",
+    "validate:catalog": "node --test scripts/validate-book-catalog.test.mjs",
+    "validate:preventives": "node --test scripts/validate-preventive-schedule.test.mjs scripts/validate-book-ticket.test.mjs && node scripts/validate-preventive-database.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -24,6 +35,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
