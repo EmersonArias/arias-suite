@@ -1,3 +1,4 @@
+import { previewPdf } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { Download, FileText, X } from 'lucide-react'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
@@ -446,7 +447,7 @@ export default function RoomProjectsPage() {
       },
     })
 
-    pdf.save(`led-armario-listado-${filter === 'ALL' ? 'todos' : filter.toLowerCase()}-${localDate()}.pdf`)
+    previewPdf(pdf, `led-armario-listado-${filter === 'ALL' ? 'todos' : filter.toLowerCase()}-${localDate()}.pdf`)
     setNotice('PDF del listado descargado.')
   }
 

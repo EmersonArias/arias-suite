@@ -1,3 +1,4 @@
+import { previewReportPage } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Printer } from 'lucide-react'
@@ -128,7 +129,7 @@ export default function MaintenancePendingReportPage() {
             </div>
           </div>
           <div className="arias-grid-toolbar flex w-full flex-nowrap items-start justify-start gap-1 overflow-x-auto print:hidden sm:w-auto sm:justify-end">
-            <ActionButton icon={Printer} label="PDF" tone="dark" onClick={() => window.print()} disabled={loading || !!errorMessage} />
+            <ActionButton icon={Printer} label="PDF" tone="dark" onClick={() => previewReportPage()} disabled={loading || !!errorMessage} />
             <BackButton onBack={() => navigate('/maintenance/pending')} />
             <HomeButton onHome={() => navigate('/')} />
           </div>

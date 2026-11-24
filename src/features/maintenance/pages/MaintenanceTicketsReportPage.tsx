@@ -1,3 +1,4 @@
+import { previewReportPage } from '../../../shared/components/reports/pdfPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { Printer } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -112,7 +113,7 @@ export default function MaintenanceTicketsReportPage() {
   }, [records, search, status])
 
   function printReport() {
-    window.print()
+    previewReportPage()
   }
 
   return (

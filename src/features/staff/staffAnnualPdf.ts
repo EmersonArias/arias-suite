@@ -1,3 +1,4 @@
+import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffOperator } from './staffModel'
 
 export type AnnualRow={
@@ -42,5 +43,5 @@ export async function exportAnnualStaffPdf(input:{
  doc.setFontSize(8)
  const y=Math.min(184,(doc as typeof doc&{lastAutoTable?:{finalY:number}}).lastAutoTable?.finalY??175)+6
  doc.text('Saldo pendiente: horas no compensadas ni abonadas, sin atribuirles automáticamente una forma de liquidación.',10,y)
- doc.save('arias_suite_resumen_anual_'+input.year+'.pdf')
+ previewPdf(doc, 'arias_suite_resumen_anual_'+input.year+'.pdf')
 }
