@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import StaffToggleButton from './StaffToggleButton'
 import { FileDown, FileText, Printer, Search } from 'lucide-react'
 import { addDays, dateISO, fromISO, isoWeek, mondayOf, isVacationState,
   vacationStage, vacationCode, isSplitShift, plannedMinutes, matchesStaffState, staffReportDaysForOperator, type StaffDay, type StaffOperator } from './staffModel'
@@ -575,12 +576,12 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {operators.map(o=><label key={o.id} className="inline-flex items-center gap-1 rounded border bg-white px-2 py-1 text-xs">
-              <input type="checkbox" checked={selectedOperatorIds.includes(o.id)}
-                onChange={e=>setSelectedOperatorIds(prev=>e.target.checked?
-                  [...new Set([...prev,o.id])]:prev.filter(id=>id!==o.id))}/>
+            {operators.map(o=><StaffToggleButton key={o.id}
+              selected={selectedOperatorIds.includes(o.id)}
+              onClick={()=>setSelectedOperatorIds(prev=>prev.includes(o.id)?
+                prev.filter(id=>id!==o.id):[...prev,o.id])}>
               {o.display_name}
-            </label>)}
+            </StaffToggleButton>)}
           </div>
         </div>}
         <label className="text-[11px] font-semibold text-slate-600">Mostrar
