@@ -1126,21 +1126,52 @@ export default function StaffSchedulePage() {
               </label>
               <p className="mt-1 text-xs text-amber-900">{availableHolidays.length} festivos disponibles para este trabajador. Se mostrará F y la fecha elegida en el cuadrante.</p>
             </div>}
-            {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-2">
-              <label className="block text-xs font-semibold">Horas extras pendientes que se van a disfrutar
-                <select className={baseInput+' mt-1'} value={dayEditor.comp_source_entry_id}
-                  onChange={e=>setDayEditor({...dayEditor,comp_source_entry_id:e.target.value})}>
-                  <option value="">Escoger registro de horas…</option>
-                  {earnedEntries.map(e=><option key={e.id} value={e.id}>
-                    {asDisplayDate(e.entry_date)} · {hours(e.remaining)} disponibles · {e.reason}
-                  </option>)}
-                </select>
-              </label>
-              <label className="mt-2 block text-xs font-semibold">Horas que se disfrutan en este día
-                <input className={baseInput+' mt-1'} type="number" min="0.25" step="0.25"
-                  value={dayEditor.comp_rest_hours} onChange={e=>setDayEditor({...dayEditor,comp_rest_hours:e.target.value})}/>
-              </label>
-              <p className="mt-1 text-xs text-sky-900">Al guardar se anotará automáticamente la fecha de disfrute en el registro de horas extras.</p>
+            {dayEditor.state==='COMP_REST'&&<div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
+              <h3 className="text-sm font-semibold text-sky-950">Repartir horas para descansar la jornada completa</h3>
+              <p className="mt-1 text-xs text-sky-900">Jornada a compensar: <strong>{hours(dayEditor.target_minutes)}</strong>.
+                Selecciona uno o varios registros pendientes. Solo se descontará la parte necesaria de cada uno.</p>
+              <div className="mt-3 space-y-2">
+                {earnedEntries.map(entry=>{
+                  const chosen=dayEditor.comp_allocations[entry.id]??0
+                  const available=Math.max(0,entry.remaining-chosen)
+                  return <div key={entry.id} className="rounded-lg border border-sky-200 bg-white p-2">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span><strong>{asDisplayDate(entry.entry_date)}</strong> · {entry.reason}</span>
+                      <span className="shrink-0 font-semibold">{hours(entry.remaining)} disponibles</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button type="button" disabled={restRemaining<=0||available<=0}
+                        onClick={()=>{
+                          const use=Math.min(restRemaining,available)
+                          if(use<=0)return
+                          setDayEditor(prev=>prev?{...prev,comp_allocations:{
+                            ...prev.comp_allocations,[entry.id]:(prev.comp_allocations[entry.id]??0)+use,
+                          }}:prev)
+                        }}
+                        className="rounded-md bg-sky-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                        Añadir {hours(Math.min(Math.max(restRemaining,0),available))}
+                      </button>
+                      {chosen>0&&<span className="text-xs font-semibold text-sky-950">Seleccionadas: {hours(chosen)}</span>}
+                      {chosen>0&&<button type="button" className="ml-auto rounded-md border px-2 py-1 text-xs"
+                        onClick={()=>setDayEditor(prev=>{
+                          if(!prev)return prev
+                          const next={...prev.comp_allocations};delete next[entry.id]
+                          return {...prev,comp_allocations:next}
+                        })}>Quitar</button>}
+                    </div>
+                  </div>
+                })}
+                {earnedEntries.length===0&&<p className="text-xs text-amber-800">
+                  No hay horas generadas identificadas disponibles para elegir.</p>}
+              </div>
+              <div role="status" aria-live="polite" className={'mt-3 rounded-lg p-3 text-xs font-semibold '+
+                (restRemaining===0?'bg-emerald-100 text-emerald-950':'bg-amber-100 text-amber-950')}>
+                Has seleccionado {hours(restAllocated)} de {hours(dayEditor.target_minutes)}.
+                {restRemaining>0?' Faltan '+hours(restRemaining)+'; escoge horas de otro día.':
+                  restRemaining===0?' Jornada cubierta. Puedes guardar.':' Has excedido la jornada.'}
+              </div>
+              <p className="mt-2 text-xs text-sky-950">Ejemplo: si hay 10 h disponibles y necesitas 8 h,
+                se descuentan 8 h y quedan 2 h para otro día.</p>
             </div>}
             {isVacationState(dayEditor.state)&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
               <label className="mb-2 block text-xs font-medium">Año al que corresponden las vacaciones
@@ -1166,7 +1197,7 @@ export default function StaffSchedulePage() {
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
           </div>
           {dayEditorError&&<p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{dayEditorError}</p>}
-          <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
+          <div className="mt-3 flex justify-end gap-2 sm:mt-5"><button className="rounded-lg border px-3 py-2 text-sm" onClick={()=>setDayEditor(null)}>Cancelar</button><button disabled={busy||(dayEditor.state==='COMP_REST'&&restRemaining!==0)} className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white" onClick={()=>void saveDay()}>Guardar jornada</button></div>
         </section>
       </div>}
     </div>
