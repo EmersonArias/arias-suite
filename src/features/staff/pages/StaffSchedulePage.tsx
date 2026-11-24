@@ -18,9 +18,12 @@ import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
 import StaffHolidays from '../StaffHolidays'
+import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
+import { isDemoUser } from '../../../core/access/demoReadOnly'
+import { exportStaffHistoryPdf } from '../staffHolidayHistoryPdf'
 
-type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'REPORTES'
+type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
 type VacationFilter = 'ALL' | VacationStage
 type DayEditor = {
   operator_id:string; work_date:string; state:string; start_time:string; end_time:string;
@@ -34,6 +37,7 @@ const tabs: Array<{id:PageTab;label:string;mobile:string}> = [
   {id:'FESTIVOS',label:'Festivos',mobile:'Festivos'}, {id:'FINES',label:'Fines de semana',mobile:'F. semana'}, {id:'EXTRAS',label:'Horas extra',mobile:'Horas'},
   {id:'VACACIONES',label:'Vacaciones',mobile:'Vacac.'}, {id:'AUSENCIAS',label:'Bajas y ausencias',mobile:'Bajas'},
   {id:'NOTAS',label:'Observaciones privadas',mobile:'Notas'},
+  {id:'HISTORIAL',label:'Historial de cambios',mobile:'Historial'},
   {id:'REPORTES',label:'Reportes y PDF',mobile:'PDF'},
 ]
 const shiftPresets = [
@@ -91,6 +95,7 @@ export default function StaffSchedulePage() {
   const navigate=useNavigate()
   const {hotel,isPlatformAdmin}=useHotelScope()
   const {session}=useAuth()
+  const demo=isDemoUser(session?.user.id)
   const [year,setYear]=useState(new Date().getFullYear())
   const [calendarFilter,setCalendarFilter]=useState('ALL')
   const [vacationOperatorFilter,setVacationOperatorFilter]=useState('ALL')
@@ -115,6 +120,11 @@ export default function StaffSchedulePage() {
   const [overtime,setOvertime]=useState<StaffOvertime[]>([])
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
+  const [firstScheduledDates,setFirstShiftDates]=useState<Record<string,string>>({})
+  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
+  const [pdfOperatorIds,setPdfOperatorIds]=useState<string[]|null>(null)
+  const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
+  const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
   const [selectedId,setSelectedId]=useState('')
   const [hoursDetailOperatorId,setHoursDetailOperatorId]=useState<string|null>(null)
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
@@ -143,16 +153,16 @@ export default function StaffSchedulePage() {
     void supabase.rpc('has_hotel_permission',{target_hotel_id:hotel.id,permission_code:'maintenance.configure'})
       .then(({data,error:checkError})=>{
         if(!mounted)return
-        setAllowed(isPlatformAdmin || (!checkError && data===true))
+        setAllowed(demo || isPlatformAdmin || (!checkError && data===true))
         setChecking(false)
       })
     return ()=>{mounted=false}
-  },[hotel?.id,isPlatformAdmin])
+  },[hotel?.id,isPlatformAdmin,demo])
 
   async function reload(){
     if(!hotel?.id||!allowed)return
     setBusy(true);setError('')
-    const [people,entries,extras,years,privateNotes,holidayRows]=await Promise.all([
+    const [people,entries,extras,years,privateNotes,holidayRows,firstScheduled,historyRows]=await Promise.all([
       supabase.from('staff_operators').select('*').eq('hotel_id',hotel.id).order('display_name'),
       loadAllStaffDays({
         hotelId:hotel.id,
@@ -162,22 +172,29 @@ export default function StaffSchedulePage() {
       supabase.from('staff_overtime_ledger').select('*').eq('hotel_id',hotel.id)
         .lte('entry_date',String(year)+'-12-31').order('entry_date',{ascending:false}),
       supabase.from('staff_vacation_years').select('*').eq('hotel_id',hotel.id).eq('year',year),
-      supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_private_notes').select('*').eq('hotel_id',hotel.id),
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
+      supabase.from('staff_operator_first_day').select('operator_id,first_scheduled_date').eq('hotel_id',hotel.id),
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,entity_kind,changed_at,actor_user_id,previous_values,new_values')
+        .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
+        .order('changed_at',{ascending:false}).limit(200),
     ])
-    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error
+    const failure=people.error||entries.error||extras.error||years.error||privateNotes.error||holidayRows.error||firstScheduled.error||historyRows.error
     if(failure){setError(failure.message);setBusy(false);return}
     const loaded=people.data as StaffOperator[]
     setOperators(loaded);setDays(entries.data as StaffDay[]);setOvertime(extras.data as StaffOvertime[])
     setHolidays((holidayRows.data??[]).map(row=>row.holiday_date))
     setHolidayLabels(Object.fromEntries((holidayRows.data??[]).map(row=>[row.holiday_date,row.label])))
     setVacations(years.data as StaffVacation[]);setNotes(privateNotes.data as StaffNote[])
+    setFirstShiftDates(Object.fromEntries((firstScheduled.data??[]).map(row=>[row.operator_id,row.first_scheduled_date])))
+    setHistory((historyRows.data??[]) as typeof history)
     setSelectedId(prev=>loaded.some(p=>p.id===prev)?prev:(loaded[0]?.id??''))
     setBusy(false)
   }
   useEffect(()=>{void reload()},[hotel?.id,allowed,year])
   const selected=operators.find(p=>p.id===selectedId)??null
+  const pdfSelectedOperators=pdfOperatorIds===null?operators:operators.filter(o=>pdfOperatorIds.includes(o.id))
   const summary=useMemo(()=>operators.map(o=>({
     operator:o,...operatorTotals(days,overtime,o.id,year),...getWeekendSummary(days,o.id,year)
   })),[operators,days,overtime,year])
@@ -489,6 +506,24 @@ export default function StaffSchedulePage() {
     setBusy(false)
   }
 
+  async function savePeriod(kind:'VACATION'|'MEDICAL_LEAVE'){
+    if(!hotel?.id||!selectedId)return
+    if(!periodStart||!periodEnd||periodStart>periodEnd){
+      setError('Comprueba las fechas del período.');return
+    }
+    if(!window.confirm('¿Registrar '+(kind==='VACATION'?'vacaciones':'baja')+
+      ' de '+(operators.find(o=>o.id===selectedId)?.display_name??'este trabajador')+
+      ' desde '+asDisplayDate(periodStart)+' hasta '+asDisplayDate(periodEnd)+
+      '? Se reflejará en cuadrante y en el historial.'))return
+    setBusy(true);setError('');setSuccess('')
+    const {data,error:saveError}=await supabase.rpc('staff_set_period',{
+      p_hotel_id:hotel.id,p_operator_id:selectedId,p_start:periodStart,p_end:periodEnd,p_state:kind,
+    })
+    if(saveError)setError(saveError.message)
+    else {setSuccess(data+' fechas actualizadas en cuadrante, '+(kind==='VACATION'?'Vacaciones':'Bajas')+
+      ' e historial.');await reload()}
+    setBusy(false)
+  }
   async function saveVacation(){
     if(!hotel?.id||!selectedId)return
     const e=entitled.trim()===''?null:Number(entitled)
@@ -518,17 +553,19 @@ export default function StaffSchedulePage() {
     if(!hotel)return
     try{
       setError('')
-      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary})
+      if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario.');return}
+      await exportAnnualStaffPdf({hotelName:hotel.name,year,rows:summary.filter(s=>pdfSelectedOperators.some(o=>o.id===s.operator.id))})
     }catch(e){setError('No se pudo generar el PDF anual: '+
       (e instanceof Error?e.message:'Error desconocido'))}
   }
   async function exportSectionPdf(section:'EXTRAS'|'VACACIONES'|'BAJAS'){
     if(!hotel)return
+    if(!pdfSelectedOperators.length){setError('Selecciona al menos un operario para el PDF.');return}
     try{
       setError('')
       await staffSectionPdf({
         section,hotelName:hotel.name,year,operators,days,overtime,
-        operatorId:section==='VACACIONES'?vacationOperatorFilter:selectedId,
+        operatorId:'ALL',operatorIds:pdfSelectedOperators.map(o=>o.id),
         statusFilter:section==='VACACIONES'?vacationStatusFilter:undefined,
       })
     }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
@@ -563,7 +600,7 @@ export default function StaffSchedulePage() {
         </div>
         <div className="flex shrink-0 gap-1 print:hidden sm:gap-2">
           <button aria-label="Actualizar" title="Actualizar" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>void reload()} disabled={busy}><RefreshCw size={16}/></button>
-          <button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button><button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
+          {!demo&&<button type="button" title="Registro de jornada" className="flex min-h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold sm:px-3 sm:text-sm" onClick={()=>navigate('/registro-jornada')}>Fichajes</button>}<button aria-label="Reportes y PDF" title="Reportes y PDF" className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border" onClick={()=>setTab('REPORTES')}><Printer size={16}/></button>
         </div>
       </header>
       {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
@@ -593,13 +630,40 @@ export default function StaffSchedulePage() {
           </select>
         </label>
         <div className="flex shrink-0 gap-1 print:hidden sm:ml-auto sm:gap-2">
-          <button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>
-          {selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
+          {!demo&&<button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>}
+          {!demo&&selected&&(tab!=='CUADRANTE'||calendarFilter!=='ALL')&&(tab!=='VACACIONES'||vacationOperatorFilter!=='ALL')&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>
       </section>
       <nav className="flex gap-0.5 overflow-x-auto rounded-xl bg-white p-1 shadow-sm print:hidden" aria-label="Secciones del planificador">
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
+        {tabs.filter(t=>!demo||!['NOTAS','HISTORIAL'].includes(t.id)).map(t=><button key={t.id} onClick={()=>setTab(t.id)} title={t.label} aria-current={tab===t.id?'page':undefined} className={'min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium sm:px-3 sm:py-2 sm:text-sm '+(tab===t.id?'bg-slate-900 text-white':'text-slate-600 hover:bg-slate-100')}><span className="sm:hidden">{t.mobile}</span><span className="hidden sm:inline">{t.label}</span></button>)}
       </nav>
+
+      {['ANUAL','EXTRAS','VACACIONES','AUSENCIAS','FESTIVOS','HISTORIAL'].includes(tab)&&
+        <section className="rounded-xl border border-sky-100 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-bold">Trabajadores incluidos en el PDF</h3>
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>setPdfOperatorIds(null)}
+                className="rounded-lg border px-2 py-1 text-xs">Todos</button>
+              <button type="button" onClick={()=>setPdfOperatorIds([])}
+                className="rounded-lg border px-2 py-1 text-xs">Limpiar</button>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">{operators.map(p=>
+            <label key={p.id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+              <input type="checkbox" checked={pdfOperatorIds===null||pdfOperatorIds.includes(p.id)}
+                onChange={e=>setPdfOperatorIds(prev=>{
+                  const all=prev??operators.map(o=>o.id)
+                  return e.target.checked?[...new Set([...all,p.id])]:all.filter(id=>id!==p.id)
+                })}/>
+              {p.display_name}
+            </label>)}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Seleccionados: {pdfSelectedOperators.length} de {operators.length}. Los PDF de esta sección
+            y del resumen anual usarán esta misma selección.
+          </p>
+        </section>}
 
       {tab==='REPORTES'&&hotel?.id&&<StaffReport
         hotelId={hotel.id}
@@ -615,11 +679,13 @@ export default function StaffSchedulePage() {
         holidays={holidays}
         operatorId={calendarFilter}
         onYearChange={setYear}
-        onEditDay={openDay}
+        onEditDay={(operatorId,day)=>{if(!demo)openDay(operatorId,day)}}
       />}
 
       {tab==='FESTIVOS'&&hotel?.id&&<StaffHolidays
         hotelId={hotel.id}
+        hotelName={hotel.name??'Hotel'}
+        pdfOperatorIds={pdfSelectedOperators.map(p=>p.id)}
         year={year}
         operators={operators}
         days={days}
@@ -627,7 +693,8 @@ export default function StaffSchedulePage() {
           holiday_date:date,label:holidayLabels[date]??'Festivo',
         }))}
         onReload={reload}
-        onEditDay={(operatorId,day)=>{setTab('CUADRANTE');openDay(operatorId,day)}}
+        readOnly={demo}
+        onEditDay={(operatorId,day)=>{if(!demo){setTab('CUADRANTE');openDay(operatorId,day)}}}
       />}
 
       {tab==='ANUAL'&&<section className="space-y-2 sm:space-y-3">
@@ -729,6 +796,11 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='VACACIONES'&&<section className="space-y-2 sm:space-y-3">
+        {!demo&&<StaffPeriodEditor kind="VACATION" operators={operators} operatorId={selectedId}
+          start={periodStart} end={periodEnd} busy={busy}
+          onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('VACATION')}/>}
+
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">
@@ -808,13 +880,16 @@ export default function StaffSchedulePage() {
               <tbody>{operators.filter(person=>
                 vacationOperatorFilter==='ALL'||person.id===vacationOperatorFilter)
                 .map(person=>{
-                  const approved=accruedVacationDays(30,year,vacationToday,person.join_date)
+                  const effectiveStart=person.join_date??firstScheduledDates[person.id]??null
+                  const approved=accruedVacationDays(30,year,vacationToday,effectiveStart)
                   const comparison=showCollectiveAgreement
-                    ?accruedVacationDays(31,year,comparisonCutoff,person.join_date):null
+                    ?accruedVacationDays(31,year,comparisonCutoff,effectiveStart):null
                   return <tr key={person.id} className="border-b align-top">
                     <td className="p-2 font-semibold">{person.display_name}</td>
                     <td className="p-2">{person.join_date?asDisplayDate(person.join_date):
-                      <span className="font-semibold text-amber-800">Sin informar</span>}</td>
+                      effectiveStart?<span className="font-semibold text-sky-800">
+                        {asDisplayDate(effectiveStart)} · primer día del cuadrante (provisional)
+                      </span>:<span className="font-semibold text-amber-800">Sin referencia</span>}</td>
                     <td className="p-2">30 d</td>
                     <td className="p-2">{formatVacationDays(approved)}
                       {approved===null&&<span className="block text-[10px] text-amber-800">Pendiente fecha de alta</span>}
@@ -830,7 +905,7 @@ export default function StaffSchedulePage() {
             </table>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
-            No se deduce la fecha contractual del primer turno.
+            Si no consta fecha contractual se utiliza provisionalmente el primer día registrado en el cuadrante; no se presenta como alta confirmada.
             Estos valores son devengo proporcional, no días restantes tras vacaciones disfrutadas.
             Las asignaciones, ajustes y días arrastrados siguen independientes.
           </p>
@@ -977,6 +1052,11 @@ export default function StaffSchedulePage() {
       </section>}
 
       {tab==='AUSENCIAS'&&<section className="space-y-2 sm:space-y-3">
+        {!demo&&<StaffPeriodEditor kind="MEDICAL_LEAVE" operators={operators} operatorId={selectedId}
+          start={periodStart} end={periodEnd} busy={busy}
+          onOperatorChange={setSelectedId} onStartChange={setPeriodStart}
+          onEndChange={setPeriodEnd} onSubmit={()=>void savePeriod('MEDICAL_LEAVE')}/>}
+
         <div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold sm:text-base">Bajas · {year}</h2>
@@ -1101,6 +1181,50 @@ export default function StaffSchedulePage() {
             </details>)}
           </div>}
         </div>}
+      </section>}
+
+      {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold">Trazabilidad del cuadrante · {year}</h2>
+          <button type="button" className="rounded-lg border px-3 py-2 text-xs font-semibold"
+            onClick={()=>void exportStaffHistoryPdf({
+              hotelName:hotel?.name??'Hotel',year,operators,history,
+              operatorIds:pdfSelectedOperators.map(p=>p.id),
+            }).catch(e=>setError(e instanceof Error?e.message:'No se pudo generar el PDF'))}>
+            <Printer size={14} className="mr-1 inline"/>PDF
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-slate-600">
+          Últimos 200 cambios del año. Incluye altas, cambios y supresiones realizados
+          desde el cuadrante, las fichas de vacaciones y las bajas. No se pueden editar aquí.
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-xs">
+            <thead><tr className="border-b bg-slate-50">
+              <th className="p-2">Cuándo</th><th className="p-2">Operario</th>
+              <th className="p-2">Fecha afectada</th><th className="p-2">Origen</th><th className="p-2">Acción</th>
+              <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
+            </tr></thead>
+            <tbody>{history.filter(row=>selectedId===''||row.operator_id===selectedId).map(row=>
+              <tr key={row.id} className="border-b">
+                <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
+                <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
+                <td className="p-2">{asDisplayDate(row.work_date)}</td>
+                <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??row.entity_kind}</td>
+                <td className="p-2">{row.action}</td>
+                <td className="p-2">
+                  {String(row.previous_values?.state??'—')} → {String(row.new_values?.state??'—')}
+                  <details className="mt-1 max-w-[250px]"><summary className="cursor-pointer text-sky-700">Ver cambios completos</summary>
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-[10px]">{JSON.stringify({anterior:row.previous_values,posterior:row.new_values},null,2)}</pre>
+                  </details>
+                </td>
+                <td className="p-2 font-mono text-[10px]">{row.actor_user_id??'No identificado'}</td>
+              </tr>)}</tbody>
+          </table>
+          {history.length===0&&<p className="p-3 text-xs text-slate-500">
+            Aún no hay cambios nuevos auditados. El histórico anterior no se ha reconstruido artificialmente.
+          </p>}
+        </div>
       </section>}
 
       {tab==='NOTAS'&&<section className="max-w-3xl rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">

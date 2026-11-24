@@ -3,15 +3,20 @@ import { CalendarPlus, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit } from './staffHolidayAudit'
+import { exportHolidayAuditPdf } from './staffHolidayHistoryPdf'
+import { Printer } from 'lucide-react'
 
 type Props={
  hotelId:string
+ hotelName:string
+ pdfOperatorIds:string[]
  year:number
  operators:StaffOperator[]
  days:StaffDay[]
  holidays:Array<{holiday_date:string;label:string}>
  onReload:()=>Promise<void>
  onEditDay:(operatorId:string,date:string)=>void
+ readOnly?:boolean
 }
 const dayLabel=(date:string)=>date.split('-').reverse().join('/')
 const kind=(day:StaffDay|null)=> {
@@ -23,7 +28,7 @@ const kind=(day:StaffDay|null)=> {
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
 export default function StaffHolidays({
- hotelId,year,operators,days,holidays,onReload,onEditDay,
+ hotelId,hotelName,pdfOperatorIds,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
@@ -59,6 +64,12 @@ export default function StaffHolidays({
      <div className="flex flex-wrap items-start justify-between gap-2">
        <div><h2 className="text-base font-bold">Festivos · {year}</h2>
          <p className="text-xs text-slate-600">Calendario anual: pendientes en rojo, bajas y vacaciones excluidas, disfrutes y duplicados.</p></div>
+       <button type="button" onClick={()=>void exportHolidayAuditPdf({
+         hotelName,year,operators,days,holidays,operatorIds:pdfOperatorIds,
+       }).catch(e=>setMessage(e instanceof Error?e.message:'Error PDF'))}
+         className="rounded-lg border px-3 py-2 text-xs font-semibold">
+         <Printer size={14} className="mr-1 inline"/>PDF
+       </button>
        <button type="button" onClick={()=>void onReload()} disabled={busy}
          className="rounded-lg border px-3 py-2 text-xs font-semibold"><RefreshCw size={14} className="mr-1 inline"/>Actualizar</button>
      </div>
@@ -87,7 +98,7 @@ export default function StaffHolidays({
        {unmatched.length} disfrutes no tienen festivo de origen reconocible. Requieren revisión manual.
      </p>}
    </div>}
-   <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
+   {!readOnly&&<div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold"><CalendarPlus size={17} className="mr-2 inline"/>Añadir o corregir un festivo del calendario</h3>
      <p className="mt-1 text-xs text-slate-500">Se añade al calendario del hotel, no se asigna automáticamente a ningún trabajador.</p>
      <div className="mt-3 grid gap-2 sm:grid-cols-[160px_1fr_auto] sm:items-end">
@@ -109,7 +120,7 @@ export default function StaffHolidays({
          onClick={()=>{setDate(h.holiday_date);setLabel(h.label)}}
          className="rounded-md border bg-slate-50 px-2 py-1 text-xs">{dayLabel(h.holiday_date)} · {h.label}</button>)}
      </div>
-   </div>
+   </div>}
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-center justify-between gap-2">
        <h3 className="text-sm font-bold">Comparación por trabajador</h3>

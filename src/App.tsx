@@ -3,6 +3,8 @@ import SuiteAreaPage from './shared/navigation/SuiteAreaPage'
 import LegacyRedirect from './shared/navigation/LegacyRedirect'
 import TechnicalBooksRoute from './features/technicalbooks/TechnicalBooksRoute'
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
+import { useAuth } from './features/auth/context/AuthProvider'
+import { isDemoUser } from './core/access/demoReadOnly'
 import BooksPage from './pages/Books/BooksPage'
 import LoginPage from './features/auth/pages/LoginPage'
 import ActivateAccountPage from './features/auth/pages/ActivateAccountPage'
@@ -64,6 +66,9 @@ import StaffClockAdminPage from './features/staff/pages/StaffClockAdminPage'
 export default function App() {
 const location = useLocation()
 const publicPath = ['/login', '/activate', '/forgot-password', '/update-password'].includes(location.pathname)
+const {session}=useAuth()
+if(isDemoUser(session?.user.id) && !publicPath && location.pathname!=='/planificador-horario')
+  return <Navigate to="/planificador-horario" replace />
 return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNavigation />
 <Routes>
 <Route path="/login" element={<LoginPage />} />

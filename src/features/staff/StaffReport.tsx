@@ -10,6 +10,7 @@ type ReportOptions = {
   start: string
   end: string
   operatorId: string
+  operatorIds?: string[]
   status: string
 }
 type ReportSnapshot = ReportOptions & { days: StaffDay[]; holidayDates: string[] }
@@ -131,6 +132,7 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const [startMonth,setStartMonth]=useState(initialMonth)
   const [endMonth,setEndMonth]=useState(initialMonth)
   const [operatorId,setOperatorId]=useState('ALL')
+  const [selectedOperatorIds,setSelectedOperatorIds]=useState<string[]>([])
   const [status,setStatus]=useState('ALL')
   const [snapshot,setSnapshot]=useState<ReportSnapshot|null>(null)
   const [loading,setLoading]=useState(false)
@@ -179,7 +181,9 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
 
   const displayedOperators=useMemo(()=>snapshot?.operatorId==='ALL'
     ? operators
-    : operators.filter(o=>o.id===snapshot?.operatorId),[operators,snapshot?.operatorId])
+    :snapshot?.operatorId==='MULTI'
+      ?operators.filter(o=>snapshot.operatorIds?.includes(o.id))
+      :operators.filter(o=>o.id===snapshot?.operatorId),[operators,snapshot?.operatorId,snapshot?.operatorIds])
   const entries=useMemo(()=>new Map((snapshot?.days??[]).map(d=>[d.operator_id+'|'+d.work_date,d])),[snapshot?.days])
   const holidaySet=useMemo(()=>new Set(snapshot?.holidayDates??[]),[snapshot?.holidayDates])
   const rawDates=useMemo(()=>{
@@ -229,7 +233,8 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
   const stateLabel=statusOptions.find(o=>o.value===snapshot?.status)?.label??'Todos los estados'
   const periodLabel=snapshot ? shortDate(snapshot.start)+(snapshot.start===snapshot.end?'':' – '+shortDate(snapshot.end)):''
   const filename=snapshot ? 'horarios_'+snapshot.start+'_'+snapshot.end+(snapshot.operatorId==='ALL'?'_todos':'_operario')+'.pdf':'horarios.pdf'
-  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status
+  const unchanged=!!snapshot && snapshot.start===range.start && snapshot.end===range.end && snapshot.operatorId===operatorId && snapshot.status===status &&
+    (operatorId!=='MULTI'||JSON.stringify([...snapshot.operatorIds??[]].sort())===JSON.stringify([...selectedOperatorIds].sort()))
   const statusLegend=[
     ['SHIFT','Horario (9–13/15–19: 8 h)'],['REST','D Descanso'],['VACATION','V Programadas'],
     ['VACATION_PREVIOUS','A25 Vac. de 2025 / A26 de 2026'],['MEDICAL_LEAVE','B Baja'],
@@ -555,9 +560,29 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         <label className="text-[11px] font-semibold text-slate-600">Operario
           <select className={input+' mt-1'} value={operatorId} onChange={e=>setOperatorId(e.target.value)}>
             <option value="ALL">Todos</option>
+            <option value="MULTI">Elegir varios trabajadores…</option>
             {operators.map(o=><option key={o.id} value={o.id}>{o.display_name}</option>)}
           </select>
         </label>
+        {operatorId==='MULTI'&&<div className="col-span-full rounded-xl border bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <strong>Selecciona los trabajadores del reporte ({selectedOperatorIds.length})</strong>
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>setSelectedOperatorIds(operators.map(o=>o.id))}
+                className="rounded border px-2 py-1">Todos</button>
+              <button type="button" onClick={()=>setSelectedOperatorIds([])}
+                className="rounded border px-2 py-1">Limpiar</button>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {operators.map(o=><label key={o.id} className="inline-flex items-center gap-1 rounded border bg-white px-2 py-1 text-xs">
+              <input type="checkbox" checked={selectedOperatorIds.includes(o.id)}
+                onChange={e=>setSelectedOperatorIds(prev=>e.target.checked?
+                  [...new Set([...prev,o.id])]:prev.filter(id=>id!==o.id))}/>
+              {o.display_name}
+            </label>)}
+          </div>
+        </div>}
         <label className="text-[11px] font-semibold text-slate-600">Mostrar
           <select className={input+' mt-1'} value={status} onChange={e=>setStatus(e.target.value)}>
             {statusOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
@@ -565,7 +590,10 @@ export default function StaffReport({hotelId,hotelName,operators,initialYear}:Pr
         </label>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <button type="button" disabled={loading} onClick={()=>void generate({...range,operatorId,status})}
+        <button type="button" disabled={loading} onClick={()=>{
+            if(operatorId==='MULTI'&&selectedOperatorIds.length===0){setError('Selecciona al menos un trabajador.');return}
+            void generate({...range,operatorId,operatorIds:operatorId==='MULTI'?[...selectedOperatorIds]:undefined,status})
+          }}
           className="flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
           <Search size={15}/>{loading?'Generando…':'Ver reporte'}
         </button>
