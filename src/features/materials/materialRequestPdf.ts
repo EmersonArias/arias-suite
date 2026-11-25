@@ -1,3 +1,4 @@
+import type { jsPDF as PdfDocument } from 'jspdf'
 import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 
 export type MaterialPdfRequest = {

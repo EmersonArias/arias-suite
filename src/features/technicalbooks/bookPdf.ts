@@ -1,3 +1,4 @@
+import type { jsPDF as PdfDocument } from 'jspdf'
 import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { answerText, entryFields, frequencyLabels, fieldLabel } from './bookModel.ts'
 import type { BookDefinition, BookEntry } from './types.ts'
