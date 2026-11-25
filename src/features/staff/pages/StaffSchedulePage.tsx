@@ -96,6 +96,37 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
       .reduce((total,e)=>total+(e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'?e.minutes:-e.minutes),0),
   }
 }
+const historyActions: Record<string,string> = {INSERT:'Alta',UPDATE:'Modificación',DELETE:'Eliminación'}
+const historyFields: Record<string,string> = {
+  state:'Estado', work_date:'Fecha de jornada', start_time:'Entrada', end_time:'Salida',
+  planned_minutes:'Minutos previstos', actual_minutes:'Minutos trabajados',
+  actual_confirmed:'Horas trabajadas confirmadas', justification:'Justificación',
+  source_kind:'Procedencia', source_code:'Descripción', holiday_source_date:'Festivo de origen',
+  comp_rest_minutes:'Minutos de recuperación', vacation_origin_year:'Año de origen de vacaciones',
+  vacation_taken_confirmed:'Vacaciones confirmadas', vacation_confirmed_at:'Fecha de confirmación',
+  display_name:'Nombre', active:'Activo', rotation_type:'Rotación',
+  weekly_target_minutes:'Minutos semanales', join_date:'Fecha de alta', year:'Año',
+  entitlement_days:'Días de vacaciones', carryover_days:'Días de ejercicios anteriores',
+  adjustment_days:'Días de ajuste', entry_date:'Fecha del movimiento', entry_type:'Tipo de movimiento',
+  minutes:'Minutos', reason:'Motivo', confirmed:'Confirmado',
+}
+const historyLabels: Record<string,string> = {
+  UNKNOWN:'Sin verificar', PENDING:'Pendiente', DOCUMENTED:'Justificada', UNJUSTIFIED:'No justificada',
+  MANUAL:'Registro manual', EXCEL_2025:'Excel de 2025', EXCEL_2026:'Excel de 2026',
+  OTHER_IMPORT:'Importación', SCHEDULE:'Cuadrante', NORMAL:'Normal', EXCEPTIONAL:'Excepcional',
+  NONE:'Sin rotación', EARNED:'Horas generadas', REST_TAKEN:'Recuperación',
+  PAID:'Abono', ADJUSTMENT_PLUS:'Ajuste positivo', ADJUSTMENT_MINUS:'Ajuste negativo',
+}
+function historyValue(key:string,value:unknown):string {
+  if(value==null||value==='')return '—'
+  if(typeof value==='boolean')return value?'Sí':'No'
+  const text=String(value)
+  if(key==='state')return staffStateOptions.find(option=>option.value===text)?.label??'Estado sin catalogar'
+  if(['justification','source_kind','entry_type','rotation_type'].includes(key))return historyLabels[text]??'Sin catalogar'
+  if(/^\d{4}-\d{2}-\d{2}$/.test(text))return asDisplayDate(text)
+  if(key==='vacation_confirmed_at')return new Date(text).toLocaleString('es-ES')
+  return text
+}
 export default function StaffSchedulePage() {
   const navigate=useNavigate()
   const {hotel,isPlatformAdmin}=useHotelScope()
@@ -138,6 +169,20 @@ export default function StaffSchedulePage() {
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [firstScheduledDates,setFirstShiftDates]=useState<Record<string,string>>({})
   const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
+  const [historyUsers,setHistoryUsers]=useState<Record<string,string>>({})
+  useEffect(()=>{
+    if(tab!=='HISTORIAL')return
+    const ids=[...new Set(history.flatMap(row=>row.actor_user_id?[row.actor_user_id]:[]))]
+    setHistoryUsers({})
+    if(!ids.length)return
+    let active=true
+    void supabase.from('profiles').select('id,full_name,email,login_identifier').in('id',ids).then(({data})=>{
+      if(active)setHistoryUsers(Object.fromEntries((data??[]).map(user=>[
+        user.id,user.full_name?.trim()||user.login_identifier?.trim()||user.email?.trim()||'',
+      ])))
+    })
+    return ()=>{active=false}
+  },[history,tab])
   const [periodStart,setPeriodStart]=useState(dateISO(new Date()))
   const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
   const [selectedId,setSelectedId]=useState('')
@@ -1167,9 +1212,9 @@ export default function StaffSchedulePage() {
               className="rounded-lg border border-slate-200 p-2 text-left">
               <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
               <div className="mt-1 text-xl font-bold">{absenceCount(s.operator.id,'sick',s.sick)} <span className="text-xs font-normal">días de baja médica</span></div>
-              <div className="mt-1 text-xs font-semibold text-red-700">{absenceCount(s.operator.id,'absence',s.unjustifiedAbsences)} faltas no justificadas</div>
+              <div className="mt-1 text-xs font-semibold text-red-700">{absenceCount(s.operator.id,'absence',s.unjustifiedAbsences)} {s.unjustifiedAbsences===1?'falta no justificada':'faltas no justificadas'}</div>
               <div className="mt-1 text-sm font-semibold">{absenceCount(s.operator.id,'other',otherAbsenceDays(s.operator.id).length)} <span className="text-xs font-normal">otras ausencias</span></div>
-              <div className="mt-0.5 text-[10px] text-slate-500">{absenceCount(s.operator.id,'documented',s.sickDocumented)} justif. · {absenceCount(s.operator.id,'unjustified',s.sickUnjustified)} no justif. · {absenceCount(s.operator.id,'unknown',s.sickUnknown)} por revisar</div>
+              <div className="mt-0.5 text-[10px] text-slate-500">{absenceCount(s.operator.id,'documented',s.sickDocumented)} bajas justificadas · {absenceCount(s.operator.id,'unjustified',s.sickUnjustified)} bajas sin justificar · {absenceCount(s.operator.id,'unknown',s.sickUnknown)} bajas por revisar</div>
             </div>)}
           </div>
         </div>
@@ -1335,15 +1380,27 @@ export default function StaffSchedulePage() {
                 <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
                 <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
                 <td className="p-2">{asDisplayDate(row.work_date)}</td>
-                <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??row.entity_kind}</td>
-                <td className="p-2">{row.action}</td>
+                <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??'Otro registro'}</td>
+                <td className="p-2">{historyActions[row.action]??'Cambio'}</td>
                 <td className="p-2">
-                  {String(row.previous_values?.state??'—')} → {String(row.new_values?.state??'—')}
-                  <details className="mt-1 max-w-[250px]"><summary className="cursor-pointer text-sky-700">Ver cambios completos</summary>
-                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-[10px]">{JSON.stringify({anterior:row.previous_values,posterior:row.new_values},null,2)}</pre>
+                  {row.previous_values?.state||row.new_values?.state
+                    ? <span>{historyValue('state',row.previous_values?.state)} → {historyValue('state',row.new_values?.state)}</span>
+                    : null}
+                  <details className="mt-1"><summary className="cursor-pointer text-sky-700">Ver detalle del cambio</summary>
+                    <dl className="mt-1 space-y-1">
+                      {Object.entries(historyFields).filter(([key])=>row.previous_values?.[key]!==row.new_values?.[key]).map(([key,label])=>
+                        <div key={key}><dt className="font-medium">{label}</dt>
+                          <dd>{historyValue(key,row.previous_values?.[key])} → {historyValue(key,row.new_values?.[key])}</dd>
+                        </div>)}
+                    </dl>
                   </details>
                 </td>
-                <td className="p-2 font-mono text-[10px]">{row.actor_user_id??'No identificado'}</td>
+                <td className="p-2">{row.actor_user_id
+                  ? historyUsers[row.actor_user_id]||
+                    (row.actor_user_id===session?.user.id?session.user.email||'Usuario actual':null)||
+                    operators.find(o=>o.linked_user_id===row.actor_user_id)?.display_name||
+                    'Usuario registrado'
+                  : 'Sin sesión registrada'}</td>
               </tr>)}</tbody>
           </table>
           {history.length===0&&<p className="p-3 text-xs text-slate-500">
