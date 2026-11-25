@@ -51,7 +51,7 @@ export const staffStateOptions = [
   { value: 'COMP_REST', label: 'Recuperación de horas', tone: 'bg-sky-200 text-sky-950' },
   { value: 'PUBLIC_HOLIDAY', label: 'Festivo disfrutado', tone: 'bg-amber-300 text-amber-950' },
   { value: 'TRAINING', label: 'Formación', tone: 'bg-teal-100 text-teal-800' },
-  { value: 'UNJUSTIFIED_ABSENCE', label: 'Ausencia no justificada', tone: 'bg-red-200 text-red-900' },
+  { value: 'UNJUSTIFIED_ABSENCE', label: 'Falta no justificada', tone: 'bg-red-200 text-red-900' },
   { value: 'OTHER', label: 'Otro / por revisar', tone: 'bg-orange-100 text-orange-800' },
   { value: 'UNASSIGNED', label: 'Sin asignar', tone: 'bg-slate-100 text-slate-500' },
 ] as const;

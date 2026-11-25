@@ -83,6 +83,7 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
       && vacationOriginYear(d)===year).length,
     vacationPrevious:own.filter(d=>isVacationState(d.state) &&
       (vacationOriginYear(d)===null || vacationOriginYear(d)!<year)).length,
+    unjustifiedAbsences:own.filter(d=>d.state==='UNJUSTIFIED_ABSENCE').length,
     sick:own.filter(d=>d.state==='MEDICAL_LEAVE').length,
     sickDocumented:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='DOCUMENTED').length,
     sickUnjustified:own.filter(d=>d.state==='MEDICAL_LEAVE' && d.justification==='UNJUSTIFIED').length,
@@ -107,7 +108,7 @@ export default function StaffSchedulePage() {
   const [showVacationSettings,setShowVacationSettings]=useState(false)
   const [agreementOperatorIds,setAgreementOperatorIds]=useState<string[]|null>(null)
   const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
-  const [absenceDetail,setAbsenceDetail]=useState<{operatorId:string;kind:'sick'|'other'|'documented'|'unjustified'|'unknown'}|null>(null)
+  const [absenceDetail,setAbsenceDetail]=useState<{operatorId:string;kind:'sick'|'other'|'documented'|'unjustified'|'unknown'|'absence'}|null>(null)
   const absenceDialog=useRef<HTMLDialogElement>(null)
   const [overtimeDetail,setOvertimeDetail]=useState<{operatorId:string;kind:OvertimeDetailKind}|null>(null)
   const overtimeDialog=useRef<HTMLDialogElement>(null)
@@ -305,8 +306,8 @@ export default function StaffSchedulePage() {
   const selectedMedicalDays=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && d.state==='MEDICAL_LEAVE')
   const selectedMedicalPeriods=groupConsecutiveDays(selectedMedicalDays)
-  const otherAbsenceDays=(id:string)=>days.filter(d=>d.operator_id===id&&d.work_date.startsWith(String(year))&&['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
-  const absenceDetailRows=absenceDetail?days.filter(d=>d.operator_id===absenceDetail.operatorId&&d.work_date.startsWith(String(year))&&(absenceDetail.kind==='other'?['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state):d.state==='MEDICAL_LEAVE'&&(absenceDetail.kind==='sick'||(absenceDetail.kind==='documented'&&d.justification==='DOCUMENTED')||(absenceDetail.kind==='unjustified'&&d.justification==='UNJUSTIFIED')||(absenceDetail.kind==='unknown'&&['UNKNOWN','PENDING'].includes(d.justification))))).sort((a,b)=>a.work_date.localeCompare(b.work_date)):[]
+  const otherAbsenceDays=(id:string)=>days.filter(d=>d.operator_id===id&&d.work_date.startsWith(String(year))&&['PERSONAL_DAY','PERMISSION'].includes(d.state))
+  const absenceDetailRows=absenceDetail?days.filter(d=>d.operator_id===absenceDetail.operatorId&&d.work_date.startsWith(String(year))&&(absenceDetail.kind==='absence'?d.state==='UNJUSTIFIED_ABSENCE':absenceDetail.kind==='other'?['PERSONAL_DAY','PERMISSION'].includes(d.state):d.state==='MEDICAL_LEAVE'&&(absenceDetail.kind==='sick'||(absenceDetail.kind==='documented'&&d.justification==='DOCUMENTED')||(absenceDetail.kind==='unjustified'&&d.justification==='UNJUSTIFIED')||(absenceDetail.kind==='unknown'&&['UNKNOWN','PENDING'].includes(d.justification))))).sort((a,b)=>a.work_date.localeCompare(b.work_date)):[]
   const overtimeDetailRows=overtimeDetail?overtimeDetails(overtime,overtimeDetail.operatorId,overtimeDetail.kind):[]
   const overtimeCount=(operatorId:string,kind:OvertimeDetailKind,minutes:number)=>minutes>0
     ? <button type="button" className="rounded px-1 underline hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-sky-600"
@@ -316,7 +317,7 @@ export default function StaffSchedulePage() {
   const selectedOtherAbsences=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && ['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
   const selectedOtherAbsencePeriods=groupConsecutiveDays(selectedOtherAbsences)
-  const absenceSelectableDays=[...selectedMedicalDays,...selectedOtherAbsences]
+  const absenceSelectableDays=[...selectedMedicalDays,...selectedOtherAbsences.filter(d=>d.state!=='UNJUSTIFIED_ABSENCE')]
   const selectedAbsenceRows=absenceSelectableDays.filter(day=>checkedAbsenceIds.includes(day.id))
   const selectableVacationRows=vacationGroups.flatMap(group=>group.shown.flatMap(period=>period.visibleDays))
     .filter(day=>vacationStage(day,vacationToday)==='UNVERIFIED')
@@ -358,7 +359,7 @@ export default function StaffSchedulePage() {
     setDayEditor({
       operator_id:operatorId,work_date:workDate,state:row?.state??'SHIFT',
       start_time:start,end_time:end,
-      justification:row?.justification??'UNKNOWN',
+      justification:row?.state==='UNJUSTIFIED_ABSENCE'?'UNJUSTIFIED':row?.justification??'UNKNOWN',
       vacation_taken_confirmed:row?.vacation_taken_confirmed??false,
       holiday_source_date:row?staffHolidayOrigin(row)??'':'',
        comp_source_entry_id:row?.comp_source_entry_id??'',
@@ -437,7 +438,7 @@ export default function StaffSchedulePage() {
       // No generar ni confirmar horas reales desde el cuadrante; conservarlas solo si ya existen.
       actual_minutes:existing?.actual_minutes??null,
       actual_confirmed:existing?.actual_confirmed??false,
-      justification:dayEditor.justification,
+      justification:dayEditor.state==='UNJUSTIFIED_ABSENCE'?'UNJUSTIFIED':dayEditor.justification,
       source_kind:'MANUAL',
       source_code:dayEditor.state==='PUBLIC_HOLIDAY'
         ?'Festivo disfrutado · '+dayEditor.holiday_source_date
@@ -534,7 +535,7 @@ export default function StaffSchedulePage() {
       .update({justification:bulkAbsenceStatus,changed_by:session?.user.id??null,updated_at:now})
       .eq('hotel_id',hotel.id).eq('operator_id',selectedId)
       .in('id',selected.map(d=>d.id))
-      .in('state',['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'])
+      .in('state',['MEDICAL_LEAVE','PERSONAL_DAY','PERMISSION'])
       .select('id')
     if(result.error)setError(result.error.message)
     else if((result.data?.length??0)!==selected.length)
@@ -770,18 +771,26 @@ export default function StaffSchedulePage() {
                     <div className="text-xs font-bold text-sky-900 underline decoration-dotted underline-offset-2">{value}</div>
                   </button>
                 : <div key={label} className="rounded-md bg-slate-50 px-1 py-1"><div className="text-[10px] text-slate-500">{label}</div><div className="text-xs font-semibold">{value}</div></div>)}
+              <div className="rounded-md bg-slate-50 px-1 py-1">
+                <div className="text-[10px] text-slate-500">Bajas médicas sin justificar</div>
+                <div className="text-xs">{absenceCount(s.operator.id,'unjustified',s.sickUnjustified)}</div>
+              </div>
+              <div className="rounded-md bg-slate-50 px-1 py-1">
+                <div className="text-[10px] text-slate-500">Faltas no justificadas</div>
+                <div className={s.unjustifiedAbsences?'text-xs font-bold text-red-700':'text-xs'}>{absenceCount(s.operator.id,'absence',s.unjustifiedAbsences)}</div>
+              </div>
             </div>
           </div>)}
         </div>
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
-          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
+          <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Bajas médicas sin justificar</th><th>Faltas no justificadas</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
             {filteredSummary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
               <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                 className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
                 {hours(s.planned)}
-              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{hours(Math.max(0,s.cumulativeBalance))}</td></tr>)}
+              </button></td><td>{s.shifts}</td><td>{s.total}</td><td>{s.vacation} d</td><td>{s.sick} d</td><td>{absenceCount(s.operator.id,'unjustified',s.sickUnjustified)}</td><td className={s.unjustifiedAbsences?'font-bold text-red-700':''}>{absenceCount(s.operator.id,'absence',s.unjustifiedAbsences)}</td><td>{hours(Math.max(0,s.cumulativeBalance))}</td></tr>)}
           </tbody></table>
         </div>
       </section>}
@@ -1157,21 +1166,23 @@ export default function StaffSchedulePage() {
             {filteredSummary.map(s=><div key={s.operator.id}
               className="rounded-lg border border-slate-200 p-2 text-left">
               <div className="truncate text-xs font-semibold">{s.operator.display_name}</div>
-              <div className="mt-1 text-xl font-bold">{absenceCount(s.operator.id,'sick',s.sick)} <span className="text-xs font-normal">días de baja</span></div>
+              <div className="mt-1 text-xl font-bold">{absenceCount(s.operator.id,'sick',s.sick)} <span className="text-xs font-normal">días de baja médica</span></div>
+              <div className="mt-1 text-xs font-semibold text-red-700">{absenceCount(s.operator.id,'absence',s.unjustifiedAbsences)} faltas no justificadas</div>
               <div className="mt-1 text-sm font-semibold">{absenceCount(s.operator.id,'other',otherAbsenceDays(s.operator.id).length)} <span className="text-xs font-normal">otras ausencias</span></div>
               <div className="mt-0.5 text-[10px] text-slate-500">{absenceCount(s.operator.id,'documented',s.sickDocumented)} justif. · {absenceCount(s.operator.id,'unjustified',s.sickUnjustified)} no justif. · {absenceCount(s.operator.id,'unknown',s.sickUnknown)} por revisar</div>
             </div>)}
           </div>
         </div>
         {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
-          <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+          <h3 className="text-sm font-bold sm:text-base">Bajas y ausencias de {selected.display_name}</h3>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
             {([
-              ['Total','sick',selectedSummary?.sick??0],
-              ['Justificados','documented',selectedSummary?.sickDocumented??0],
-              ['Sin justificar','unjustified',selectedSummary?.sickUnjustified??0],
-              ['Por revisar','unknown',selectedSummary?.sickUnknown??0],
-              ['Otras ausencias','other',selectedOtherAbsences.length],
+              ['Bajas médicas','sick',selectedSummary?.sick??0],
+              ['Bajas justificadas','documented',selectedSummary?.sickDocumented??0],
+              ['Bajas sin justificar','unjustified',selectedSummary?.sickUnjustified??0],
+              ['Bajas por revisar','unknown',selectedSummary?.sickUnknown??0],
+              ['Otras ausencias','other',otherAbsenceDays(selected.id).length],
+              ['Faltas no justificadas','absence',selectedSummary?.unjustifiedAbsences??0],
             ] as const).map(([label,kind,value])=><div key={label} className="rounded-lg bg-slate-50 px-1.5 py-2 text-center">
               <div className="text-[10px] text-slate-500">{label}</div>
               <div className="mt-0.5 text-lg font-bold">{absenceCount(selected.id,kind,value)}</div>
@@ -1247,16 +1258,16 @@ export default function StaffSchedulePage() {
             {selectedMedicalPeriods.length===0&&<p className="py-2 text-xs text-slate-500">No hay bajas registradas.</p>}
           </div>
           {selectedOtherAbsencePeriods.length>0&&<div className="mt-3 border-t pt-2">
-            <h4 className="text-xs font-bold">Otras ausencias</h4>
+            <h4 className="text-xs font-bold">Permisos y faltas</h4>
             {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
               <summary className="cursor-pointer text-xs">{p.state==='PERMISSION'?(p.rows[0].source_code||stateView(p.state).label):stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
-              <StaffToggleButton disabled={busy}
+              <StaffToggleButton disabled={busy||p.state==='UNJUSTIFIED_ABSENCE'}
                 selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
                 onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
                 className="mt-2">Seleccionar período completo</StaffToggleButton>
               <div className="mt-2 flex flex-wrap gap-1.5">{p.rows.map(d=>
                 <div key={d.id} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-1">
-                  <StaffToggleButton disabled={busy}
+                  <StaffToggleButton disabled={busy||p.state==='UNJUSTIFIED_ABSENCE'}
                     selected={checkedAbsenceIds.includes(d.id)}
                     onClick={()=>toggleChecked(d.id,!checkedAbsenceIds.includes(d.id),'ABSENCE')}
                     title={'Seleccionar ausencia del '+asDisplayDate(d.work_date)}
@@ -1301,8 +1312,8 @@ export default function StaffSchedulePage() {
         </>}
       </dialog>
       <dialog ref={absenceDialog} onClose={()=>setAbsenceDetail(null)} aria-labelledby="absence-detail-title" className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-white p-4 shadow-xl backdrop:bg-black/40">
-        {absenceDetail&&<><div className="flex items-start justify-between gap-2"><div><h3 id="absence-detail-title" className="text-sm font-bold">{({sick:'Bajas',other:'Otras ausencias',documented:'Bajas justificadas',unjustified:'Bajas sin justificar',unknown:'Bajas por revisar'})[absenceDetail.kind]} · {absenceDetailRows.length} días</h3><p className="text-xs text-slate-600">{operators.find(o=>o.id===absenceDetail.operatorId)?.display_name} · {year}</p></div><button type="button" onClick={()=>setAbsenceDetail(null)} className="rounded border px-3 py-1 text-xs">Cerrar</button></div>
-        <div className="mt-3 max-h-[60vh] divide-y overflow-y-auto">{groupConsecutiveDays(absenceDetailRows).map(p=><div key={p.start+'-'+p.state+'-'+p.justification} className="py-2 text-xs"><div className="font-semibold">{asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</div><div className="text-slate-600">{p.state==='PERMISSION'?(p.rows[0].source_code||stateView(p.state).label):stateView(p.state).label} · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</div></div>)}</div></>}
+        {absenceDetail&&<><div className="flex items-start justify-between gap-2"><div><h3 id="absence-detail-title" className="text-sm font-bold">{({sick:'Bajas',other:'Otras ausencias',absence:'Faltas no justificadas',documented:'Bajas justificadas',unjustified:'Bajas sin justificar',unknown:'Bajas por revisar'})[absenceDetail.kind]} · {absenceDetailRows.length} días</h3><p className="text-xs text-slate-600">{operators.find(o=>o.id===absenceDetail.operatorId)?.display_name} · {year}</p></div><button type="button" onClick={()=>setAbsenceDetail(null)} className="rounded border px-3 py-1 text-xs">Cerrar</button></div>
+        <div className="mt-3 max-h-[60vh] divide-y overflow-y-auto">{groupConsecutiveDays(absenceDetail.kind==='absence'?absenceDetailRows.map(d=>({...d,justification:'UNJUSTIFIED'})):absenceDetailRows).map(p=><div key={p.start+'-'+p.state+'-'+p.justification} className="py-2 text-xs"><div className="font-semibold">{asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</div><div className="text-slate-600">{p.state==='PERMISSION'?(p.rows[0].source_code||stateView(p.state).label):stateView(p.state).label} · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</div></div>)}</div></>}
       </dialog>
       {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
         <div className="flex items-center justify-between gap-2">
@@ -1483,7 +1494,7 @@ export default function StaffSchedulePage() {
           <h2 className="font-bold">Editar jornada · {asDisplayDate(dayEditor.work_date)}</h2>
           <p className="mt-0.5 text-sm text-slate-500">{operators.find(o=>o.id===dayEditor.operator_id)?.display_name}</p>
           <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
-            <label className="block text-xs font-medium">Estado<select className={baseInput+' mt-1'} value={dayEditor.state} onChange={e=>setDayEditor({...dayEditor,state:e.target.value})}>{staffStateOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+            <label className="block text-xs font-medium">Estado<select className={baseInput+' mt-1'} value={dayEditor.state} onChange={e=>setDayEditor({...dayEditor,state:e.target.value,justification:dayEditor.state==='UNJUSTIFIED_ABSENCE'?'UNKNOWN':dayEditor.justification})}>{staffStateOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
             {dayEditor.state==='SHIFT'&&<div className="space-y-2">
               <p className="text-xs font-semibold text-slate-700">Horario previsto</p>
               <div role="group" aria-label="Elegir turno previsto" className="grid grid-cols-2 gap-1.5">
@@ -1628,7 +1639,8 @@ export default function StaffSchedulePage() {
               </StaffToggleButton>
               <p className="mt-1 text-[11px] text-emerald-900">Las fechas pasadas sin confirmar no cuentan como disfrutadas. Solo se pueden confirmar días de hoy o anteriores.</p>
             </div>}
-            {['MEDICAL_LEAVE','UNJUSTIFIED_ABSENCE','PERMISSION'].includes(dayEditor.state)&&
+            {dayEditor.state==='UNJUSTIFIED_ABSENCE'&&<p className="text-xs font-medium text-red-800">Justificación: No justificada</p>}
+            {['MEDICAL_LEAVE','PERMISSION'].includes(dayEditor.state)&&
               <label className="block text-xs">Justificación<select className={baseInput+' mt-1'} value={dayEditor.justification} onChange={e=>setDayEditor({...dayEditor,justification:e.target.value})}>
                 <option value="UNKNOWN">Sin verificar</option><option value="PENDING">Pendiente</option><option value="DOCUMENTED">Documentada</option><option value="UNJUSTIFIED">No justificada</option></select></label>}
           </div>

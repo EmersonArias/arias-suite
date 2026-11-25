@@ -113,7 +113,7 @@ function dayShort(entry?: StaffDay, compact = false) {
   if (entry.state === 'PERMISSION') return compact ? 'P' : 'Permiso'
   if (entry.state === 'TRAINING') return compact ? 'Fo' : 'Formación'
   if (entry.state === 'OTHER') return compact ? 'O' : 'Otros'
-  if (entry.state === 'UNJUSTIFIED_ABSENCE') return compact ? '!' : 'Ausencia'
+  if (entry.state === 'UNJUSTIFIED_ABSENCE') return compact ? '!' : 'Falta no justificada'
   return compact ? '?' : stateView(entry.state).label
 }
 
