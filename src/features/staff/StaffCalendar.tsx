@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
-  addDays, dateISO, fromISO, isoWeek, mondayOf, stateView,
+  dateISO, fromISO, isoWeek, stateView,
   isVacationState, vacationCode, vacationStageLabel, vacationStage,
   vacationOriginLabel, isSplitShift, splitShiftLabel,
   type StaffDay, type StaffOperator,
 } from './staffModel'
 
-import { weekdays, monthNames, pad, calendarMonth, entryTone, dayCode, holidayRef, legend, calendarPeople } from './staffCalendarLayout'
-
-type CalendarMode = 'DIA' | 'SEMANA' | 'MES' | 'ANO'
+import { weekdays, monthNames, pad, calendarMonth, entryTone, dayCode, holidayRef, legend, calendarPeople, calendarWeek, type CalendarMode } from './staffCalendarLayout'
 
 type Props = {
   year: number
+  mode: CalendarMode
+  focusDate: string
+  setMode: (mode: CalendarMode) => void
+  setFocusDate: (date: string) => void
   operators: StaffOperator[]
   days: StaffDay[]
   holidays: string[]
@@ -52,9 +54,7 @@ function dayShort(entry?: StaffDay, compact = false) {
   return compact ? '?' : stateView(entry.state).label
 }
 
-export default function StaffCalendar({ year, operators, days, holidays, operatorId, onYearChange, onEditDay }: Props) {
-  const [mode, setMode] = useState<CalendarMode>('MES')
-  const [focusDate, setFocusDate] = useState(dateISO(new Date()))
+export default function StaffCalendar({ year, operators, days, holidays, operatorId, onYearChange, onEditDay, mode, focusDate, setMode, setFocusDate }: Props) {
   const today = dateISO(new Date())
   const month = Number(focusDate.slice(5, 7)) - 1
   const visiblePeople = useMemo(
@@ -64,10 +64,6 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
   const officialHolidaySet = useMemo(() => new Set(holidays), [holidays])
   const entries = useMemo(() => new Map(days.map(d => [d.operator_id + '|' + d.work_date, d])), [days])
   const entryFor = (person: StaffOperator, day: string) => entries.get(person.id + '|' + day)
-
-  useEffect(() => {
-    setFocusDate(prev => prev.slice(0, 4) === String(year) ? prev : year + '-01-15')
-  }, [year])
 
   function navigateBy(amount: number) {
     if (mode === 'ANO') {
@@ -91,8 +87,8 @@ export default function StaffCalendar({ year, operators, days, holidays, operato
   }
 
   const visibleDay = fromISO(focusDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
-  const weekStart = mondayOf(focusDate)
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const weekDays = calendarWeek(focusDate)
+  const weekStart = weekDays[0]
   const weekLabel = 'Semana ' + isoWeek(focusDate) + ' · ' +
     fromISO(weekStart).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' – ' +
     fromISO(weekDays[6]).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })

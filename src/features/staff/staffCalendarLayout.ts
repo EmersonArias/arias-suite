@@ -1,5 +1,12 @@
 import { addDays, fromISO, mondayOf, stateView, isVacationState, vacationCode, vacationTone, isSplitShift, type StaffDay, type StaffOperator } from './staffModel'
 
+export type CalendarMode = 'DIA' | 'SEMANA' | 'MES' | 'ANO'
+
+export function calendarWeek(focusDate:string) {
+  const start=mondayOf(focusDate)
+  return Array.from({length:7},(_,index)=>addDays(start,index))
+}
+
 export function calendarPeople(operators:StaffOperator[],operatorId:string) {
   return operatorId==='ALL'?operators.filter(operator=>operator.active):operators.filter(operator=>operator.id===operatorId)
 }

@@ -1,9 +1,9 @@
 import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type {StaffDay,StaffOperator} from './staffModel'
-import {isoWeek,plannedMinutes,stateView} from './staffModel'
+import {fromISO,isoWeek,plannedMinutes,stateView} from './staffModel'
 
-import { calendarMonth, calendarPeople, dayCode, entryTone, legend, monthNames, weekdays } from './staffCalendarLayout'
+import { calendarMonth, calendarPeople, dayCode, entryTone, legend, monthNames, weekdays, calendarWeek, type CalendarMode } from './staffCalendarLayout'
 
 const calendarFills:Record<string,string>={
  white:'#FFFFFF', 'slate-100':'#F1F5F9', 'red-200':'#FECACA', 'emerald-100':'#D1FAE5',
@@ -12,12 +12,12 @@ const calendarFills:Record<string,string>={
  'teal-100':'#CCFBF1', 'orange-100':'#FFEDD5',
 }
 
-async function exportMonthlyCalendar(input:{hotelName:string;year:number;days:StaffDay[];holidays?:string[]},people:StaffOperator[]){
+async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[];holidays?:string[];calendarMode:CalendarMode;focusDate:string},people:StaffOperator[]){
  const {jsPDF}=await loadPdfLibraries()
  const doc=new jsPDF({format:'a4',orientation:'landscape',unit:'mm',compress:true})
  const days=new Map(input.days.map(entry=>[entry.operator_id+'|'+entry.work_date,entry]))
  const holidays=new Set(input.holidays)
- const left=10, top=30, width=277, nameWidth=45, dayWidth=(width-nameWidth)/7
+ const left=10, top=30, width=277, nameWidth=45
  const headerHeight=6, gap=2
  const cell=(text:string,x:number,y:number,w:number,h:number,fill:string,color:string,fontSize:number,align:'left'|'center'='center')=>{
    doc.setFillColor(fill)
@@ -30,28 +30,41 @@ async function exportMonthlyCalendar(input:{hotelName:string;year:number;days:St
    doc.setFontSize(size)
    doc.text(lines,align==='left'?x+1.8:x+w/2,y+h/2-(lines.length-1)*spacing/2,{align,baseline:'middle'})
  }
- monthNames.forEach((month,index)=>{
+ const monthPage=(monthIndex:number)=>({
+   title:monthNames[monthIndex]+' · '+input.year,
+   dates:calendarMonth(input.year,monthIndex),
+   monthIndex,
+ })
+ const week=calendarWeek(input.focusDate)
+ const pages=input.calendarMode==='ANO'?monthNames.map((_,index)=>monthPage(index)):
+   input.calendarMode==='MES'?[monthPage(Number(input.focusDate.slice(5,7))-1)]:
+   input.calendarMode==='SEMANA'?[{title:'Semana '+isoWeek(input.focusDate)+' · '+readable(week[0])+' – '+readable(week[6]),dates:week}]:
+   [{title:fromISO(input.focusDate).toLocaleDateString('es-ES',{dateStyle:'full'}),dates:[input.focusDate]}]
+ pages.forEach(({title,dates,...period},index)=>{
+   const monthIndex='monthIndex' in period?Number(period.monthIndex):null
+   const columns=input.calendarMode==='DIA'?1:7
+   const dayWidth=(width-nameWidth)/columns
    if(index>0)doc.addPage()
    doc.setTextColor('#0F172A')
    doc.setFont('helvetica','bold')
    doc.setFontSize(17)
-   doc.text(month+' · '+input.year,left,15)
+   doc.text(title,left,15)
    doc.setFont('helvetica','normal')
    doc.setFontSize(9)
    doc.text(input.hotelName,left,23)
-   const dates=calendarMonth(input.year,index)
-   const weeks=dates.length/7
+   const weeks=dates.length/columns
    const rowHeight=Math.min(9,(184-top-weeks*headerHeight-(weeks-1)*gap)/(weeks*people.length))
    const fontSize=Math.min(10,rowHeight*1.8)
    let y=top
    for(let week=0;week<weeks;week++){
-     const datesOfWeek=dates.slice(week*7,week*7+7)
-     const outside=(date:string)=>Number(date.slice(5,7))!==index+1
+     const datesOfWeek=dates.slice(week*columns,week*columns+columns)
+     const outside=(date:string)=>monthIndex!==null&&Number(date.slice(5,7))!==monthIndex+1
      cell('S'+isoWeek(datesOfWeek[0]),left,y,nameWidth,headerHeight,'#F1F5F9','#475569',9,'left')
      datesOfWeek.forEach((date,i)=>{
        const official=!outside(date)&&holidays.has(date)
-       cell(weekdays[i]+' '+Number(date.slice(8)),left+nameWidth+i*dayWidth,y,dayWidth,headerHeight,
-         official?'#1D4ED8':'#F1F5F9',outside(date)?'#94A3B8':official?'#FFFFFF':i>=5?'#BE123C':'#475569',9)
+       const dayIndex=(fromISO(date).getDay()+6)%7
+       cell(weekdays[dayIndex]+' '+Number(date.slice(8)),left+nameWidth+i*dayWidth,y,dayWidth,headerHeight,
+         official?'#1D4ED8':'#F1F5F9',outside(date)?'#94A3B8':official?'#FFFFFF':dayIndex>=5?'#BE123C':'#475569',9)
      })
      y+=headerHeight
      for(const person of people){
@@ -77,20 +90,23 @@ async function exportMonthlyCalendar(input:{hotelName:string;year:number;days:St
      'V?: por confirmar','I Falta no justificada','P Permiso','L Asuntos propios','E Formación','O Otros',
      'Cabecera azul: festivo del calendario']
    doc.text(doc.splitTextToSize(notes.join(' · '),width),left,191)
-   doc.text((index+1)+' / '+monthNames.length,left+width,201,{align:'right'})
+   doc.text((index+1)+' / '+pages.length,left+width,201,{align:'right'})
  })
- previewPdf(doc,'arias_suite_cuadrante_'+input.year+'.pdf')
+ const suffix=input.calendarMode==='ANO'?String(input.year):
+   input.calendarMode==='MES'?input.focusDate.slice(0,7):
+   input.calendarMode==='SEMANA'?'semana_'+week[0]:input.focusDate
+ previewPdf(doc,'arias_suite_cuadrante_'+suffix+'.pdf')
 }
 
 const readable=(value:string)=>{const a=value.split('-');return a.length===3?a[2]+'/'+a[1]+'/'+a[0]:value}
 export async function exportPlannerSchedulePdf(input:{
  hotelName:string;year:number;operators:StaffOperator[];days:StaffDay[];
- mode:'CUADRANTE'|'FINES';operatorId:string;holidays?:string[]
+ mode:'CUADRANTE'|'FINES';operatorId:string;holidays?:string[];calendarMode:CalendarMode;focusDate:string
 }){
  if(input.mode==='CUADRANTE'){
    const people=calendarPeople(input.operators,input.operatorId)
    if(!people.length)throw new Error('No hay operarios para este PDF.')
-   return exportMonthlyCalendar(input,people)
+   return exportCalendar(input,people)
  }
  const people=input.operators.filter(o=>input.operatorId==='ALL'||o.id===input.operatorId)
  if(!people.length)throw new Error('No hay operarios para este PDF.')
