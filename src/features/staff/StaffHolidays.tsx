@@ -156,7 +156,6 @@ export default function StaffHolidays({
            </tr>)}</tbody>
        </table>
      </div>
-     <p className="mt-2 text-[11px] text-slate-500">Los turnos en festivos y los festivos disfrutados se muestran por separado, sin restarlos. Los festivos anteriores al alta contractual o primer día registrado no corresponden y no figuran como pendientes. Los que coinciden con baja o vacaciones también se excluyen del pendiente automático, salvo asignación manual. Pendientes reales en rojo. La tabla es un control interno, no un cálculo legal automático de derechos.</p>
    </div>
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold">Detalle por fecha y trabajador</h3>
