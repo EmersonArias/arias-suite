@@ -1,3 +1,4 @@
+import { recoveryStatus } from './staffOvertimeDetails'
 import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffDay, StaffOperator, StaffOvertime } from './staffModel'
@@ -31,16 +32,14 @@ export async function staffSectionPdf(options:{
   let head:string[]=[]
   let body:string[][]=[]
   if(options.section==='EXTRAS'){
-    head=['Trabajador','Fecha','Tipo','Horas','Motivo','Estado','Origen horas','Disfrutado el']
-    body=options.overtime.filter(e=>people.some(p=>p.id===e.operator_id)&&
-       (e.entry_date.startsWith(String(options.year))||
-        options.overtime.some(x=>x.compensates_entry_id===e.id&&x.entry_date.startsWith(String(options.year)))))
+    head=['Trabajador','Fecha','Tipo','Horas','Motivo','Estado','Origen horas','Fecha de recuperación']
+    body=options.overtime.filter(e=>people.some(p=>p.id===e.operator_id))
        .sort((a,b)=>a.entry_date.localeCompare(b.entry_date)).map(e=>{
        const consumed=consumption(e,options.overtime)
        const source=e.entry_type==='EARNED'||e.entry_type==='ADJUSTMENT_PLUS'
        const state=source
-         ?consumed.minutes===0?'Pendiente':consumed.minutes>=e.minutes?'Disfrutado':'Parcial'
-         :e.entry_type==='REST_TAKEN'?'Disfrutado':e.entry_type==='PAID'?'Abonado':'Ajuste'
+         ?consumed.minutes===0?'Pendiente':consumed.minutes>=e.minutes?'Asignado':'Parcial'
+         :e.entry_type==='REST_TAKEN'?recoveryStatus(e.entry_date):e.entry_type==='PAID'?'Abonado':'Ajuste'
        const dates=source?consumed.dates.map(display).join(', '):
          e.entry_type==='REST_TAKEN'?display(e.entry_date):'—'
        const sourceRecord=e.compensates_entry_id
@@ -49,7 +48,7 @@ export async function staffSectionPdf(options:{
          ?sourceRecord?display(sourceRecord.entry_date)+' · '+time(e.minutes):'Sin origen vinculado'
          :'—'
        return [names.get(e.operator_id)||'—',display(e.entry_date),
-         ({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste -'} as Record<string,string>)[e.entry_type]||e.entry_type,
+         ({EARNED:'Generadas',REST_TAKEN:'Recuperación',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste -'} as Record<string,string>)[e.entry_type]||'Otro',
          time(e.minutes),e.reason,state,origin,dates||'—']
      })
   }else{
@@ -62,7 +61,7 @@ export async function staffSectionPdf(options:{
       .sort((a,b)=>a.work_date.localeCompare(b.work_date)).map(d=>[
         names.get(d.operator_id)||'—',display(d.work_date),
         options.section==='VACACIONES'?(d.state==='VACATION_PREVIOUS'?'Vac. año anterior':'Vacaciones'):
-          ({MEDICAL_LEAVE:'Baja',UNJUSTIFIED_ABSENCE:'Ausencia',PERSONAL_DAY:'Asuntos propios',PERMISSION:'Permiso'} as Record<string,string>)[d.state]||d.state,
+          ({MEDICAL_LEAVE:'Baja',UNJUSTIFIED_ABSENCE:'Ausencia',PERSONAL_DAY:'Asuntos propios',PERMISSION:d.source_code||'Permiso'} as Record<string,string>)[d.state]||d.state,
         options.section==='VACACIONES'?vacationStage(d)==='TAKEN'?'Disfrutadas':vacationStage(d)==='UPCOMING'?'Pendientes':'Por confirmar':
           ({DOCUMENTED:'Documentada',PENDING:'Pendiente',UNJUSTIFIED:'No justificada',UNKNOWN:'Sin verificar'} as Record<string,string>)[d.justification]||'Sin verificar'
       ])

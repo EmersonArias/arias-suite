@@ -1,3 +1,4 @@
+import { overtimeDetails, overtimeLabels, overtimeTimeRange, recoveryStatus, type OvertimeDetailKind } from '../staffOvertimeDetails'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
@@ -108,6 +109,14 @@ export default function StaffSchedulePage() {
   const [checkedVacationIds,setCheckedVacationIds]=useState<string[]>([])
   const [absenceDetail,setAbsenceDetail]=useState<{operatorId:string;kind:'sick'|'other'|'documented'|'unjustified'|'unknown'}|null>(null)
   const absenceDialog=useRef<HTMLDialogElement>(null)
+  const [overtimeDetail,setOvertimeDetail]=useState<{operatorId:string;kind:OvertimeDetailKind}|null>(null)
+  const overtimeDialog=useRef<HTMLDialogElement>(null)
+  useEffect(()=>{
+    const dialog=overtimeDialog.current
+    if(overtimeDetail && dialog && !dialog.open)dialog.showModal()
+    if(!overtimeDetail && dialog?.open)dialog.close()
+  },[overtimeDetail])
+
   const [checkedAbsenceIds,setCheckedAbsenceIds]=useState<string[]>([])
   const [bulkAbsenceStatus,setBulkAbsenceStatus]=useState<'DOCUMENTED'|'PENDING'|'UNJUSTIFIED'|'UNKNOWN'>('DOCUMENTED')
   const [tab,setTab]=useState<PageTab>(()=>new URLSearchParams(window.location.search).get('tab')==='reportes'?'REPORTES':'CUADRANTE')
@@ -236,9 +245,9 @@ export default function StaffSchedulePage() {
   const holidayPendingCount=dayEditor?holidays.filter(date=>
     date.startsWith(dayEditor.work_date.slice(0,4))&&
     !usedHolidays.has(dayEditor.operator_id+'|'+date)).length:0
-  const availableHolidays=dayEditor?holidays.filter(date=>
-    date.startsWith(dayEditor.work_date.slice(0,4))&&
-    (!usedHolidays.has(dayEditor.operator_id+'|'+date)||date===dayEditor.holiday_source_date)):[]
+  const selectableHolidays=dayEditor?holidays.filter(date=>
+    date.startsWith(dayEditor.work_date.slice(0,4))||date===dayEditor.holiday_source_date):[]
+  const availableHolidays=selectableHolidays.filter(date=>!usedHolidays.has(dayEditor?.operator_id+"|"+date)||date===dayEditor?.holiday_source_date)
   const earnedEntries=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id&&
     ['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)).map(e=>{
        const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&
@@ -298,6 +307,11 @@ export default function StaffSchedulePage() {
   const selectedMedicalPeriods=groupConsecutiveDays(selectedMedicalDays)
   const otherAbsenceDays=(id:string)=>days.filter(d=>d.operator_id===id&&d.work_date.startsWith(String(year))&&['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
   const absenceDetailRows=absenceDetail?days.filter(d=>d.operator_id===absenceDetail.operatorId&&d.work_date.startsWith(String(year))&&(absenceDetail.kind==='other'?['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state):d.state==='MEDICAL_LEAVE'&&(absenceDetail.kind==='sick'||(absenceDetail.kind==='documented'&&d.justification==='DOCUMENTED')||(absenceDetail.kind==='unjustified'&&d.justification==='UNJUSTIFIED')||(absenceDetail.kind==='unknown'&&['UNKNOWN','PENDING'].includes(d.justification))))).sort((a,b)=>a.work_date.localeCompare(b.work_date)):[]
+  const overtimeDetailRows=overtimeDetail?overtimeDetails(overtime,overtimeDetail.operatorId,overtimeDetail.kind):[]
+  const overtimeCount=(operatorId:string,kind:OvertimeDetailKind,minutes:number)=>minutes>0
+    ? <button type="button" className="rounded px-1 underline hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-sky-600"
+        aria-label={overtimeLabels[kind]+': '+hours(minutes)} onClick={()=>setOvertimeDetail({operatorId,kind})}>{hours(minutes)}</button>
+    : hours(minutes)
   const absenceCount=(id:string,kind:NonNullable<typeof absenceDetail>['kind'],count:number)=>count>0?<button type="button" className="rounded px-1 underline hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-sky-600" onClick={()=>setAbsenceDetail({operatorId:id,kind})}>{count}</button>:<span>0</span>
   const selectedOtherAbsences=days.filter(d=>d.operator_id===selectedId && d.work_date.startsWith(String(year))
     && ['UNJUSTIFIED_ABSENCE','PERSONAL_DAY','PERMISSION'].includes(d.state))
@@ -792,13 +806,13 @@ export default function StaffSchedulePage() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[550px] text-left text-xs">
               <thead><tr className="border-b bg-slate-50">
-                <th className="p-2">Operario</th><th>Generadas</th><th>Disfrutadas</th>
+                <th className="p-2">Operario</th><th>Generadas</th><th>Recuperadas o programadas</th>
                 <th>Abonadas</th><th>Saldo acumulado</th>
               </tr></thead>
               <tbody>{filteredSummary.map(item=><tr key={item.operator.id} className="border-b">
                 <td className="p-2 font-semibold">{item.operator.display_name}</td>
-                <td>{hours(item.earned)}</td><td>{hours(item.compensated)}</td>
-                <td>{hours(item.paid)}</td><td>{hours(item.cumulativeBalance)}</td>
+                <td>{overtimeCount(item.operator.id,'earned',item.earned)}</td><td>{overtimeCount(item.operator.id,'recovered',item.compensated)}</td>
+                <td>{overtimeCount(item.operator.id,'paid',item.paid)}</td><td>{overtimeCount(item.operator.id,'pending',item.cumulativeBalance)}</td>
               </tr>)}</tbody>
             </table>
           </div>
@@ -806,8 +820,8 @@ export default function StaffSchedulePage() {
           <div className="mt-2 max-h-96 overflow-auto">
             <table className="w-full min-w-[620px] text-left text-xs">
               <thead><tr className="border-b bg-slate-50">
-                <th className="p-2">Operario</th><th>Fecha</th><th>Movimiento</th>
-                <th>Horas</th><th>Origen</th><th>Disfrutado el</th>
+                <th className="p-2">Operario</th><th>Fecha</th>
+                <th>Horas</th><th>Origen</th><th>Fecha de recuperación</th>
               </tr></thead>
               <tbody>{overtime.slice()
                 .sort((a,b)=>a.entry_date.localeCompare(b.entry_date)).map(entry=>{
@@ -816,7 +830,7 @@ export default function StaffSchedulePage() {
                   return <tr key={entry.id} className="border-b">
                     <td className="p-2">{operators.find(p=>p.id===entry.operator_id)?.display_name??'—'}</td>
                     <td>{asDisplayDate(entry.entry_date)}</td>
-                    <td>{entry.entry_type}</td><td>{hours(entry.minutes)}</td>
+                    <td>{hours(entry.minutes)}</td>
                     <td>{origin?asDisplayDate(origin.entry_date):'—'}</td>
                     <td>{entry.entry_type==='REST_TAKEN'?asDisplayDate(entry.entry_date):'—'}</td>
                   </tr>
@@ -829,7 +843,7 @@ export default function StaffSchedulePage() {
             <h2 className="text-sm font-bold sm:text-base">Horas extra · {selected.display_name}</h2>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
-            {[['Generadas',selectedSummary?.earned??0],['Disfrutadas',selectedSummary?.compensated??0],['Pagadas',selectedSummary?.paid??0],['Saldo acumulado', selectedSummary?.cumulativeBalance??0]].map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{n}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{hours(Number(v))}</p></div>)}
+            {([['earned',selectedSummary?.earned??0],['recovered',selectedSummary?.compensated??0],['paid',selectedSummary?.paid??0],['pending',selectedSummary?.cumulativeBalance??0]] as const).map(([n,v])=><div key={n} className="rounded-lg bg-slate-50 px-1 py-2 text-center sm:rounded-xl sm:p-3"><p className="text-[10px] leading-tight text-slate-500 sm:text-xs">{overtimeLabels[n]}</p><p className="mt-0.5 text-xs font-bold sm:mt-1 sm:text-lg">{overtimeCount(selected.id,n,v)}</p></div>)}
           </div>
           <button className="mt-2 w-full rounded-lg border px-3 py-2 text-left text-xs font-semibold md:hidden" onClick={()=>setShowOvertimeForm(v=>!v)} aria-expanded={showOvertimeForm}>{showOvertimeForm?'Cerrar registro':'＋ Nuevo movimiento'}</button>
           <div className={'mt-2 grid grid-cols-2 gap-2 md:mt-4 md:grid-cols-[180px_170px_120px_1fr_auto] md:gap-3 '+(showOvertimeForm?'':'hidden md:grid')}>
@@ -841,14 +855,14 @@ export default function StaffSchedulePage() {
             <label className="col-span-2 text-xs md:col-span-1">Motivo obligatorio<input className={baseInput+' mt-1'} value={overtimeReason} onChange={e=>setOvertimeReason(e.target.value)} placeholder="Urgencia, sustitución, descanso de horas del día…"/></label>
             <button disabled={busy} onClick={()=>void saveOvertime()} className="col-span-2 min-h-9 self-end rounded-lg bg-slate-900 px-4 py-2 text-sm text-white md:col-span-1">Registrar</button>
           </div>
-          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Origen de las horas</th><th className="text-left">Disfrutado el</th></tr></thead><tbody>
-            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:'Disfrutadas',PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td>
+          <div className="mt-2 max-h-[48vh] overflow-auto sm:mt-4"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-slate-50"><th className="p-1.5 text-left">Fecha</th><th className="text-left">Tipo</th><th>Horas</th><th className="text-left">Motivo</th><th className="text-left">Estado</th><th className="text-left">Origen de las horas</th><th className="text-left">Fecha de recuperación</th></tr></thead><tbody>
+            {overtime.filter(e=>e.operator_id===selectedId).map(e=><tr key={e.id} className="border-b"><td className="whitespace-nowrap p-1.5">{asDisplayDate(e.entry_date).slice(0,5)}</td><td>{({EARNED:'Generadas',REST_TAKEN:recoveryStatus(e.entry_date),PAID:'Abonadas',ADJUSTMENT_PLUS:'Ajuste +',ADJUSTMENT_MINUS:'Ajuste −'} as Record<string,string>)[e.entry_type]}</td><td>{hours(e.minutes)}</td><td className="max-w-[190px] truncate px-1 text-[11px]" title={e.reason}>{e.reason}</td>
               <td className="px-1">{(()=>{
-                if(e.entry_type==='REST_TAKEN')return 'Disfrutado'
+                if(e.entry_type==='REST_TAKEN')return recoveryStatus(e.entry_date)
                 if(!['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type))return e.entry_type==='PAID'?'Abonado':'Ajuste'
                 const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&t.entry_type==='REST_TAKEN')
                   .reduce((sum,t)=>sum+t.minutes,0)
-                return taken===0?'Sin disfrute vinculado':taken>=e.minutes?'Disfrutado':'Parcial · '+hours(taken)
+                return taken===0?'Disponible':taken>=e.minutes?'Asignado':'Parcial · '+hours(taken)
               })()}</td>
               <td className="px-1">{(()=>{
                 if(e.entry_type!=='REST_TAKEN')return '—'
@@ -1148,15 +1162,16 @@ export default function StaffSchedulePage() {
         </div>
         {operatorFilter!=='ALL'&&selected&&<div className="rounded-xl bg-white p-2.5 shadow-sm sm:rounded-2xl sm:p-4">
           <h3 className="text-sm font-bold sm:text-base">Bajas de {selected.display_name}</h3>
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {[
-              ['Total',selectedSummary?.sick??0],
-              ['Justificados',selectedSummary?.sickDocumented??0],
-              ['Sin justificar',selectedSummary?.sickUnjustified??0],
-              ['Por revisar',selectedSummary?.sickUnknown??0],
-            ].map(([label,value])=><div key={label} className="rounded-lg bg-slate-50 px-1.5 py-2 text-center">
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+            {([
+              ['Total','sick',selectedSummary?.sick??0],
+              ['Justificados','documented',selectedSummary?.sickDocumented??0],
+              ['Sin justificar','unjustified',selectedSummary?.sickUnjustified??0],
+              ['Por revisar','unknown',selectedSummary?.sickUnknown??0],
+              ['Otras ausencias','other',selectedOtherAbsences.length],
+            ] as const).map(([label,kind,value])=><div key={label} className="rounded-lg bg-slate-50 px-1.5 py-2 text-center">
               <div className="text-[10px] text-slate-500">{label}</div>
-              <div className="mt-0.5 text-lg font-bold">{value}</div>
+              <div className="mt-0.5 text-lg font-bold">{absenceCount(selected.id,kind,value)}</div>
             </div>)}
           </div>
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
@@ -1231,7 +1246,7 @@ export default function StaffSchedulePage() {
           {selectedOtherAbsencePeriods.length>0&&<div className="mt-3 border-t pt-2">
             <h4 className="text-xs font-bold">Otras ausencias</h4>
             {selectedOtherAbsencePeriods.map(p=><details key={p.start} className="border-b py-1.5">
-              <summary className="cursor-pointer text-xs">{stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
+              <summary className="cursor-pointer text-xs">{p.state==='PERMISSION'?(p.rows[0].source_code||stateView(p.state).label):stateView(p.state).label} · {asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</summary>
               <StaffToggleButton disabled={busy}
                 selected={p.rows.every(d=>checkedAbsenceIds.includes(d.id))}
                 onClick={()=>togglePeriodSelection(p.rows,'ABSENCE')}
@@ -1256,9 +1271,35 @@ export default function StaffSchedulePage() {
         </div>}
       </section>}
 
+      <dialog ref={overtimeDialog} onClose={()=>setOvertimeDetail(null)} aria-labelledby="overtime-detail-title"
+        className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border bg-white p-4 shadow-xl backdrop:bg-black/40">
+        {overtimeDetail&&<>
+          <div className="flex items-start justify-between gap-2">
+            <div><h3 id="overtime-detail-title" className="text-sm font-bold">{overtimeLabels[overtimeDetail.kind]}</h3>
+              <p className="text-xs text-slate-600">{operators.find(o=>o.id===overtimeDetail.operatorId)?.display_name}</p></div>
+            <button type="button" onClick={()=>setOvertimeDetail(null)} className="rounded border px-3 py-1 text-xs">Cerrar</button>
+          </div>
+          <div className="mt-3 max-h-[60vh] overflow-y-auto">
+            {overtimeDetailRows.map(({entry,origin,minutes},index)=><div key={entry.id}>
+              {overtimeDetailRows[index-1]?.entry.entry_date!==entry.entry_date&&
+                <h4 className="mt-2 border-b pb-1 text-xs font-bold">{asDisplayDate(entry.entry_date)}
+                  {overtimeDetail.kind==='recovered'?' · '+recoveryStatus(entry.entry_date):''}</h4>}
+              <div className="py-1.5 text-xs">
+                <strong>{hours(minutes)}</strong>
+                {overtimeDetail.kind==='recovered'||overtimeDetail.kind==='paid'
+                  ? <span> · {origin?'Origen '+asDisplayDate(origin.entry_date):'Origen sin vincular'}</span>
+                  : minutes<0?<span> · Descuento histórico sin origen vinculado</span>:null}
+                {overtimeDetail.kind==='earned'&&overtimeTimeRange(entry.reason)&&<span> · {overtimeTimeRange(entry.reason)}</span>}
+                <p className="text-slate-600">{(origin?.reason??entry.reason).replace(/^\d{2}:\d{2}[–-]\d{2}:\d{2}\s*[;·]\s*/, '')}</p>
+              </div>
+            </div>)}
+          </div>
+          <p className="mt-3 border-t pt-2 text-sm font-bold">Total · {hours(overtimeDetailRows.reduce((sum,row)=>sum+row.minutes,0))}</p>
+        </>}
+      </dialog>
       <dialog ref={absenceDialog} onClose={()=>setAbsenceDetail(null)} aria-labelledby="absence-detail-title" className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-white p-4 shadow-xl backdrop:bg-black/40">
         {absenceDetail&&<><div className="flex items-start justify-between gap-2"><div><h3 id="absence-detail-title" className="text-sm font-bold">{({sick:'Bajas',other:'Otras ausencias',documented:'Bajas justificadas',unjustified:'Bajas sin justificar',unknown:'Bajas por revisar'})[absenceDetail.kind]} · {absenceDetailRows.length} días</h3><p className="text-xs text-slate-600">{operators.find(o=>o.id===absenceDetail.operatorId)?.display_name} · {year}</p></div><button type="button" onClick={()=>setAbsenceDetail(null)} className="rounded border px-3 py-1 text-xs">Cerrar</button></div>
-        <div className="mt-3 max-h-[60vh] divide-y overflow-y-auto">{groupConsecutiveDays(absenceDetailRows).map(p=><div key={p.start+'-'+p.state+'-'+p.justification} className="py-2 text-xs"><div className="font-semibold">{asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</div><div className="text-slate-600">{stateView(p.state).label} · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</div></div>)}</div></>}
+        <div className="mt-3 max-h-[60vh] divide-y overflow-y-auto">{groupConsecutiveDays(absenceDetailRows).map(p=><div key={p.start+'-'+p.state+'-'+p.justification} className="py-2 text-xs"><div className="font-semibold">{asDisplayDate(p.start)}{p.end!==p.start?' – '+asDisplayDate(p.end):''} · {p.rows.length} d</div><div className="text-slate-600">{p.state==='PERMISSION'?(p.rows[0].source_code||stateView(p.state).label):stateView(p.state).label} · {p.justification==='DOCUMENTED'?'Justificada':p.justification==='UNJUSTIFIED'?'No justificada':p.justification==='PENDING'?'Pendiente':'Sin verificar'}</div></div>)}</div></>}
       </dialog>
       {tab==='HISTORIAL'&&<section className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
         <div className="flex items-center justify-between gap-2">
@@ -1498,9 +1539,12 @@ export default function StaffSchedulePage() {
                 <select className={baseInput+' mt-1'} value={dayEditor.holiday_source_date}
                   onChange={e=>setDayEditor({...dayEditor,holiday_source_date:e.target.value})}>
                   <option value="">Escoger festivo…</option>
-                  {availableHolidays.sort().map(date=><option key={date} value={date}>
-                    {asDisplayDate(date)} · {holidayLabels[date]??'Festivo'}
-                  </option>)}
+                  {selectableHolidays.sort().map(date=>{
+                    const assigned=usedHolidays.has(dayEditor.operator_id+'|'+date)
+                    return <option key={date} value={date} disabled={assigned&&date!==dayEditor.holiday_source_date}>
+                      {asDisplayDate(date)} · {holidayLabels[date]??'Festivo'} · {assigned?'Asignado':'Disponible'}
+                    </option>
+                  })}
                 </select>
               </label>
               <p className="mt-1 text-xs text-amber-900">
