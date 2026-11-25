@@ -7,7 +7,7 @@ import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../../auth/context/AuthProvider'
 import { supabase } from '../../../lib/supabase'
 import {
-  dateISO, fromISO, hours, isoWeek, minutesInShift, plannedMinutes, staffStateOptions, isSplitShift,
+  dateISO, fromISO, hours, isoWeek, minutesInShift, plannedMinutes, staffStateOptions, isSplitShift, splitShiftLabel,
   stateView, weekendHistory, isVacationState, vacationStage, vacationStageLabel, vacationTone,
   vacationOriginYear, vacationOriginLabel, vacationFromPriorYear, staffHolidayOrigin, type VacationStage,
   type StaffDay, type StaffNote, type StaffOperator,
@@ -174,6 +174,17 @@ export default function StaffSchedulePage() {
   const [periodEnd,setPeriodEnd]=useState(dateISO(new Date()))
   const [selectedId,setSelectedId]=useState('')
   const [hoursDetailOperatorId,setHoursDetailOperatorId]=useState<string|null>(null)
+  const [shiftDetailMonth,setShiftDetailMonth]=useState<number|null>(null)
+  const shiftDetailsPanel=useRef<HTMLElement>(null)
+  function openHoursDetail(operatorId:string){
+    setShiftDetailMonth(null)
+    setHoursDetailOperatorId(operatorId)
+  }
+  useEffect(()=>{
+    if(shiftDetailMonth!==null&&window.matchMedia('(max-width: 639px)').matches){
+      shiftDetailsPanel.current?.scrollIntoView({block:'nearest'})
+    }
+  },[shiftDetailMonth])
   const [dayEditor,setDayEditor]=useState<DayEditor|null>(null)
   const [customShiftTime,setCustomShiftTime]=useState(false)
   const [dayEditorError,setDayEditorError]=useState('')
@@ -255,12 +266,13 @@ export default function StaffSchedulePage() {
       d.work_date.slice(0,7)===year+'-'+month && d.state==='SHIFT')
     return {
       month:new Date(year,i,1).toLocaleDateString('es-ES',{month:'long'}),
-      shifts:entries.length,
+      entries:entries.sort((a,b)=>a.work_date.localeCompare(b.work_date)),
       minutes:entries.reduce((sum,d)=>sum+plannedMinutes(d),0),
     }
   }),[days,hoursDetailOperatorId,year])
+  const selectedShiftMonth=shiftDetailMonth===null?null:hoursMonthly[shiftDetailMonth]
   const hoursMonthlyTotal=hoursMonthly.reduce((sum,row)=>sum+row.minutes,0)
-  const hoursMonthlyShifts=hoursMonthly.reduce((sum,row)=>sum+row.shifts,0)
+  const hoursMonthlyShifts=hoursMonthly.reduce((sum,row)=>sum+row.entries.length,0)
   useEffect(()=>{
     if(!hoursDetailOperatorId)return
     const onKeyDown=(event:KeyboardEvent)=>{
@@ -815,7 +827,7 @@ export default function StaffSchedulePage() {
               ['Vacaciones previstas',s.vacation+' d'],['Baja',s.sick+' d'],
                ['H. extra pendientes',hours(Math.max(0,s.cumulativeBalance))]].map(([label,value])=>
                 label==='Previstas'
-                ? <button type="button" key={label} onClick={()=>setHoursDetailOperatorId(s.operator.id)}
+                ? <button type="button" key={label} onClick={()=>openHoursDetail(s.operator.id)}
                     title={'Ver horas previstas por mes de '+s.operator.display_name}
                     aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                     className="rounded-md bg-sky-50 px-1 py-1 ring-1 ring-inset ring-sky-200 transition hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
@@ -837,7 +849,7 @@ export default function StaffSchedulePage() {
         <div className="hidden overflow-x-auto rounded-2xl bg-white p-3 shadow-sm md:block">
           <table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs"><th className="p-3">Operario</th><th>Horas previstas</th><th>Turnos programados</th><th>Fines de semana programados</th><th>Vacaciones previstas</th><th>Días de baja registrados</th><th>Bajas médicas sin justificar</th><th>Faltas no justificadas</th><th>Horas extras pendientes de compensar o abonar</th></tr></thead><tbody>
             {filteredSummary.map(s=><tr key={s.operator.id} className="border-b"><td className="p-3 font-semibold">{s.operator.display_name}</td>
-              <td><button type="button" onClick={()=>setHoursDetailOperatorId(s.operator.id)}
+              <td><button type="button" onClick={()=>openHoursDetail(s.operator.id)}
                 title={'Ver horas previstas por mes de '+s.operator.display_name}
                 aria-label={'Ver desglose mensual de horas previstas de '+s.operator.display_name}
                 className="rounded-md px-2 py-1 font-semibold text-sky-800 underline decoration-dotted underline-offset-4 transition hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600">
@@ -1406,7 +1418,9 @@ export default function StaffSchedulePage() {
         onMouseDown={e=>{if(e.target===e.currentTarget)setHoursDetailOperatorId(null)}}>
         <section role="dialog" aria-modal="true"
           aria-label={'Desglose mensual de horas previstas de '+hoursDetailOperator.display_name}
-          className="flex max-h-[88dvh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          className={'grid max-h-[88dvh] w-full items-start gap-3 overflow-y-auto sm:overflow-visible '+
+            (selectedShiftMonth?'max-w-4xl sm:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]':'max-w-sm')}>
+          <div className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[88dvh]">
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
             <div className="min-w-0">
               <h2 className="text-base font-bold text-slate-900">Horas previstas · {year}</h2>
@@ -1428,7 +1442,15 @@ export default function StaffSchedulePage() {
               <tbody>
                 {hoursMonthly.map((row,i)=><tr key={i} className="border-b border-slate-100">
                   <td className="py-1.5 capitalize text-slate-700">{row.month}</td>
-                  <td className="py-1.5 text-right tabular-nums text-slate-600">{row.shifts}</td>
+                  <td className="py-1.5 text-right tabular-nums text-slate-600">
+                    {row.entries.length>0?<button type="button" onClick={()=>setShiftDetailMonth(i)}
+                      aria-label={'Ver los '+row.entries.length+' turnos de '+row.month}
+                      aria-pressed={shiftDetailMonth===i} aria-controls={selectedShiftMonth?'monthly-shift-details':undefined}
+                      className={'min-h-7 min-w-8 rounded px-2 font-semibold underline focus-visible:ring-2 focus-visible:ring-sky-600 '+
+                        (shiftDetailMonth===i?'bg-sky-100 text-sky-950':'text-sky-800 hover:bg-sky-50')}>
+                      {row.entries.length}
+                    </button>:0}
+                  </td>
                   <td className="py-1.5 text-right font-semibold tabular-nums">{hours(row.minutes)}</td>
                 </tr>)}
               </tbody>
@@ -1448,6 +1470,39 @@ export default function StaffSchedulePage() {
               Cerrar
             </button>
           </div>
+          </div>
+          {selectedShiftMonth&&<section ref={shiftDetailsPanel} id="monthly-shift-details"
+            aria-labelledby="monthly-shift-title"
+            className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[88dvh]">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 id="monthly-shift-title" className="text-base font-bold text-slate-900">
+                  Turnos de {selectedShiftMonth.month} · {year}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  {hoursDetailOperator.display_name} · {selectedShiftMonth.entries.length} turnos · {hours(selectedShiftMonth.minutes)}
+                </p>
+              </div>
+              <button type="button" onClick={()=>setShiftDetailMonth(null)} aria-label="Cerrar turnos del mes"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100">
+                <X size={18}/>
+              </button>
+            </div>
+            <div key={shiftDetailMonth} className="min-h-0 overflow-y-auto px-4 py-3">
+              <table className="w-full border-collapse text-xs">
+                <thead><tr className="border-b border-slate-200 text-left text-slate-500">
+                  <th scope="col" className="pb-2">Fecha</th>
+                  <th scope="col" className="pb-2">Turno</th>
+                  <th scope="col" className="pb-2 text-right">Horas</th>
+                </tr></thead>
+                <tbody>{selectedShiftMonth.entries.map(entry=><tr key={entry.id} className="border-b border-slate-100">
+                  <td className="py-2 pr-2 tabular-nums">{asDisplayDate(entry.work_date)}</td>
+                  <td className="py-2 pr-2">{splitShiftLabel(entry.start_time,entry.end_time)}</td>
+                  <td className="py-2 text-right font-semibold tabular-nums">{hours(plannedMinutes(entry))}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+          </section>}
         </section>
       </div>}
       {showOperatorForm&&<div role="presentation" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-2 sm:p-3" onMouseDown={e=>{if(e.target===e.currentTarget)setShowOperatorForm(false)}}>
