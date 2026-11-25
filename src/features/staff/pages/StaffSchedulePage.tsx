@@ -97,40 +97,27 @@ function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:stri
   }
 }
 const historyActions: Record<string,string> = {INSERT:'Alta',UPDATE:'Modificación',DELETE:'Eliminación'}
-const historyFields: Record<string,string> = {
-  state:'Estado', work_date:'Fecha de jornada', start_time:'Entrada', end_time:'Salida',
-  planned_minutes:'Minutos previstos', actual_minutes:'Minutos trabajados',
-  actual_confirmed:'Horas trabajadas confirmadas', justification:'Justificación',
-  source_kind:'Procedencia', source_code:'Descripción', holiday_source_date:'Festivo de origen',
-  comp_rest_minutes:'Minutos de recuperación', vacation_origin_year:'Año de origen de vacaciones',
-  vacation_taken_confirmed:'Vacaciones confirmadas', vacation_confirmed_at:'Fecha de confirmación',
-  display_name:'Nombre', active:'Activo', rotation_type:'Rotación',
-  weekly_target_minutes:'Minutos semanales', join_date:'Fecha de alta', year:'Año',
-  entitlement_days:'Días de vacaciones', carryover_days:'Días de ejercicios anteriores',
-  adjustment_days:'Días de ajuste', entry_date:'Fecha del movimiento', entry_type:'Tipo de movimiento',
-  minutes:'Minutos', reason:'Motivo', confirmed:'Confirmado',
-}
-const historyLabels: Record<string,string> = {
-  UNKNOWN:'Sin verificar', PENDING:'Pendiente', DOCUMENTED:'Justificada', UNJUSTIFIED:'No justificada',
-  MANUAL:'Registro manual', EXCEL_2025:'Excel de 2025', EXCEL_2026:'Excel de 2026',
-  OTHER_IMPORT:'Importación', SCHEDULE:'Cuadrante', NORMAL:'Normal', EXCEPTIONAL:'Excepcional',
-  NONE:'Sin rotación', EARNED:'Horas generadas', REST_TAKEN:'Recuperación',
-  PAID:'Abono', ADJUSTMENT_PLUS:'Ajuste positivo', ADJUSTMENT_MINUS:'Ajuste negativo',
-}
-function historyValue(key:string,value:unknown):string {
-  if(value==null||value==='')return '—'
-  if(typeof value==='boolean')return value?'Sí':'No'
-  const text=String(value)
-  if(key==='state')return staffStateOptions.find(option=>option.value===text)?.label??'Estado sin catalogar'
-  if(['justification','source_kind','entry_type','rotation_type'].includes(key))return historyLabels[text]??'Sin catalogar'
-  if(/^\d{4}-\d{2}-\d{2}$/.test(text))return asDisplayDate(text)
-  if(key==='vacation_confirmed_at')return new Date(text).toLocaleString('es-ES')
-  return text
+function historySummary(values:Record<string,unknown>|null):string {
+  if(!values)return '—'
+  if(typeof values.state==='string'){
+    const label=staffStateOptions.find(option=>option.value===values.state)?.label??'Estado sin catalogar'
+    if(values.state==='SHIFT'&&typeof values.start_time==='string'&&typeof values.end_time==='string'){
+      return label+' '+values.start_time.slice(0,5)+'–'+values.end_time.slice(0,5)
+    }
+    return label
+  }
+  if(typeof values.display_name==='string'){
+    return values.display_name+(values.active===false?' · Inactivo':' · Activo')
+  }
+  if(typeof values.minutes==='number')return hours(values.minutes)
+  if(typeof values.entitlement_days==='number')return values.entitlement_days+' días de vacaciones'
+  return 'Registro guardado'
 }
 export default function StaffSchedulePage() {
   const navigate=useNavigate()
   const {hotel,isPlatformAdmin}=useHotelScope()
   const {session}=useAuth()
+  const sessionUserId=session?.user.id
   const demo=isDemoUser(session?.user.id)
   const [year,setYear]=useState(new Date().getFullYear())
   const [operatorFilter,setOperatorFilter]=useState('ALL')
@@ -208,7 +195,7 @@ export default function StaffSchedulePage() {
 
   useEffect(()=>{
     let mounted=true
-    if(!hotel?.id){setAllowed(false);setChecking(false);return}
+    if(!hotel?.id||!sessionUserId){setAllowed(false);setChecking(false);return}
     setChecking(true)
     void supabase.rpc('has_hotel_permission',{target_hotel_id:hotel.id,permission_code:'maintenance.configure'})
       .then(({data,error:checkError})=>{
@@ -217,7 +204,7 @@ export default function StaffSchedulePage() {
         setChecking(false)
       })
     return ()=>{mounted=false}
-  },[hotel?.id,isPlatformAdmin,demo])
+  },[hotel?.id,isPlatformAdmin,demo,sessionUserId])
 
   async function reload(){
     if(!hotel?.id||!allowed)return
@@ -420,6 +407,7 @@ export default function StaffSchedulePage() {
   }
   async function saveDay(){
     if(!dayEditor||!hotel?.id)return
+    if(!sessionUserId){setDayEditorError('Inicia sesión de nuevo para guardar la jornada.');return}
     const isShift=dayEditor.state==='SHIFT'
     const start=normalizeDigitalTime(dayEditor.start_time)
     const end=normalizeDigitalTime(dayEditor.end_time)
@@ -496,7 +484,7 @@ export default function StaffSchedulePage() {
       vacation_confirmed_at:confirmedVacation
         ? (existing?.vacation_taken_confirmed ? existing?.vacation_confirmed_at ?? timeNow : timeNow) : null,
       vacation_confirmed_by:confirmedVacation ? session?.user.id??null : null,
-      changed_by:session?.user.id??null,updated_at:timeNow,
+      changed_by:sessionUserId??null,updated_at:timeNow,
     },{onConflict:'operator_id,work_date'})
     if(result.error)setDayEditorError(result.error.message)
     else{setDayEditor(null);setSuccess('Jornada guardada.');await reload()}
@@ -550,7 +538,7 @@ export default function StaffSchedulePage() {
     const now=new Date().toISOString()
     const result=await supabase.from('staff_schedule_entries')
       .update({vacation_taken_confirmed:true,vacation_confirmed_at:now,
-        vacation_confirmed_by:session?.user.id??null,changed_by:session?.user.id??null,updated_at:now})
+        vacation_confirmed_by:session?.user.id??null,changed_by:sessionUserId??null,updated_at:now})
       .eq('hotel_id',hotel.id)
       .in('id',selected.map(d=>d.id)).in('state',['VACATION','VACATION_PREVIOUS'])
       .lte('work_date',dateISO(new Date())).eq('vacation_taken_confirmed',false)
@@ -577,7 +565,7 @@ export default function StaffSchedulePage() {
     setBusy(true);setError('');setSuccess('')
     const now=new Date().toISOString()
     const result=await supabase.from('staff_schedule_entries')
-      .update({justification:bulkAbsenceStatus,changed_by:session?.user.id??null,updated_at:now})
+      .update({justification:bulkAbsenceStatus,changed_by:sessionUserId??null,updated_at:now})
       .eq('hotel_id',hotel.id).eq('operator_id',selectedId)
       .in('id',selected.map(d=>d.id))
       .in('state',['MEDICAL_LEAVE','PERSONAL_DAY','PERMISSION'])
@@ -618,7 +606,7 @@ export default function StaffSchedulePage() {
     const result=await supabase.from('staff_vacation_years').upsert({
       hotel_id:hotel.id,operator_id:selectedId,year,entitlement_days:e,
       carryover_days:Number(carry),adjustment_days:Number(adjust),
-      changed_by:session?.user.id??null,updated_at:new Date().toISOString(),
+      changed_by:sessionUserId??null,updated_at:new Date().toISOString(),
     },{onConflict:'operator_id,year'})
     if(result.error)setError(result.error.message);else{setSuccess('Saldo anual guardado.');await reload()}
     setBusy(false)
@@ -628,7 +616,7 @@ export default function StaffSchedulePage() {
     setBusy(true);setError('')
     const result=await supabase.from('staff_private_notes').upsert({
       hotel_id:hotel.id,operator_id:selectedId,content:privateNote,
-      changed_by:session?.user.id??null,updated_at:new Date().toISOString(),
+      changed_by:sessionUserId??null,updated_at:new Date().toISOString(),
     },{onConflict:'operator_id'})
     if(result.error)setError(result.error.message);else{setSuccess('Observación privada guardada.');await reload()}
     setBusy(false)
@@ -696,14 +684,14 @@ export default function StaffSchedulePage() {
     const result=await supabase.from('staff_overtime_ledger').insert({
       hotel_id:hotel.id,operator_id:selectedId,entry_date:overtimeDate,
       entry_type:overtimeType,minutes,reason:overtimeReason.trim(),
-      confirmed:true,changed_by:session?.user.id??null,
+      confirmed:true,changed_by:sessionUserId??null,
     })
     if(result.error)setError(result.error.message)
     else{setOvertimeHours('');setOvertimeReason('');setSuccess('Movimiento de horas registrado.');await reload()}
     setBusy(false)
   }
   if(checking)return <main className="p-8 text-slate-600">Comprobando permisos del planificador…</main>
-  if(!allowed)return <main className="mx-auto max-w-xl p-8"><h1 className="text-xl font-bold">Planificador horario</h1><p className="mt-3 text-slate-600">La gestión de horarios y las observaciones del personal están reservadas a responsables autorizados.</p><button onClick={()=>navigate('/')} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-white">Volver</button></main>
+  if(!allowed||!sessionUserId)return <main className="mx-auto max-w-xl p-8"><h1 className="text-xl font-bold">Planificador horario</h1><p className="mt-3 text-slate-600">La gestión de horarios y las observaciones del personal están reservadas a responsables autorizados.</p><button onClick={()=>navigate('/')} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-white">Volver</button></main>
   return <main className="min-h-screen bg-slate-100 p-1.5 text-slate-900 sm:p-4 lg:p-6 print:bg-white">
     <div className="mx-auto max-w-[1550px] space-y-2 sm:space-y-4">
       <header className="flex items-center justify-between gap-2 rounded-xl bg-white px-2.5 py-2 shadow-sm sm:rounded-2xl sm:p-4">
@@ -1383,17 +1371,7 @@ export default function StaffSchedulePage() {
                 <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??'Otro registro'}</td>
                 <td className="p-2">{historyActions[row.action]??'Cambio'}</td>
                 <td className="p-2">
-                  {row.previous_values?.state||row.new_values?.state
-                    ? <span>{historyValue('state',row.previous_values?.state)} → {historyValue('state',row.new_values?.state)}</span>
-                    : null}
-                  <details className="mt-1"><summary className="cursor-pointer text-sky-700">Ver detalle del cambio</summary>
-                    <dl className="mt-1 space-y-1">
-                      {Object.entries(historyFields).filter(([key])=>row.previous_values?.[key]!==row.new_values?.[key]).map(([key,label])=>
-                        <div key={key}><dt className="font-medium">{label}</dt>
-                          <dd>{historyValue(key,row.previous_values?.[key])} → {historyValue(key,row.new_values?.[key])}</dd>
-                        </div>)}
-                    </dl>
-                  </details>
+                  {historySummary(row.previous_values)} → {historySummary(row.new_values)}
                 </td>
                 <td className="p-2">{row.actor_user_id
                   ? historyUsers[row.actor_user_id]||
