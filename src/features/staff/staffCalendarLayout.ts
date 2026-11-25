@@ -86,5 +86,11 @@ export const legend: { state: string; code: string; text: string }[] = [
   { state: 'MEDICAL_LEAVE', code: 'B', text: 'Baja' },
   { state: 'PUBLIC_HOLIDAY', code: 'F', text: 'Festivo disfrutado (con fecha)' },
   { state: 'COMP_REST', code: 'R', text: 'Recuperable' },
+  { state: 'UNJUSTIFIED_ABSENCE', code: 'I', text: 'Falta no justificada' },
+  { state: 'OTHER', code: 'O', text: 'Otro / por revisar' },
+  { state: 'UNASSIGNED', code: '–', text: 'Sin asignar' },
+  { state: 'PERMISSION', code: 'P', text: 'Permiso' },
+  { state: 'PERSONAL_DAY', code: 'L', text: 'Asuntos propios' },
+  { state: 'TRAINING', code: 'E', text: 'Formación' },
 ]
 

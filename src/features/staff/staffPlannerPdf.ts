@@ -87,7 +87,7 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
    doc.setTextColor('#475569')
    doc.setFontSize(8)
    const notes=[...legend.map(item=>item.code+' '+item.text),'V verde oscuro: disfrutadas',
-     'V?: por confirmar','I Falta no justificada','P Permiso','L Asuntos propios','E Formación','O Otros',
+     'V?: por confirmar',
      'Cabecera azul: festivo del calendario']
    doc.text(doc.splitTextToSize(notes.join(' · '),width),left,191)
    doc.text((index+1)+' / '+pages.length,left+width,201,{align:'right'})
