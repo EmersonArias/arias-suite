@@ -1,7 +1,8 @@
+import { lazy, Suspense } from 'react'
 import SuiteLayout from './shared/navigation/SuiteLayout'
 import SuiteAreaPage from './shared/navigation/SuiteAreaPage'
 import LegacyRedirect from './shared/navigation/LegacyRedirect'
-import TechnicalBooksRoute from './features/technicalbooks/TechnicalBooksRoute'
+
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { useAuth } from './features/auth/context/AuthProvider'
 import { isDemoUser } from './core/access/demoReadOnly'
@@ -10,58 +11,110 @@ import LoginPage from './features/auth/pages/LoginPage'
 import ActivateAccountPage from './features/auth/pages/ActivateAccountPage'
 import ForgotPasswordPage from './features/auth/pages/ForgotPasswordPage'
 import UpdatePasswordPage from './features/auth/pages/UpdatePasswordPage'
-import MyProfilePage from './features/auth/pages/MyProfilePage'
+
 import ProtectedRoute from './features/auth/components/ProtectedRoute'
-import UsersPage from './features/users/pages/UsersPage'
-import RolesPage from './features/roles/pages/RolesPage'
-import AccessLogPage from './features/accesslog/AccessLogPage'
-import ReportsPage from './features/reports/pages/ReportsPage'
-import AssetsPage from './features/registers/pages/AssetsPage'
-import PumpsPage from './features/registers/pages/PumpsPage'
-import PoolsPage from './features/pools/pages/PoolsPage'
-import SpaPage from './features/spa/pages/SpaPage'
-import LegionellaPage from './features/legionella/pages/LegionellaPage'
-import ClimatizersPage from './features/climatizers/pages/ClimatizersPage'
-import FancoilsPage from './features/fancoils/pages/FancoilsPage'
-import ElectricalPanelsPage from './features/electricalpanels/pages/ElectricalPanelsPage'
-import ElectricalPanelDetailPage from './features/electricalpanels/pages/ElectricalPanelDetailPage'
-import ElectricalPanelsReportPage from './features/electricalpanels/pages/ElectricalPanelsReportPage'
-import PhotoluminescentPage from './features/photoluminescent/pages/PhotoluminescentPage'
-import EmergencyLightsPage from './features/emergencylights/pages/EmergencyLightsPage'
-import FireDoorsPage from './features/firedoors/pages/FireDoorsPage'
-import CalibrationsPage from './features/calibrations/pages/CalibrationsPage'
-import FireEquipmentPage from './features/fireequipment/pages/FireEquipmentPage'
-import ExtinguishersPage from './features/fireequipment/pages/ExtinguishersPage'
-import BiePage from './features/fireequipment/pages/BiePage'
-import SprinklersPage from './features/fireequipment/pages/SprinklersPage'
-import PciReviewPage from './features/fireequipment/pages/PciReviewPage'
-import ApparatusRegistryPage from './features/apparatusregistry/pages/ApparatusRegistryPage'
-import ApparatusRegistryDetailPage from './features/apparatusregistry/pages/ApparatusRegistryDetailPage'
-import ApparatusRegistryReportPage from './features/apparatusregistry/pages/ApparatusRegistryReportPage'
-import MaintenanceConfigurationPage from './features/maintenance/pages/MaintenanceConfigurationPage'
-import HotelStructurePage from './features/maintenance/pages/HotelStructurePage'
-import MaintenancePamPage from './features/maintenance/pages/MaintenancePamPage'
-import MaintenancePamDetailPage from './features/maintenance/pages/MaintenancePamDetailPage'
-import MaintenanceRecordsPage from './features/maintenance/pages/MaintenanceRecordsPage'
-import MaintenanceRecordPage from './features/maintenance/pages/MaintenanceRecordPage'
-import MaintenanceWorkOrdersPage from './features/maintenance/pages/MaintenanceWorkOrdersPage'
-import MaintenanceWorkOrderDetailPage from './features/maintenance/pages/MaintenanceWorkOrderDetailPage'
-import MaintenanceWorkOrderHistoryPage from './features/maintenance/pages/MaintenanceWorkOrderHistoryPage'
-import MaintenanceTicketsReportPage from './features/maintenance/pages/MaintenanceTicketsReportPage'
-import MaterialsInventoryPage from './features/materials/pages/MaterialsInventoryPage'
-import MaintenanceLandingPage from './features/maintenance/pages/MaintenanceLandingPage'
-import MaintenancePlanningPage from './features/maintenance/pages/MaintenancePlanningPage'
-import MaintenancePendingPage from './features/maintenance/pages/MaintenancePendingPage'
-import MaintenancePendingReportPage from './features/maintenance/pages/MaintenancePendingReportPage'
-import RoomProjectsPage from './features/maintenance/pages/RoomProjectsPage'
-import RoomFancoilPreventivesPage from './features/maintenance/pages/RoomFancoilPreventivesPage'
-import ProvidersPage from './features/providers/pages/ProvidersPage'
-import ActionsPage from './features/actions/pages/ActionsPage'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import GlobalEscapeNavigation from './shared/components/navigation/GlobalEscapeNavigation'
-import StaffSchedulePage from './features/staff/pages/StaffSchedulePage'
-import StaffSelfServicePage from './features/staff/pages/StaffSelfServicePage'
-import StaffClockPage from './features/staff/pages/StaffClockPage'
-import StaffClockAdminPage from './features/staff/pages/StaffClockAdminPage'
+
+
+
+
+
+const TechnicalBooksRoute = lazy(() => import('./features/technicalbooks/TechnicalBooksRoute'))
+const MyProfilePage = lazy(() => import('./features/auth/pages/MyProfilePage'))
+const UsersPage = lazy(() => import('./features/users/pages/UsersPage'))
+const RolesPage = lazy(() => import('./features/roles/pages/RolesPage'))
+const AccessLogPage = lazy(() => import('./features/accesslog/AccessLogPage'))
+const ReportsPage = lazy(() => import('./features/reports/pages/ReportsPage'))
+const AssetsPage = lazy(() => import('./features/registers/pages/AssetsPage'))
+const PumpsPage = lazy(() => import('./features/registers/pages/PumpsPage'))
+const PoolsPage = lazy(() => import('./features/pools/pages/PoolsPage'))
+const SpaPage = lazy(() => import('./features/spa/pages/SpaPage'))
+const LegionellaPage = lazy(() => import('./features/legionella/pages/LegionellaPage'))
+const ClimatizersPage = lazy(() => import('./features/climatizers/pages/ClimatizersPage'))
+const FancoilsPage = lazy(() => import('./features/fancoils/pages/FancoilsPage'))
+const ElectricalPanelsPage = lazy(() => import('./features/electricalpanels/pages/ElectricalPanelsPage'))
+const ElectricalPanelDetailPage = lazy(() => import('./features/electricalpanels/pages/ElectricalPanelDetailPage'))
+const ElectricalPanelsReportPage = lazy(() => import('./features/electricalpanels/pages/ElectricalPanelsReportPage'))
+const PhotoluminescentPage = lazy(() => import('./features/photoluminescent/pages/PhotoluminescentPage'))
+const EmergencyLightsPage = lazy(() => import('./features/emergencylights/pages/EmergencyLightsPage'))
+const FireDoorsPage = lazy(() => import('./features/firedoors/pages/FireDoorsPage'))
+const CalibrationsPage = lazy(() => import('./features/calibrations/pages/CalibrationsPage'))
+const FireEquipmentPage = lazy(() => import('./features/fireequipment/pages/FireEquipmentPage'))
+const ExtinguishersPage = lazy(() => import('./features/fireequipment/pages/ExtinguishersPage'))
+const BiePage = lazy(() => import('./features/fireequipment/pages/BiePage'))
+const SprinklersPage = lazy(() => import('./features/fireequipment/pages/SprinklersPage'))
+const PciReviewPage = lazy(() => import('./features/fireequipment/pages/PciReviewPage'))
+const ApparatusRegistryPage = lazy(() => import('./features/apparatusregistry/pages/ApparatusRegistryPage'))
+const ApparatusRegistryDetailPage = lazy(() => import('./features/apparatusregistry/pages/ApparatusRegistryDetailPage'))
+const ApparatusRegistryReportPage = lazy(() => import('./features/apparatusregistry/pages/ApparatusRegistryReportPage'))
+const MaintenanceConfigurationPage = lazy(() => import('./features/maintenance/pages/MaintenanceConfigurationPage'))
+const HotelStructurePage = lazy(() => import('./features/maintenance/pages/HotelStructurePage'))
+const MaintenancePamPage = lazy(() => import('./features/maintenance/pages/MaintenancePamPage'))
+const MaintenancePamDetailPage = lazy(() => import('./features/maintenance/pages/MaintenancePamDetailPage'))
+const MaintenanceRecordsPage = lazy(() => import('./features/maintenance/pages/MaintenanceRecordsPage'))
+const MaintenanceRecordPage = lazy(() => import('./features/maintenance/pages/MaintenanceRecordPage'))
+const MaintenanceWorkOrdersPage = lazy(() => import('./features/maintenance/pages/MaintenanceWorkOrdersPage'))
+const MaintenanceWorkOrderDetailPage = lazy(() => import('./features/maintenance/pages/MaintenanceWorkOrderDetailPage'))
+const MaintenanceWorkOrderHistoryPage = lazy(() => import('./features/maintenance/pages/MaintenanceWorkOrderHistoryPage'))
+const MaintenanceTicketsReportPage = lazy(() => import('./features/maintenance/pages/MaintenanceTicketsReportPage'))
+const MaterialsInventoryPage = lazy(() => import('./features/materials/pages/MaterialsInventoryPage'))
+const MaintenanceLandingPage = lazy(() => import('./features/maintenance/pages/MaintenanceLandingPage'))
+const MaintenancePlanningPage = lazy(() => import('./features/maintenance/pages/MaintenancePlanningPage'))
+const MaintenancePendingPage = lazy(() => import('./features/maintenance/pages/MaintenancePendingPage'))
+const MaintenancePendingReportPage = lazy(() => import('./features/maintenance/pages/MaintenancePendingReportPage'))
+const RoomProjectsPage = lazy(() => import('./features/maintenance/pages/RoomProjectsPage'))
+const RoomFancoilPreventivesPage = lazy(() => import('./features/maintenance/pages/RoomFancoilPreventivesPage'))
+const ProvidersPage = lazy(() => import('./features/providers/pages/ProvidersPage'))
+const ActionsPage = lazy(() => import('./features/actions/pages/ActionsPage'))
+const StaffSchedulePage = lazy(() => import('./features/staff/pages/StaffSchedulePage'))
+const StaffSelfServicePage = lazy(() => import('./features/staff/pages/StaffSelfServicePage'))
+const StaffClockPage = lazy(() => import('./features/staff/pages/StaffClockPage'))
+const StaffClockAdminPage = lazy(() => import('./features/staff/pages/StaffClockAdminPage'))
 
 export default function App() {
 const location = useLocation()
@@ -70,7 +123,7 @@ const {session}=useAuth()
 if(isDemoUser(session?.user.id) && !publicPath && location.pathname!=='/planificador-horario')
   return <Navigate to="/planificador-horario" replace />
 return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNavigation />
-<Routes>
+<Suspense fallback={<div role="status" className="p-6 text-center text-slate-500">Cargando módulo…</div>}><Routes>
 <Route path="/login" element={<LoginPage />} />
 <Route path="/activate" element={<ActivateAccountPage />} />
 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -167,7 +220,7 @@ return (<div className={publicPath ? '' : 'arias-suite-app'}><GlobalEscapeNaviga
 <Route path="/registros-tecnicos/anteriores/fireequipment/pci-review" element={<PciReviewPage />} />
 <Route path="/fireequipment/pci-review" element={<LegacyRedirect to="/registros-tecnicos/libros/pci" />} /></Route>
 </Route>
-</Routes>
+</Routes></Suspense>
 </div>
 )
 }

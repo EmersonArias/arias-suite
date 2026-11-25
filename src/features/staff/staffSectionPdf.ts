@@ -1,3 +1,4 @@
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffDay, StaffOperator, StaffOvertime } from './staffModel'
 import { vacationStage } from './staffModel'
@@ -17,7 +18,7 @@ export async function staffSectionPdf(options:{
   hotelName:string,year:number,operators:StaffOperator[],days:StaffDay[],
   overtime:StaffOvertime[],operatorId:string,operatorIds?:string[],statusFilter?:string
 }) {
-  const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
+  const { jsPDF, autoTable } = await loadPdfLibraries()
   const doc=new jsPDF({unit:'mm',format:'a4',compress:true})
   const heading=options.section==='EXTRAS'?'Horas extras':options.section==='VACACIONES'?'Vacaciones':'Bajas y ausencias'
   const people=options.operators.filter(p=>options.operatorIds!==undefined

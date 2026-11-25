@@ -1,3 +1,4 @@
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffDay,StaffOperator } from './staffModel'
 import { holidayAudit, type HolidayItem } from './staffHolidayAudit'
@@ -9,7 +10,7 @@ type HistoryRow={
 }
 const display=(date:string)=>date.split('-').reverse().join('/')
 async function pdfBase(title:string,hotelName:string,year:number,orientation:'portrait'|'landscape'='landscape') {
- const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
+ const { jsPDF, autoTable } = await loadPdfLibraries()
  const doc=new jsPDF({unit:'mm',format:'a4',orientation,compress:true})
  doc.setFontSize(15);doc.text(title+' · '+year,11,15)
  doc.setFontSize(9);doc.text(hotelName+' · '+new Date().toLocaleDateString('es-ES'),11,22)

@@ -1,12 +1,13 @@
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import type { jsPDF as PdfDocument } from 'jspdf'
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { answerText, entryFields, frequencyLabels, fieldLabel } from './bookModel.ts'
 import type { BookDefinition, BookEntry } from './types.ts'
 
 const printable = (value: string) => value.replaceAll('√', 'Comprobación').replaceAll('ᵒ', '°')
 
-export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string, demo = true) {
-  if (!entries.length) throw new Error('No hay registros para exportar.')
+export async function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: string, demo = true) {
+  if (!entries.length) throw new Error('No hay registros para exportar.') 
+  const { jsPDF, autoTable } = await loadPdfLibraries()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   entries.forEach((entry, index) => {
     // Keep the control labels and source version recorded with each inspection.
@@ -25,7 +26,7 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
         ['Motivo rectificación', entry.correctionReason || 'No procede', 'Finalización', entry.finalizedAt || 'Sin finalizar'],
       ],
     })
-    let y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
+    let y = (pdf as PdfDocument & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
     autoTable(pdf, {
       startY: y, margin: { top: 30, bottom: 22, left: 14, right: 14 }, theme: 'grid', rowPageBreak: 'avoid',
       head: [['Control', 'Resultado / medición', 'Detalle']],
@@ -37,12 +38,12 @@ export function buildBookPdf(book: BookDefinition, entries: BookEntry[], hotel: 
       styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
       headStyles: { fillColor: [15, 80, 115] }, columnStyles: { 0: { cellWidth: 76 }, 1: { cellWidth: 40 }, 2: { cellWidth: 66 } },
     })
-    y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
+    y = (pdf as PdfDocument & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
     autoTable(pdf, {
       startY: y, margin: { top: 30, bottom: 22, left: 14, right: 14 }, theme: 'plain', styles: { fontSize: 8, overflow: 'linebreak' },
       body: [['Observaciones', entry.observations || 'Sin observaciones']],
     })
-    y = (pdf as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
+    y = (pdf as PdfDocument & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
     for (const photo of entry.evidence) {
       const caption = pdf.splitTextToSize(photo.name.slice(0, 140), 175)
       const captionHeight = caption.length * 4

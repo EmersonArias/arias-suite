@@ -6,7 +6,6 @@ import {
   Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { buildMaterialRequestPdf } from '../materialRequestPdf'
 import { validateMaterialDraft } from '../materialRequestValidation'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import { BackButton, HomeButton } from '../../../shared/components/navigation/NavigationButtons'
@@ -567,16 +566,17 @@ export default function MaterialsInventoryPage() {
     await loadData()
   }
 
-  function buildPdf(request: RequestRecord, lines: RequestLine[]) {
+  async function buildPdf(request: RequestRecord, lines: RequestLine[]) {
+    const { buildMaterialRequestPdf } = await import('../materialRequestPdf')
     return buildMaterialRequestPdf(request, lines, hotel?.name ?? 'Hotel')
   }
 
-  function downloadPdf(request: RequestRecord, lines: RequestLine[]) {
-    previewPdf(buildPdf(request, lines), request.request_number + '.pdf')
+  async function downloadPdf(request: RequestRecord, lines: RequestLine[]) {
+    previewPdf(await buildPdf(request, lines), request.request_number + '.pdf')
   }
 
-  function base64Pdf(request: RequestRecord, lines: RequestLine[]) {
-    const dataUrl = buildPdf(request, lines).output('datauristring')
+  async function base64Pdf(request: RequestRecord, lines: RequestLine[]) {
+    const dataUrl = (await buildPdf(request, lines)).output('datauristring')
     return dataUrl.split(',')[1] ?? ''
   }
 
@@ -715,7 +715,7 @@ export default function MaterialsInventoryPage() {
           request_id: emailTarget.request.id,
           recipient_email: recipient,
           pdf_filename: emailTarget.request.request_number + '.pdf',
-          pdf_base64: base64Pdf(emailTarget.request, emailTarget.lines),
+          pdf_base64: await base64Pdf(emailTarget.request, emailTarget.lines),
         },
       })
       if (response.data?.error) throw new Error(String(response.data.error))

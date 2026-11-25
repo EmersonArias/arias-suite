@@ -1,3 +1,4 @@
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 import { previewPdf } from '../../shared/components/reports/pdfPreview'
 import type { StaffOperator } from './staffModel'
 
@@ -17,7 +18,7 @@ const duration=(minutes:number)=>Math.round(minutes/60*100)/100
 export async function exportAnnualStaffPdf(input:{
  year:number;hotelName:string;rows:AnnualRow[]
 }) {
- const [{jsPDF},{default:autoTable}]=await Promise.all([import('jspdf'),import('jspdf-autotable')])
+ const { jsPDF, autoTable } = await loadPdfLibraries()
  const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape',compress:true})
  doc.setProperties({title:'Resumen anual de personal · '+input.year,
    subject:'Horas previstas, vacaciones previstas y saldos de horas extras'})

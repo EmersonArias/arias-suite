@@ -1,5 +1,5 @@
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import type { jsPDF as PdfDocument } from 'jspdf'
+import { loadPdfLibraries } from '../../shared/components/reports/loadPdfLibraries'
 
 export type MaterialPdfRequest = {
   request_number: string; department: string; cause: string; requester_name: string
@@ -11,7 +11,8 @@ export type MaterialPdfLine = {
   provider_name: string | null; purchase_url: string | null
 }
 
-export function buildMaterialRequestPdf(request: MaterialPdfRequest, lines: MaterialPdfLine[], hotelName: string) {
+export async function buildMaterialRequestPdf(request: MaterialPdfRequest, lines: MaterialPdfLine[], hotelName: string) { 
+  const { jsPDF, autoTable } = await loadPdfLibraries()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const width = doc.internal.pageSize.getWidth()
   const bottom = doc.internal.pageSize.getHeight() - 27
@@ -55,7 +56,7 @@ export function buildMaterialRequestPdf(request: MaterialPdfRequest, lines: Mate
       doc.link(data.cell.x + 2, data.cell.y + 1, Math.max(12, data.cell.width - 4), Math.max(4, data.cell.height - 2), { url })
     },
   })
-  y = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 10
+  y = ((doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 10
   if (request.notes) {
     if (y + 10 > bottom) { doc.addPage(); y = 20 }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(45, 55, 65)
