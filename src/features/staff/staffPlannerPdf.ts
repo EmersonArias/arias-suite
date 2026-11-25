@@ -75,9 +75,10 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
        datesOfWeek.forEach((date,i)=>{
          const entry=days.get(person.id+'|'+date)
          const hideAbsence=input.forSharing&&entry?.state==='UNJUSTIFIED_ABSENCE'
+         const emptySlot=input.forSharing&&(!entry||entry.state==='UNASSIGNED'||hideAbsence)
          const tone=entryTone(hideAbsence?undefined:entry)
          const fill=calendarFills[tone.split(' ')[0].slice(3)]??'#FFFFFF'
-         cell(outside(date)?'':hideAbsence?'Sin turno':dayCode(entry),left+nameWidth+i*dayWidth,y,dayWidth,rowHeight,
+         cell(outside(date)||emptySlot?'':dayCode(entry),left+nameWidth+i*dayWidth,y,dayWidth,rowHeight,
            outside(date)?'#F8FAFC':fill,tone.includes('text-white')?'#FFFFFF':'#1E293B',fontSize)
        })
        y+=rowHeight
