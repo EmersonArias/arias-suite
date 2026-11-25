@@ -685,6 +685,7 @@ export default function StaffSchedulePage() {
           <select value={operatorFilter} onChange={e=>{
               const value=e.target.value
               setOperatorFilter(value)
+              setVacationStatusFilter('ALL')
               if(value!=='ALL')setSelectedId(value)
             }}
             className={baseInput+' mt-0.5 sm:mt-1'}>
@@ -935,25 +936,27 @@ export default function StaffSchedulePage() {
               <Settings2 size={14} className="mr-1 inline"/>Configuración
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
-          <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
-            {([
-              {key:'ALL',label:'Todas',tone:'bg-slate-100 text-slate-800'},
-              {key:'TAKEN',label:'Disfrutadas',tone:'bg-emerald-600 text-white'},
-              {key:'UPCOMING',label:'Pendientes',tone:'bg-emerald-200 text-emerald-950'},
-              {key:'UNVERIFIED',label:'Por confirmar',tone:'bg-amber-50 text-amber-900'},
-            ] as const).map(item=><button type="button" key={item.key} onClick={()=>setVacationStatusFilter(item.key)}
-              aria-pressed={vacationStatusFilter===item.key}
-              className={'min-h-14 rounded-lg border px-1 py-2 text-center transition sm:min-h-16 '+
-                item.tone+(vacationStatusFilter===item.key?' border-slate-900 ring-2 ring-slate-800 ring-offset-1':' border-transparent')}>
-              <span className="block text-[9px] font-semibold leading-3 sm:text-xs">{item.label}</span>
-              <span className="mt-1 block text-base font-bold sm:text-xl">{vacationCounts[item.key]}</span>
-            </button>)}
-          </div>
-          <p className="mt-2 text-[10px] text-slate-500">
-            Los contadores son del año {year}. «Por confirmar» no significa disfrutadas.
-            Los períodos que continúan en enero muestran ambos años.
-          </p>
+          {operatorFilter!=='ALL'&&<>
+            <p className="mt-1 text-[11px] text-slate-500">Pulsa un estado para mostrar únicamente esas vacaciones.</p>
+            <div className="mt-2 grid grid-cols-4 gap-1 sm:gap-2">
+              {([
+                {key:'ALL',label:'Todas',tone:'bg-slate-100 text-slate-800'},
+                {key:'TAKEN',label:'Disfrutadas',tone:'bg-emerald-600 text-white'},
+                {key:'UPCOMING',label:'Pendientes',tone:'bg-emerald-200 text-emerald-950'},
+                {key:'UNVERIFIED',label:'Por confirmar',tone:'bg-amber-50 text-amber-900'},
+              ] as const).map(item=><button type="button" key={item.key} onClick={()=>setVacationStatusFilter(item.key)}
+                aria-pressed={vacationStatusFilter===item.key}
+                className={'min-h-14 rounded-lg border px-1 py-2 text-center transition sm:min-h-16 '+
+                  item.tone+(vacationStatusFilter===item.key?' border-slate-900 ring-2 ring-slate-800 ring-offset-1':' border-transparent')}>
+                <span className="block text-[9px] font-semibold leading-3 sm:text-xs">{item.label}</span>
+                <span className="mt-1 block text-base font-bold sm:text-xl">{vacationCounts[item.key]}</span>
+              </button>)}
+            </div>
+            <p className="mt-2 text-[10px] text-slate-500">
+              Los contadores son del año {year}. «Por confirmar» no significa disfrutadas.
+              Los períodos que continúan en enero muestran ambos años.
+            </p>
+          </>}
         </div>
 
         <div className="rounded-xl bg-white p-3 shadow-sm">
