@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { UserRound, Save } from 'lucide-react'
+import { UserRound, Save, LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import BrandLogo from '../../../shared/components/branding/BrandLogo'
 import ActionButton from '../../../shared/components/buttons/ActionButton'
@@ -7,6 +7,7 @@ import { BackButton, HomeButton } from '../../../shared/components/navigation/Na
 import { ariasAuth } from '../../../core/auth/authService'
 import { useHotelScope } from '../../../shared/context/HotelScopeContext'
 import { useAuth } from '../context/AuthProvider'
+import AuthenticatorSetup from '../components/AuthenticatorSetup'
 
 export default function MyProfilePage() {
   const navigate = useNavigate()
@@ -16,6 +17,22 @@ export default function MyProfilePage() {
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [closingSessions, setClosingSessions] = useState(false)
+  const [sessionError, setSessionError] = useState('')
+
+  async function closeAllSessions() {
+    if (!window.confirm('¿Cerrar la sesión de tu cuenta en todos los dispositivos, incluido este?')) return
+    setClosingSessions(true)
+    setSessionError('')
+    const { error } = await ariasAuth.signOut('global')
+    if (error) {
+      setSessionError('No se ha podido confirmar el cierre de todas las sesiones. Inténtalo de nuevo.')
+      setClosingSessions(false)
+      return
+    }
+    navigate('/login', { replace: true })
+  }
+
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -74,6 +91,13 @@ export default function MyProfilePage() {
           </div>
 
           {isPlatformAdmin && <Link to="/admin/accesos" className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900">Registro de accesos de todos los usuarios</Link>}
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <ActionButton icon={LogOut} type="button" disabled={closingSessions}
+              onClick={() => void closeAllSessions()}
+              label={closingSessions ? 'Cerrando sesiones…' : 'Cerrar sesión en todos los dispositivos'} />
+            {sessionError && <p role="alert" className="mt-2 text-sm text-red-700">{sessionError}</p>}
+          </div>
+          {isPlatformAdmin && <AuthenticatorSetup />}
           <form className="mt-6 max-w-xl space-y-5" onSubmit={submit}>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-slate-700">

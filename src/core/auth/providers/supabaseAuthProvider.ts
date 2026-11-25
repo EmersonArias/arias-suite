@@ -117,8 +117,8 @@ export const supabaseAuthProvider: AriasAuthService = {
     }
   },
 
-  async signOut(): Promise<AuthResult<null>> {
-    const { error } = await supabase.auth.signOut()
+  async signOut(scope: 'local' | 'global' = 'global'): Promise<AuthResult<null>> {
+    const { error } = await supabase.auth.signOut({ scope })
 
     return {
       data: null,

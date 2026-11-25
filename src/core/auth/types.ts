@@ -25,7 +25,7 @@ export type AuthSubscription = {
 export interface AriasAuthService {
   getSession(): Promise<AuthResult<AriasSession>>
   signIn(identifier: string, password: string): Promise<AuthResult<AriasSession>>
-  signOut(): Promise<AuthResult<null>>
+  signOut(scope?: 'local' | 'global'): Promise<AuthResult<null>>
   requestPasswordReset(email: string): Promise<AuthResult<null>>
   updatePassword(password: string): Promise<AuthResult<null>>
   updateProfile(fullName: string): Promise<AuthResult<null>>
