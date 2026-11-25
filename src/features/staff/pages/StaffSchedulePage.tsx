@@ -1373,16 +1373,14 @@ export default function StaffSchedulePage() {
                 <td className="p-2">
                   {historySummary(row.previous_values)} → {historySummary(row.new_values)}
                 </td>
-                <td className="p-2">{row.actor_user_id
-                  ? <>
-                      {historyUsers[row.actor_user_id]||
+                <td className="p-2">{row.administrative_label??
+                  (row.actor_user_id&&row.actor_user_id===sessionUserId&&isPlatformAdmin?'Administrador':
+                    row.actor_user_id
+                      ? historyUsers[row.actor_user_id]||
                         (row.actor_user_id===sessionUserId?session?.user.email||'Usuario actual':null)||
                         operators.find(o=>o.linked_user_id===row.actor_user_id)?.display_name||
-                        'Usuario registrado'}
-                      {row.actor_user_id===sessionUserId&&isPlatformAdmin&&
-                        <span className="block text-xs text-slate-600">Administrador de la plataforma</span>}
-                    </>
-                  : row.administrative_label??'Sin sesión registrada'}</td>
+                        'Usuario registrado'
+                      : 'Sin sesión registrada')}</td>
               </tr>)}</tbody>
           </table>
           {history.length===0&&<p className="p-3 text-xs text-slate-500">
