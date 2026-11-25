@@ -24,7 +24,7 @@ import { auditCompensatoryRest } from '../staffOvertimeAudit'
 import StaffPeriodEditor from '../StaffPeriodEditor'
 import { exportAnnualStaffPdf } from '../staffAnnualPdf'
 import { isDemoUser } from '../../../core/access/demoReadOnly'
-import { exportStaffHistoryPdf,exportHolidayAuditPdf } from '../staffHolidayHistoryPdf'
+import { exportStaffHistoryPdf,exportHolidayAuditPdf,staffHistoryHeadings } from '../staffHolidayHistoryPdf'
 import { exportPlannerSchedulePdf } from '../staffPlannerPdf'
 
 type PageTab = 'CUADRANTE' | 'FESTIVOS' | 'ANUAL' | 'FINES' | 'EXTRAS' | 'VACACIONES' | 'AUSENCIAS' | 'NOTAS' | 'HISTORIAL' | 'REPORTES'
@@ -640,6 +640,26 @@ export default function StaffSchedulePage() {
       })
     }catch(e){setError('No se pudo generar el PDF: '+(e instanceof Error?e.message:'Error'))}
   }
+  const historyRows=history.filter(row=>operatorFilter==='ALL'||row.operator_id===operatorFilter).map(row=>{
+    const actorId=row.actor_user_id
+    const user=row.administrative_label??(actorId
+      ? actorId===sessionUserId&&isPlatformAdmin?'Administrador':
+        historyUsers[actorId]||
+        (actorId===sessionUserId?session?.user.email||'Usuario actual':null)||
+        operators.find(operator=>operator.linked_user_id===actorId)?.display_name||'Usuario registrado'
+      : 'Sin sesión registrada')
+    return {id:row.id,cells:[
+      new Date(row.changed_at).toLocaleString('es-ES'),
+      operators.find(operator=>operator.id===row.operator_id)?.display_name??'—',
+      asDisplayDate(row.work_date),
+      ({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??'Otro registro',
+      historyActions[row.action]??'Cambio',
+      historySummary(row.previous_values),
+      historySummary(row.new_values),
+      user,
+    ]}
+  })
+
   async function exportCurrentPdf(){
     if(!hotel?.id)return
     setError('')
@@ -658,8 +678,7 @@ export default function StaffSchedulePage() {
         case 'VACACIONES':await exportSectionPdf('VACACIONES');break
         case 'AUSENCIAS':await exportSectionPdf('BAJAS');break
         case 'HISTORIAL':
-          await exportStaffHistoryPdf({hotelName:hotel.name??'Hotel',year,operators,history,
-            operatorIds:filteredOperators.map(o=>o.id)})
+          await exportStaffHistoryPdf({hotelName:hotel.name??'Hotel',year,rows:historyRows.map(row=>row.cells)})
           break
         case 'CUADRANTE':
         case 'FINES':
@@ -1359,31 +1378,13 @@ export default function StaffSchedulePage() {
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50">
-              <th className="p-2">Cuándo</th><th className="p-2">Operario</th>
-              <th className="p-2">Fecha afectada</th><th className="p-2">Origen</th><th className="p-2">Acción</th>
-              <th className="p-2">Antes → Después</th><th className="p-2">Usuario</th>
+              {staffHistoryHeadings.map(heading=><th key={heading} scope="col" className="p-2">{heading}</th>)}
             </tr></thead>
-            <tbody>{history.filter(row=>operatorFilter==='ALL'||row.operator_id===operatorFilter).map(row=>
-              <tr key={row.id} className="border-b">
-                <td className="p-2">{new Date(row.changed_at).toLocaleString('es-ES')}</td>
-                <td className="p-2">{operators.find(o=>o.id===row.operator_id)?.display_name??'—'}</td>
-                <td className="p-2">{asDisplayDate(row.work_date)}</td>
-                <td className="p-2">{({SCHEDULE:'Cuadrante',OPERATOR:'Ficha personal',VACATION_BALANCE:'Saldo vacaciones',OVERTIME:'Horas extras'} as Record<string,string>)[row.entity_kind]??'Otro registro'}</td>
-                <td className="p-2">{historyActions[row.action]??'Cambio'}</td>
-                <td className="p-2">
-                  {historySummary(row.previous_values)} → {historySummary(row.new_values)}
-                </td>
-                <td className="p-2">{row.administrative_label??
-                  (row.actor_user_id&&row.actor_user_id===sessionUserId&&isPlatformAdmin?'Administrador':
-                    row.actor_user_id
-                      ? historyUsers[row.actor_user_id]||
-                        (row.actor_user_id===sessionUserId?session?.user.email||'Usuario actual':null)||
-                        operators.find(o=>o.linked_user_id===row.actor_user_id)?.display_name||
-                        'Usuario registrado'
-                      : 'Sin sesión registrada')}</td>
-              </tr>)}</tbody>
+            <tbody>{historyRows.map(row=><tr key={row.id} className="border-b">
+              {row.cells.map((value,index)=><td key={staffHistoryHeadings[index]} className="p-2">{value}</td>)}
+            </tr>)}</tbody>
           </table>
-          {history.length===0&&<p className="p-3 text-xs text-slate-500">
+          {historyRows.length===0&&<p className="p-3 text-xs text-slate-500">
             Aún no hay cambios nuevos auditados. El histórico anterior no se ha reconstruido artificialmente.
           </p>}
         </div>
