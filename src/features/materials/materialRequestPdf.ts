@@ -56,7 +56,7 @@ export async function buildMaterialRequestPdf(request: MaterialPdfRequest, lines
       doc.link(data.cell.x + 2, data.cell.y + 1, Math.max(12, data.cell.width - 4), Math.max(4, data.cell.height - 2), { url })
     },
   })
-  y = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 10
+  y = ((doc as PdfDocument & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 10
   if (request.notes) {
     if (y + 10 > bottom) { doc.addPage(); y = 20 }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(45, 55, 65)
