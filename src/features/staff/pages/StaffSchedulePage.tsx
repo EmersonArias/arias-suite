@@ -155,7 +155,7 @@ export default function StaffSchedulePage() {
   const [vacations,setVacations]=useState<StaffVacation[]>([])
   const [notes,setNotes]=useState<StaffNote[]>([])
   const [firstScheduledDates,setFirstShiftDates]=useState<Record<string,string>>({})
-  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
+  const [history,setHistory]=useState<Array<{id:string;operator_id:string;work_date:string;action:string;entity_kind:string;changed_at:string;actor_user_id:string|null;administrative_label:string|null;previous_values:Record<string,unknown>|null;new_values:Record<string,unknown>|null}>>([])
   const [historyUsers,setHistoryUsers]=useState<Record<string,string>>({})
   useEffect(()=>{
     if(tab!=='HISTORIAL')return
@@ -223,7 +223,7 @@ export default function StaffSchedulePage() {
       supabase.from('staff_calendar_holidays').select('holiday_date,label').eq('hotel_id',hotel.id)
         .gte('holiday_date',String(year-1)+'-12-25').lte('holiday_date',String(year+1)+'-01-10'),
       supabase.from('staff_operator_first_day').select('operator_id,first_scheduled_date').eq('hotel_id',hotel.id),
-      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,entity_kind,changed_at,actor_user_id,previous_values,new_values')
+      demo?Promise.resolve({data:[],error:null}):supabase.from('staff_schedule_history').select('id,operator_id,work_date,action,entity_kind,changed_at,actor_user_id,administrative_label,previous_values,new_values')
         .eq('hotel_id',hotel.id).gte('work_date',year+'-01-01').lte('work_date',year+'-12-31')
         .order('changed_at',{ascending:false}).limit(200),
     ])
@@ -1374,11 +1374,15 @@ export default function StaffSchedulePage() {
                   {historySummary(row.previous_values)} → {historySummary(row.new_values)}
                 </td>
                 <td className="p-2">{row.actor_user_id
-                  ? historyUsers[row.actor_user_id]||
-                    (row.actor_user_id===session?.user.id?session.user.email||'Usuario actual':null)||
-                    operators.find(o=>o.linked_user_id===row.actor_user_id)?.display_name||
-                    'Usuario registrado'
-                  : 'Sin sesión registrada'}</td>
+                  ? <>
+                      {historyUsers[row.actor_user_id]||
+                        (row.actor_user_id===sessionUserId?session?.user.email||'Usuario actual':null)||
+                        operators.find(o=>o.linked_user_id===row.actor_user_id)?.display_name||
+                        'Usuario registrado'}
+                      {row.actor_user_id===sessionUserId&&isPlatformAdmin&&
+                        <span className="block text-xs text-slate-600">Administrador de la plataforma</span>}
+                    </>
+                  : row.administrative_label??'Sin sesión registrada'}</td>
               </tr>)}</tbody>
           </table>
           {history.length===0&&<p className="p-3 text-xs text-slate-500">
