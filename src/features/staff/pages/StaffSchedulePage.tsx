@@ -695,7 +695,7 @@ export default function StaffSchedulePage() {
         case 'CUADRANTE':
         case 'FINES':
           await exportPlannerSchedulePdf({hotelName:hotel.name??'Hotel',year,operators,days,
-            mode:tab,operatorId:operatorFilter})
+            mode:tab,operatorId:operatorFilter,holidays})
           break
         case 'REPORTES':setReportPdfRequest(value=>value+1);break
         case 'NOTAS':setError('Las observaciones privadas no tienen exportación PDF habilitada por motivos de confidencialidad.');break
