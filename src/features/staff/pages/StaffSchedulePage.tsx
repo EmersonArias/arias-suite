@@ -676,7 +676,7 @@ export default function StaffSchedulePage() {
     ]}
   })
 
-  async function exportCurrentPdf(){
+  async function exportCurrentPdf(forSharing=false){
     if(!hotel?.id)return
     setError('')
     try{
@@ -699,7 +699,7 @@ export default function StaffSchedulePage() {
         case 'CUADRANTE':
         case 'FINES':
           await exportPlannerSchedulePdf({hotelName:hotel.name??'Hotel',year,operators,days,
-            mode:tab,operatorId:operatorFilter,holidays,calendarMode,focusDate:calendarFocusDate})
+            mode:tab,operatorId:operatorFilter,holidays,calendarMode,focusDate:calendarFocusDate,forSharing})
           break
         case 'REPORTES':setReportPdfRequest(value=>value+1);break
         case 'NOTAS':setError('Las observaciones privadas no tienen exportación PDF habilitada por motivos de confidencialidad.');break
@@ -773,6 +773,11 @@ export default function StaffSchedulePage() {
             className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
             <Printer size={15}/>PDF
           </button>
+          {tab==='CUADRANTE'&&<button type="button" aria-label="PDF para compartir"
+            onClick={()=>void exportCurrentPdf(true)} disabled={busy}
+            className="inline-flex min-h-9 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <span className="sm:hidden">Compartir</span><span className="hidden sm:inline">PDF para compartir</span>
+          </button>}
           {!demo&&<button aria-label="Añadir operario" title="Añadir operario" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-2 text-sm font-semibold text-white sm:px-3" onClick={()=>{setSelectedId('');editOperator(null)}}><Plus size={17}/><span className="hidden sm:inline">Operario</span></button>}
           {!demo&&selected&&operatorFilter!=='ALL'&&<button aria-label="Editar ficha" title="Editar ficha" className="flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg border px-2 text-sm sm:px-3" onClick={()=>editOperator(selected)}><UserRoundCog size={17}/><span className="hidden sm:inline">Editar ficha</span></button>}
         </div>

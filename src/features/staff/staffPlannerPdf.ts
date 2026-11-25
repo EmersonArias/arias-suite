@@ -12,7 +12,7 @@ const calendarFills:Record<string,string>={
  'teal-100':'#CCFBF1', 'orange-100':'#FFEDD5',
 }
 
-async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[];holidays?:string[];calendarMode:CalendarMode;focusDate:string},people:StaffOperator[]){
+async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[];holidays?:string[];calendarMode:CalendarMode;focusDate:string;forSharing?:boolean},people:StaffOperator[]){
  const {jsPDF}=await loadPdfLibraries()
  const doc=new jsPDF({format:'a4',orientation:'landscape',unit:'mm',compress:true})
  const days=new Map(input.days.map(entry=>[entry.operator_id+'|'+entry.work_date,entry]))
@@ -74,9 +74,10 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
        cell(name,left,y,nameWidth,rowHeight,'#F8FAFC','#1E293B',fontSize,'left')
        datesOfWeek.forEach((date,i)=>{
          const entry=days.get(person.id+'|'+date)
-         const tone=entryTone(entry)
+         const hideAbsence=input.forSharing&&entry?.state==='UNJUSTIFIED_ABSENCE'
+         const tone=entryTone(hideAbsence?undefined:entry)
          const fill=calendarFills[tone.split(' ')[0].slice(3)]??'#FFFFFF'
-         cell(outside(date)?'':dayCode(entry),left+nameWidth+i*dayWidth,y,dayWidth,rowHeight,
+         cell(outside(date)?'':hideAbsence?'Sin turno':dayCode(entry),left+nameWidth+i*dayWidth,y,dayWidth,rowHeight,
            outside(date)?'#F8FAFC':fill,tone.includes('text-white')?'#FFFFFF':'#1E293B',fontSize)
        })
        y+=rowHeight
@@ -86,7 +87,8 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
    doc.setFont('helvetica','normal')
    doc.setTextColor('#475569')
    doc.setFontSize(8)
-   const notes=[...legend.map(item=>item.code+' '+item.text),'V verde oscuro: disfrutadas',
+   const visibleLegend=input.forSharing?legend.filter(item=>item.state!=='UNJUSTIFIED_ABSENCE'):legend
+   const notes=[...visibleLegend.map(item=>item.code+' '+item.text),'V verde oscuro: disfrutadas',
      'V?: por confirmar',
      'Cabecera azul: festivo del calendario']
    doc.text(doc.splitTextToSize(notes.join(' · '),width),left,191)
@@ -95,13 +97,13 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
  const suffix=input.calendarMode==='ANO'?String(input.year):
    input.calendarMode==='MES'?input.focusDate.slice(0,7):
    input.calendarMode==='SEMANA'?'semana_'+week[0]:input.focusDate
- previewPdf(doc,'arias_suite_cuadrante_'+suffix+'.pdf')
+ previewPdf(doc,'arias_suite_cuadrante_'+(input.forSharing?'para_compartir_':'')+suffix+'.pdf')
 }
 
 const readable=(value:string)=>{const a=value.split('-');return a.length===3?a[2]+'/'+a[1]+'/'+a[0]:value}
 export async function exportPlannerSchedulePdf(input:{
  hotelName:string;year:number;operators:StaffOperator[];days:StaffDay[];
- mode:'CUADRANTE'|'FINES';operatorId:string;holidays?:string[];calendarMode:CalendarMode;focusDate:string
+ mode:'CUADRANTE'|'FINES';operatorId:string;holidays?:string[];calendarMode:CalendarMode;focusDate:string;forSharing?:boolean
 }){
  if(input.mode==='CUADRANTE'){
    const people=calendarPeople(input.operators,input.operatorId)
