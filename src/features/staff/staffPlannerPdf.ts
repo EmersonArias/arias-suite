@@ -95,8 +95,8 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
      'Cabecera azul: festivo del calendario']
    doc.text(doc.splitTextToSize(notes.join(' · '),width),left,191)
    doc.text((index+1)+' / '+pages.length,left+width,201,{align:'right'})
-   doc.setFontSize(6)
-   doc.text('Generado por Emerson Arias',left,201)
+   doc.setFontSize(9)
+   doc.text('Emerson Arias, departamento de mantenimiento',left,201)
  })
  const suffix=input.calendarMode==='ANO'?String(input.year):
    input.calendarMode==='MES'?input.focusDate.slice(0,7):
