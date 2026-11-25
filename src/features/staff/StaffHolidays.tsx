@@ -1,3 +1,4 @@
+import { recoveryStatus } from './staffOvertimeDetails'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarPlus, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -22,7 +23,7 @@ const kind=(day:StaffDay|null)=> {
  if(!day)return 'Sin registrar'
  if(day.state==='SHIFT')return day.actual_confirmed && (day.actual_minutes??0)>0?'Trabajado confirmado':'Turno previsto'
  if(day.state==='REST')return 'Descanso'
- if(day.state==='PUBLIC_HOLIDAY')return 'Festivo disfrutado'
+ if(day.state==='PUBLIC_HOLIDAY')return recoveryStatus(day.work_date)==='Programada'?'Festivo asignado':'Festivo disfrutado'
  return ({VACATION:'Vacaciones',VACATION_PREVIOUS:'Vacaciones anteriores',MEDICAL_LEAVE:'Baja',
    COMP_REST:'Recuperación de horas',PERSONAL_DAY:'Asuntos propios'} as Record<string,string>)[day.state]??day.state
 }
@@ -30,7 +31,7 @@ export default function StaffHolidays({
  hotelId,operatorId,firstScheduledDates,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
  type DetailKey='scheduled'|'enjoyed'|'beforeJoining'|'excludedByLeave'|'calendarPending'|'duplicateOrigins'
- const headings:Record<DetailKey,string>={scheduled:'Turnos en festivos',enjoyed:'Festivos disfrutados',beforeJoining:'Anteriores al alta',excludedByLeave:'Excluidos (baja/vacaciones)',calendarPending:'Pendientes',duplicateOrigins:'Duplicados'}
+ const headings:Record<DetailKey,string>={scheduled:'Turnos en festivos',enjoyed:'Festivos asignados o disfrutados',beforeJoining:'Anteriores al alta',excludedByLeave:'Excluidos (baja/vacaciones)',calendarPending:'Pendientes',duplicateOrigins:'Duplicados'}
  const [detail,setDetail]=useState<{operatorId:string;key:DetailKey}|null>(null)
  const dialog=useRef<HTMLDialogElement>(null)
  useEffect(()=>{setDetail(null)},[year,operatorId,hotelId])
@@ -136,13 +137,13 @@ export default function StaffHolidays({
    </div>}
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-center justify-between gap-2">
-       <h3 className="text-sm font-bold">Turnos festivos y festivos disfrutados por trabajador</h3>
+       <h3 className="text-sm font-bold">Turnos festivos y festivos asignados o disfrutados por trabajador</h3>
      </div>
      <div className="mt-2 overflow-x-auto">
        <table className="w-full min-w-[620px] text-left text-xs">
          <thead><tr className="border-b bg-slate-50">
            <th className="p-2">Trabajador</th><th>Turnos en festivos</th>
-           <th>Festivos disfrutados</th>
+           <th>Festivos asignados o disfrutados</th>
            <th>Anteriores al alta</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th>
          </tr></thead>
          <tbody>{audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
@@ -159,7 +160,6 @@ export default function StaffHolidays({
    </div>
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <h3 className="text-sm font-bold">Detalle por fecha y trabajador</h3>
-     <p className="mt-1 text-xs text-slate-500">Cada celda distingue el turno del día festivo y cuándo se ha disfrutado ese festivo. Pulsa para editar el día en el cuadrante.</p>
      <div className="mt-3 overflow-x-auto">
        <table className="w-full min-w-[680px] border-collapse text-xs">
          <thead><tr className="border-b bg-slate-50">
@@ -187,7 +187,7 @@ export default function StaffHolidays({
                {data.pending&&<span className="mt-1 block rounded bg-red-100 px-2 py-1 text-[11px] font-bold text-red-800">PENDIENTE · SIN ASIGNAR</span>}
                {data.enjoyed.length>0&&<div className={'mt-1 rounded p-1 text-[11px] '+
                    (data.duplicate?'bg-amber-100 text-amber-900':'bg-emerald-50 text-emerald-900')}>
-                 {data.duplicate?'DUPLICADO · ':''}Disfrute: {data.enjoyed.map(d=>dayLabel(d.work_date)).join(', ')}
+                 {data.duplicate?'DUPLICADO · ':''}{data.enjoyed.map(d=>(recoveryStatus(d.work_date)==='Programada'?'Asignado: ':'Disfrutado: ')+dayLabel(d.work_date)).join(', ')}
                  <div className="mt-1 flex flex-wrap gap-1">{data.enjoyed.map(d=><button key={d.id}
                    onClick={()=>onEditDay(o.id,d.work_date)}
                    className="rounded border border-current px-1 underline">Editar {dayLabel(d.work_date)}</button>)}</div>
