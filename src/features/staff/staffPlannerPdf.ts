@@ -48,10 +48,11 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
    doc.setTextColor('#0F172A')
    doc.setFont('helvetica','bold')
    doc.setFontSize(17)
-   doc.text(title,left,15)
+   doc.text('Horario personal de mantenimiento',left,15)
    doc.setFont('helvetica','normal')
    doc.setFontSize(9)
-   doc.text(input.hotelName,left,23)
+   doc.text(title,left,23)
+   doc.text(input.hotelName,left+width,23,{align:'right'})
    const weeks=dates.length/columns
    const rowHeight=Math.min(9,(184-top-weeks*headerHeight-(weeks-1)*gap)/(weeks*people.length))
    const fontSize=Math.min(10,rowHeight*1.8)
@@ -94,6 +95,8 @@ async function exportCalendar(input:{hotelName:string;year:number;days:StaffDay[
      'Cabecera azul: festivo del calendario']
    doc.text(doc.splitTextToSize(notes.join(' · '),width),left,191)
    doc.text((index+1)+' / '+pages.length,left+width,201,{align:'right'})
+   doc.setFontSize(6)
+   doc.text('Generado por Emerson Arias',left,201)
  })
  const suffix=input.calendarMode==='ANO'?String(input.year):
    input.calendarMode==='MES'?input.focusDate.slice(0,7):
