@@ -73,7 +73,7 @@ function getWeekendSummary(days:StaffDay[],operatorId:string,year:number) {
 }
 function operatorTotals(days:StaffDay[],overtime:StaffOvertime[],operatorId:string,year:number){
   const own=days.filter(d=>d.operator_id===operatorId && d.work_date.startsWith(String(year)))
-  const extra=overtime.filter(d=>d.operator_id===operatorId && d.entry_date.startsWith(String(year)))
+  const extra=overtime.filter(d=>d.operator_id===operatorId)
   const money=(kind:string)=>extra.filter(e=>e.entry_type===kind).reduce((t,e)=>t+e.minutes,0)
   return {
     planned:own.filter(d=>d.state==='SHIFT').reduce((t,d)=>t+plannedMinutes(d),0),
@@ -242,10 +242,11 @@ export default function StaffSchedulePage() {
   const earnedEntries=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id&&
     ['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)).map(e=>{
        const taken=overtime.filter(t=>t.compensates_entry_id===e.id&&
-         t.linked_schedule_entry_id!==byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id)
+         (!byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id || t.linked_schedule_entry_id!==byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id))
          .reduce((sum,t)=>sum+t.minutes,0)
        return {...e,remaining:e.minutes-taken}
     }).filter(e=>e.remaining>0||dayEditor.comp_allocations[e.id]>0):[]
+  const restGlobalAvailable=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id).reduce((sum,e)=>sum+(['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)?e.minutes:e.linked_schedule_entry_id&&e.linked_schedule_entry_id===byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id&&e.source_kind==='SCHEDULE'?0:-e.minutes),0):0
   const restAllocated=dayEditor?Object.values(dayEditor.comp_allocations).reduce((a,b)=>a+b,0):0
   const restRemaining=dayEditor?dayEditor.target_minutes-restAllocated:0
 
@@ -385,7 +386,7 @@ export default function StaffSchedulePage() {
       setDayEditorError('Selecciona uno de los festivos pendientes de este trabajador.');return
     }
     if(dayEditor.state==='COMP_REST'){
-      if(restRemaining!==0||restAllocated<=0||
+      if(restRemaining!==0||restAllocated<=0||restAllocated>restGlobalAvailable||
         Object.entries(dayEditor.comp_allocations).some(([id,n])=>n<=0||
           !earnedEntries.some(e=>e.id===id&&e.remaining>=n))){
         setDayEditorError('Debes cubrir '+hours(dayEditor.target_minutes)+
@@ -808,7 +809,7 @@ export default function StaffSchedulePage() {
                 <th className="p-2">Operario</th><th>Fecha</th><th>Movimiento</th>
                 <th>Horas</th><th>Origen</th><th>Disfrutado el</th>
               </tr></thead>
-              <tbody>{overtime.filter(entry=>entry.entry_date.startsWith(String(year)))
+              <tbody>{overtime.slice()
                 .sort((a,b)=>a.entry_date.localeCompare(b.entry_date)).map(entry=>{
                   const origin=entry.compensates_entry_id
                     ?overtime.find(row=>row.id===entry.compensates_entry_id):null
@@ -1518,10 +1519,11 @@ export default function StaffSchedulePage() {
               <h3 className="text-sm font-semibold text-sky-950">Repartir horas para descansar la jornada completa</h3>
               <p className="mt-1 text-xs text-sky-900">Jornada a compensar: <strong>{hours(dayEditor.target_minutes)}</strong>.
                 Selecciona uno o varios registros pendientes. Solo se descontará la parte necesaria de cada uno.</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs"><div>Saldo disponible: <strong>{hours(restGlobalAvailable)}</strong></div><div>Saldo tras selección: <strong>{hours(restGlobalAvailable-restAllocated)}</strong></div></div>
               <div className="mt-3 space-y-2">
                 {earnedEntries.map(entry=>{
                   const chosen=dayEditor.comp_allocations[entry.id]??0
-                  const available=Math.max(0,entry.remaining-chosen)
+                  const available=Math.max(0,Math.min(entry.remaining-chosen,restGlobalAvailable-restAllocated))
                   return <div key={entry.id} className="rounded-lg border border-sky-200 bg-white p-2">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span><strong>{asDisplayDate(entry.entry_date)}</strong> · {entry.reason}</span>
