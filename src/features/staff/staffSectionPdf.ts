@@ -61,9 +61,9 @@ export async function staffSectionPdf(options:{
       .sort((a,b)=>a.work_date.localeCompare(b.work_date)).map(d=>[
         names.get(d.operator_id)||'—',display(d.work_date),
         options.section==='VACACIONES'?(d.state==='VACATION_PREVIOUS'?'Vac. año anterior':'Vacaciones'):
-          ({MEDICAL_LEAVE:'Baja',UNJUSTIFIED_ABSENCE:'Ausencia',PERSONAL_DAY:'Asuntos propios',PERMISSION:d.source_code||'Permiso'} as Record<string,string>)[d.state]||d.state,
+          ({MEDICAL_LEAVE:'Baja',UNJUSTIFIED_ABSENCE:'Falta no justificada',PERSONAL_DAY:'Asuntos propios',PERMISSION:d.source_code||'Permiso'} as Record<string,string>)[d.state]||d.state,
         options.section==='VACACIONES'?vacationStage(d)==='TAKEN'?'Disfrutadas':vacationStage(d)==='UPCOMING'?'Pendientes':'Por confirmar':
-          ({DOCUMENTED:'Documentada',PENDING:'Pendiente',UNJUSTIFIED:'No justificada',UNKNOWN:'Sin verificar'} as Record<string,string>)[d.justification]||'Sin verificar'
+          ({DOCUMENTED:'Documentada',PENDING:'Pendiente',UNJUSTIFIED:'No justificada',UNKNOWN:'Sin verificar'} as Record<string,string>)[d.state==='UNJUSTIFIED_ABSENCE'?'UNJUSTIFIED':d.justification]||'Sin verificar'
       ])
   }
   autoTable(doc,{head:[head],body:body.length?body:[['Sin registros para el período',...head.slice(1).map(()=>'')]],
