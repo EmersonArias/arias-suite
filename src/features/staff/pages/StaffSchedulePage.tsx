@@ -15,6 +15,7 @@ import {
 } from '../staffModel'
 import { groupConsecutiveDays, groupVacationPeriods, loadAllStaffDays } from '../staffData'
 import StaffCalendar from '../StaffCalendar'
+import type { CalendarMode } from '../staffCalendarLayout'
 import StaffReport from '../StaffReport'
 import { staffSectionPdf } from '../staffSectionPdf'
 import { accruedVacationDays } from '../staffVacationAccrual'
@@ -120,6 +121,9 @@ export default function StaffSchedulePage() {
   const sessionUserId=session?.user.id
   const demo=isDemoUser(session?.user.id)
   const [year,setYear]=useState(new Date().getFullYear())
+  const [calendarMode,setCalendarMode]=useState<CalendarMode>('MES')
+  const [calendarDate,setCalendarDate]=useState(()=>dateISO(new Date()))
+  const calendarFocusDate=calendarDate.startsWith(year+'-')?calendarDate:year+'-01-15'
   const [operatorFilter,setOperatorFilter]=useState('ALL')
   const [reportPdfRequest,setReportPdfRequest]=useState(0)
   const [vacationStatusFilter,setVacationStatusFilter]=useState<VacationFilter>('ALL')
@@ -695,7 +699,7 @@ export default function StaffSchedulePage() {
         case 'CUADRANTE':
         case 'FINES':
           await exportPlannerSchedulePdf({hotelName:hotel.name??'Hotel',year,operators,days,
-            mode:tab,operatorId:operatorFilter})
+            mode:tab,operatorId:operatorFilter,holidays,calendarMode,focusDate:calendarFocusDate})
           break
         case 'REPORTES':setReportPdfRequest(value=>value+1);break
         case 'NOTAS':setError('Las observaciones privadas no tienen exportación PDF habilitada por motivos de confidencialidad.');break
@@ -742,7 +746,11 @@ export default function StaffSchedulePage() {
       {success&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" onClick={()=>setSuccess('')}>{success}</div>}
       <section className="flex items-end gap-1.5 rounded-xl bg-white p-2 shadow-sm sm:flex-wrap sm:gap-3 sm:rounded-2xl sm:p-4">
         <label className="w-[76px] shrink-0 text-[10px] font-semibold text-slate-600 sm:w-24 sm:text-xs">Año
-          <select value={year} onChange={e=>setYear(Number(e.target.value))} className={baseInput+' mt-0.5 sm:mt-1'}>
+          <select value={year} onChange={e=>{
+            const nextYear=Number(e.target.value)
+            setYear(nextYear)
+            setCalendarDate(nextYear+'-01-15')
+          }} className={baseInput+' mt-0.5 sm:mt-1'}>
             {Array.from({length:9},(_,i)=>year-4+i).map(v=><option key={v} value={v}>{v}</option>)}
           </select>
         </label>
@@ -784,6 +792,10 @@ export default function StaffSchedulePage() {
 
       {tab==='CUADRANTE'&&<StaffCalendar
         year={year}
+        mode={calendarMode}
+        focusDate={calendarFocusDate}
+        setMode={setCalendarMode}
+        setFocusDate={setCalendarDate}
         operators={operators}
         days={days}
         holidays={holidays}
