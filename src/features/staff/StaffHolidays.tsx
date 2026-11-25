@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarPlus, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { StaffDay,StaffOperator } from './staffModel'
-import { holidayAudit } from './staffHolidayAudit'
+import { splitShiftLabel } from './staffModel'
+import { holidayAudit, type HolidayWorkerSummary } from './staffHolidayAudit'
 
 type Props={
  hotelId:string
@@ -28,6 +29,12 @@ const kind=(day:StaffDay|null)=> {
 export default function StaffHolidays({
  hotelId,operatorId,firstScheduledDates,year,operators,days,holidays,onReload,onEditDay,readOnly=false,
 }:Props){
+ type DetailKey='scheduled'|'enjoyed'|'beforeJoining'|'excludedByLeave'|'calendarPending'|'duplicateOrigins'
+ const headings:Record<DetailKey,string>={scheduled:'Turnos en festivos',enjoyed:'Festivos disfrutados',beforeJoining:'Anteriores al alta',excludedByLeave:'Excluidos (baja/vacaciones)',calendarPending:'Pendientes',duplicateOrigins:'Duplicados'}
+ const [detail,setDetail]=useState<{operatorId:string;key:DetailKey}|null>(null)
+ const dialog=useRef<HTMLDialogElement>(null)
+ useEffect(()=>{setDetail(null)},[year,operatorId,hotelId])
+ useEffect(()=>{const el=dialog.current;if(detail&&el&&!el.open)el.showModal();else if(!detail&&el?.open)el.close()},[detail])
  const [date,setDate]=useState(String(year)+'-01-01')
  const [label,setLabel]=useState('')
  const [busy,setBusy]=useState(false)
@@ -57,6 +64,20 @@ export default function StaffHolidays({
    d.work_date.startsWith(String(year+1)))&&visible.some(o=>o.id===d.operator_id))
  const filteredSummary=audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
  const pendingCount=filteredSummary.reduce((n,s)=>n+s.duplicateOrigins,0)
+ const selected=detail?filteredSummary.find(s=>s.operator.id===detail.operatorId):undefined
+ const detailRows=detail&&selected?audit.matrix.filter(r=>r.operator.id===selected.operator.id).flatMap(r=>{
+   const origin=dayLabel(r.holiday.holiday_date)+' · '+r.holiday.label
+   const item=(key:string,description:string)=>({key:r.holiday.holiday_date+'-'+key,origin,description})
+   switch(detail.key){
+     case 'scheduled':return r.scheduled?.state==='SHIFT'?[item('shift',r.scheduled.start_time&&r.scheduled.end_time?splitShiftLabel(r.scheduled.start_time,r.scheduled.end_time):'Horario sin registrar')]:[]
+     case 'enjoyed':return r.enjoyed.map(d=>item(d.id,'Disfrute anotado: '+dayLabel(d.work_date)))
+     case 'beforeJoining':return r.beforeJoining?[item('before','Incorporación: '+dayLabel(selected.operator.join_date??firstScheduledDates[selected.operator.id]??'')+(!selected.operator.join_date?' (provisional)':''))]:[]
+     case 'excludedByLeave':return r.excludedByLeave?[item('leave',kind(r.scheduled)+(r.enjoyed.length?' · Asignación manual registrada':''))]:[]
+     case 'calendarPending':return r.pending?[item('pending','Sin asignar')]:[]
+     case 'duplicateOrigins':return r.duplicate?[item('duplicate',r.enjoyed.length+' asignaciones: '+r.enjoyed.map(d=>dayLabel(d.work_date)).join(', ')+' · '+(r.enjoyed.length-1)+' duplicados')]:[]
+   }
+ }):[]
+ const countCell=(s:HolidayWorkerSummary,key:DetailKey)=>s[key]>0?<button type="button" className="min-h-8 min-w-8 rounded px-2 font-semibold underline hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-sky-600" aria-label={headings[key]+' de '+s.operator.display_name+': '+s[key]} onClick={()=>setDetail({operatorId:s.operator.id,key})}>{s[key]}</button>:<span className="px-2">0</span>
  return <section className="space-y-3">
    <div className="rounded-xl bg-white p-3 shadow-sm sm:p-4">
      <div className="flex flex-wrap items-start justify-between gap-2">
@@ -121,18 +142,17 @@ export default function StaffHolidays({
        <table className="w-full min-w-[620px] text-left text-xs">
          <thead><tr className="border-b bg-slate-50">
            <th className="p-2">Trabajador</th><th>Turnos en festivos</th>
-           <th>Trabajos confirmados</th><th>Festivos disfrutados</th>
-           <th>Festivos distintos</th><th>Anteriores al alta</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th>
+           <th>Festivos disfrutados</th>
+           <th>Anteriores al alta</th><th>Excluidos (baja/vacaciones)</th><th>Pendientes</th><th>Duplicados</th>
          </tr></thead>
          <tbody>{audit.summaries.filter(s=>visible.some(o=>o.id===s.operator.id))
            .map(s=><tr key={s.operator.id} className="border-b">
              <td className="p-2 font-semibold">{s.operator.display_name}</td>
-             <td>{s.scheduled}</td><td>{s.confirmed}</td><td>{s.enjoyed}</td>
-             <td>{s.distinctOrigins} / {Math.max(0,audit.official.length-s.beforeJoining)}</td>
-             <td className="text-slate-600">{s.beforeJoining}</td>
-             <td className="text-slate-600">{s.excludedByLeave}</td>
-             <td className={s.calendarPending?'bg-red-100 font-bold text-red-800':'text-slate-600'}>{s.calendarPending}</td>
-             <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{s.duplicateOrigins}</td>
+             <td>{countCell(s,'scheduled')}</td><td>{countCell(s,'enjoyed')}</td>
+             <td className="text-slate-600">{countCell(s,'beforeJoining')}</td>
+             <td className="text-slate-600">{countCell(s,'excludedByLeave')}</td>
+             <td className={s.calendarPending?'bg-red-100 font-bold text-red-800':'text-slate-600'}>{countCell(s,'calendarPending')}</td>
+             <td className={s.duplicateOrigins?'font-bold text-amber-800':''}>{countCell(s,'duplicateOrigins')}</td>
            </tr>)}</tbody>
        </table>
      </div>
@@ -179,5 +199,13 @@ export default function StaffHolidays({
        </table>
      </div>
    </div>
+   <dialog ref={dialog} onClose={()=>setDetail(null)} aria-labelledby="holiday-detail-title" className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-white p-4 shadow-xl backdrop:bg-black/40">
+     {detail&&selected&&<><div className="flex items-start justify-between gap-3">
+       <div><h3 id="holiday-detail-title" className="text-sm font-bold">{headings[detail.key]} · {selected[detail.key]}</h3><p className="text-xs text-slate-600">{selected.operator.display_name} · {year}</p></div>
+       <button type="button" onClick={()=>setDetail(null)} className="rounded border px-3 py-1 text-xs">Cerrar</button>
+     </div><div className="mt-3 max-h-[60vh] overflow-y-auto divide-y">
+       {detailRows.map(r=><div key={r.key} className="py-2 text-xs"><div className="font-semibold">{r.origin}</div><div className="mt-1 text-slate-600">{r.description}</div></div>)}
+     </div></>}
+   </dialog>
  </section>
 }
