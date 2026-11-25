@@ -246,7 +246,7 @@ export default function StaffSchedulePage() {
          .reduce((sum,t)=>sum+t.minutes,0)
        return {...e,remaining:e.minutes-taken}
     }).filter(e=>e.remaining>0||dayEditor.comp_allocations[e.id]>0):[]
-  const restGlobalAvailable=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id).reduce((sum,e)=>sum+(['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)?e.minutes:e.linked_schedule_entry_id&&e.linked_schedule_entry_id===byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id&&e.source_kind==='SCHEDULE'?0:-e.minutes),0):0
+  const restGlobalAvailable=dayEditor?overtime.filter(e=>e.operator_id===dayEditor.operator_id).reduce((sum,e)=>sum+(['EARNED','ADJUSTMENT_PLUS'].includes(e.entry_type)?e.minutes:e.linked_schedule_entry_id&&e.linked_schedule_entry_id===byDay.get(dayEditor.operator_id+'|'+dayEditor.work_date)?.id&&e.entry_type==='REST_TAKEN'?0:-e.minutes),0):0
   const restAllocated=dayEditor?Object.values(dayEditor.comp_allocations).reduce((a,b)=>a+b,0):0
   const restRemaining=dayEditor?dayEditor.target_minutes-restAllocated:0
 
